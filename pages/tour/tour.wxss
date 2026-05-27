@@ -118,7 +118,7 @@
 .thinking-row {
   display: flex;
   justify-content: flex-start;
-  padding: 8rpx 16rpx 20rpx;
+  padding: 8rpx 16rpx 8rpx;
 }
 
 .thinking-dots {
@@ -144,6 +144,26 @@
 @keyframes blink {
   0%, 80%, 100% { opacity: 0.2; }
   40%            { opacity: 1;   }
+}
+
+/* ── Progressive loading hint text ──────────────────────────────────────── */
+
+.loading-hint-row {
+  display: flex;
+  justify-content: flex-start;
+  padding: 0 16rpx 20rpx;
+}
+
+.loading-hint {
+  font-size: 22rpx;
+  color: #8A6E55;
+  line-height: 1.5;
+  animation: hint-fade-in 0.35s ease-out;
+}
+
+@keyframes hint-fade-in {
+  from { opacity: 0; transform: translateY(6rpx); }
+  to   { opacity: 1; transform: translateY(0);    }
 }
 
 /* ── Live streaming bubble ───────────────────────────────────────────────── */
@@ -230,4 +250,39 @@
 .send-btn.active {
   color: #C4845A;
   font-weight: 600;
+}
+
+/* ── Stop generation button ──────────────────────────────────────────────── */
+
+.stop-btn {
+  display: flex;
+  align-items: center;
+  gap: 8rpx;
+  padding: 14rpx 24rpx;
+  background: #FFF5EE;
+  border: 2rpx solid #C4845A;
+  border-radius: 36rpx;
+  flex-shrink: 0;
+  /* tap feedback */
+  transition: background 0.15s, opacity 0.15s;
+}
+
+.stop-btn:active {
+  opacity: 0.7;
+  background: #FAE8D8;
+}
+
+.stop-icon {
+  width: 22rpx;
+  height: 22rpx;
+  background: #C4845A;
+  border-radius: 4rpx;
+  flex-shrink: 0;
+}
+
+.stop-label {
+  font-size: 26rpx;
+  color: #C4845A;
+  font-weight: 500;
+  line-height: 1;
 }

@@ -68,7 +68,8 @@ frontend/
 | Stage 4 | ✅ 完成 | 页面骨架 + 组件骨架 + 导航流程 |
 | Stage 5 | ✅ 完成 | 游客导览会话接入后端 |
 | Stage 6 Batch 1 | ✅ 完成 | SSE 流式底层 api/stream.js |
-| **Stage 6 Batch 2** | **✅ 当前** | **tour 页面真实 SSE 流式 AI 回复** |
+| Stage 6 Batch 2 | ✅ 完成 | tour 页面真实 SSE 流式 AI 回复 |
+| **Stage 6 Batch 3** | **✅ 当前** | **流式性能优化与 UX 改善** |
 | Stage 7 | 🔲 待开始 | TTS 语音播报（wx.createInnerAudioContext） |
 
 ### Stage 6 Batch 2 — 流式 AI 对话
@@ -90,6 +91,64 @@ frontend/
 - `onUnload` 自动调用 `task.abort()` 防止后台继续接收
 - 无会话（演示模式）时使用 `_mockReply()` 逐字模拟流式效果
 - 所有错误 Toast 提示 + 错误消息气泡，不白屏
+
+### Stage 6 Batch 3 — 流式性能优化与 UX 改善
+
+#### 性能计时埋点
+
+`tour.js` 每次请求记录四个时间戳，并在 Console 输出两行指标：
+
+```
+[perf] first token latency: 1240 ms
+[perf] total stream duration: 8730 ms
+```
+
+| 指标 | 含义 | 慢的原因 |
+|------|------|----------|
+| `firstTokenLatency` | 发送 → 首个 chunk 到达 | **> 5000 ms**：后端慢（RAG 检索 / 向量化 / 模型预热） |
+| `totalDuration` | 发送 → done 事件 | **很长但 firstToken 正常**：模型输出慢 / 后端 flush 节奏 |
+
+**如何判断慢在前端还是后端**：
+- `firstTokenLatency < 1000 ms`，`totalDuration` 很长 → 模型生成慢，前端无能为力
+- `firstTokenLatency > 3000 ms` → 后端 RAG 检索或冷启动慢
+- `firstTokenLatency` 正常，UI 更新有明显卡顿 → 前端 setData 过频，已用 80 ms 节流解决
+- 网络超时（wx timeout） → 前端报 `AI 导览员响应超时`，见 Console 原始 errMsg
+
+#### Chunk 刷新节流（80 ms）
+
+后端每隔数十毫秒推送一个 chunk，若逐个 `setData` 会高频触发 JS→渲染器通信。
+优化方案：chunk 先追加到实例变量 `_chunkBuffer`，每 80 ms 批量一次 `setData`。
+`onDone` / `stopStream` / `onError` 时调用 `_forceFlush()` 立即同步剩余内容。
+
+#### 渐进式加载提示
+
+等待首个 chunk 期间按时间梯次更新提示文字，让用户感知后端正在工作：
+
+| 时间 | 提示文案 |
+|------|----------|
+| 立即 | 正在连接 AI 导览员… |
+| 3 s  | 正在检索半坡资料，请稍候… |
+| 8 s  | 资料较多，AI 正在整理讲解… |
+
+首个 chunk 到达后提示文字消失，显示流式气泡。
+
+#### 停止生成
+
+发送中或流式接收期间，输入栏右侧「发送」按钮替换为「停止」按钮（橙色方形图标）。
+点击后：
+1. 调用 `requestTask.abort()` 终止连接
+2. 强制 flush 已缓冲内容
+3. 将已生成部分提交为正式消息，结尾追加 `\n\n（已停止）`
+4. 恢复可输入状态
+
+#### 用户友好错误提示
+
+| 原始错误特征 | 展示给用户 | Console 保留 |
+|-------------|-----------|-------------|
+| `timeout` / 超时 | AI 导览员响应超时，请稍后再试。 | 原始 err 对象 |
+| HTTP 5xx | 服务器暂时繁忙，请稍后再试。 | 同上 |
+| HTTP 4xx | 请求参数有误，请重试或刷新页面。 | 同上 |
+| 其他 / 网络 | 连接 AI 导览员失败，请检查网络后重试。 | 同上 |
 
 ## 与后端 API 的关系
 

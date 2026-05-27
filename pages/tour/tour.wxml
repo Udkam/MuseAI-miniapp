@@ -54,6 +54,11 @@
         </view>
       </view>
 
+      <!-- ── Progressive loading hint text ── -->
+      <view wx:if="{{isThinking && !isStreaming && loadingHint}}" class="loading-hint-row">
+        <text class="loading-hint">{{loadingHint}}</text>
+      </view>
+
       <!-- ── Live streaming assistant bubble ── -->
       <view wx:if="{{isStreaming}}" class="stream-bubble">
         <view class="stream-bubble-inner">
@@ -81,8 +86,17 @@
       bindconfirm="sendMessage"
       adjust-position
     />
+
+    <!-- Stop button: visible while thinking or streaming -->
+    <view wx:if="{{isThinking || isStreaming}}" class="stop-btn" bindtap="stopStream">
+      <view class="stop-icon"></view>
+      <text class="stop-label">停止</text>
+    </view>
+
+    <!-- Send button: visible when idle -->
     <text
-      class="send-btn {{inputText && !isThinking && !isStreaming ? 'active' : ''}}"
+      wx:else
+      class="send-btn {{inputText ? 'active' : ''}}"
       bindtap="sendMessage"
     >发送</text>
   </view>

@@ -12,18 +12,24 @@ Page({
         content: '欢迎来到半坡遗址！我是你的 AI 导览伙伴 MuseAI。\n\n这里是距今约6000年的半坡先民聚居地，也是中国最早发掘、保存完整的新石器时代村落遗址之一。\n\n你想从哪里开始探索？',
       },
     ],
-    streamingContent: '',   // live content — updated on every chunk, NOT in messages[]
+    streamingContent: '',    // live text — throttled setData, NOT stored in messages[]
     isThinking:       false, // waiting for first chunk
     isStreaming:      false, // receiving chunks
     ragSteps:         [],    // RAG pipeline progress (from onEvent)
     inputText:        '',
     sessionId:        null,
     scrollTarget:     'msg-bottom-a',
+    loadingHint:      '',    // progressive hint text while waiting for first chunk
   },
 
-  // ── Instance vars (not reactive) ──────────────────────────────────────────
-  _streamTask:    null,   // active RequestTask, for abort()
-  _scrollPending: false,  // debounce flag
+  // ── Instance vars (non-reactive) ──────────────────────────────────────────
+  _streamTask:    null,   // active RequestTask — call .abort() to cancel
+  _scrollPending: false,  // debounce flag for _scrollToBottom
+  _perf:          null,   // { sendAt, streamStartAt, firstChunkAt, doneAt }
+  _hintTimer3:    null,   // upgrades loadingHint text at 3 s
+  _hintTimer8:    null,   // upgrades loadingHint text at 8 s
+  _chunkBuffer:   '',     // chunk text accumulator pending the next 80 ms flush
+  _flushTimer:    null,   // timer ID for scheduled _chunkBuffer flush
 
   // ── Lifecycle ─────────────────────────────────────────────────────────────
 
@@ -41,6 +47,8 @@ Page({
   },
 
   onUnload: function () {
+    this._clearHintTimers()
+    this._clearFlushTimer()
     if (this._streamTask) {
       this._streamTask.abort()
       this._streamTask = null
@@ -64,7 +72,11 @@ Page({
     var id    = state.sessionId
     var token = state.sessionToken
 
-    // Append user message to page data immediately
+    // ── Performance clock ──────────────────────────────────────────────────
+    var now = Date.now()
+    self._perf = { sendAt: now, streamStartAt: now, firstChunkAt: 0, doneAt: 0 }
+
+    // ── Append user bubble immediately ─────────────────────────────────────
     var userMsg = { id: Date.now(), role: 'user', content: text }
     chatStore.addUserMessage(text)
     self.setData({
@@ -74,16 +86,32 @@ Page({
       isStreaming:      false,
       streamingContent: '',
       ragSteps:         [],
+      loadingHint:      '正在连接 AI 导览员…',
     })
     self._scrollToBottom()
 
-    // No session — show demo mode reply
+    // ── Progressive loading hints ──────────────────────────────────────────
+    self._clearHintTimers()
+    self._hintTimer3 = setTimeout(function () {
+      if (self.data.isThinking && !self.data.isStreaming) {
+        self.setData({ loadingHint: '正在检索半坡资料，请稍候…' })
+      }
+    }, 3000)
+    self._hintTimer8 = setTimeout(function () {
+      if (self.data.isThinking && !self.data.isStreaming) {
+        self.setData({ loadingHint: '资料较多，AI 正在整理讲解…' })
+      }
+    }, 8000)
+
+    // No session — demo mode
     if (!id) {
+      self._clearHintTimers()
+      self.setData({ loadingHint: '' })
       self._mockReply('未检测到导览会话，请先完成首页问卷。当前为演示模式。')
       return
     }
 
-    // Start SSE stream
+    // ── Start SSE stream ───────────────────────────────────────────────────
     self._streamTask = api.tourApi.chatStream(id, {
       message: text,
       token:   token,
@@ -91,29 +119,49 @@ Page({
       onChunk: function (chunk) {
         if (!chunk) return
 
-        // Transition THINKING → STREAMING on first chunk
+        // First chunk — measure first-token latency, clear hints, transition state
         if (!self.data.isStreaming) {
+          if (self._perf) {
+            self._perf.firstChunkAt = Date.now()
+            var ftl = self._perf.firstChunkAt - self._perf.sendAt
+            console.log('[perf] first token latency:', ftl, 'ms')
+          }
+          self._clearHintTimers()
           chatStore.startAssistantMessage()
-          self.setData({ isThinking: false, isStreaming: true })
+          self.setData({ isThinking: false, isStreaming: true, loadingHint: '' })
         }
 
-        // Partial path update: only update streamingContent, NOT messages[]
+        // Buffer for throttled UI flush (every 80 ms)
         chatStore.appendAssistantChunk(chunk)
-        self.setData({ streamingContent: self.data.streamingContent + chunk })
-        self._scrollToBottom()
+        self._chunkBuffer += chunk
+        self._scheduleFlush()
       },
 
       onEvent: function (ev) {
         if (ev.type === 'rag_step') {
           chatStore.setRagStep(ev.step, ev.status, ev.message)
-          // Partial path update: only ragSteps[]
           self.setData({ ragSteps: chatStore.getState().ragSteps })
         }
-        // thinking events are visual-only — no extra action needed
+        // thinking events are visual-only — thinking dots already shown
       },
 
       onDone: function (payload) {
         self._streamTask = null
+        self._clearHintTimers()
+
+        // ── Performance summary ────────────────────────────────────────────
+        if (self._perf) {
+          self._perf.doneAt = Date.now()
+          var totalDuration     = self._perf.doneAt - self._perf.sendAt
+          var firstTokenLatency = self._perf.firstChunkAt
+            ? (self._perf.firstChunkAt - self._perf.sendAt) + ' ms'
+            : 'N/A (no chunks received)'
+          console.log('[perf] first token latency:', firstTokenLatency)
+          console.log('[perf] total stream duration:', totalDuration, 'ms')
+        }
+
+        // Force-flush any buffered chunk text before committing message
+        self._forceFlush()
 
         // Resolve final content (three shapes the backend may send)
         var finalContent = payload.content
@@ -125,7 +173,6 @@ Page({
         var traceId = payload.trace_id || null
         chatStore.finishAssistantMessage({ content: finalContent, traceId: traceId })
 
-        // Commit streaming bubble into messages[], clear streaming state
         var aiMsg = {
           id:      Date.now(),
           role:    'assistant',
@@ -138,21 +185,29 @@ Page({
           isThinking:       false,
           isStreaming:      false,
           ragSteps:         [],
+          loadingHint:      '',
         })
         self._scrollToBottom()
       },
 
       onError: function (err) {
         self._streamTask = null
-        var msg = (err && err.message) || '连接中断'
-        chatStore.setError(msg)
+        self._clearHintTimers()
+        self._forceFlush()
 
-        wx.showToast({ title: msg, icon: 'none', duration: 2500 })
+        // Preserve raw error in console for debugging
+        console.error('[stream] error at',
+          self._perf ? (Date.now() - self._perf.sendAt) + ' ms' : '?',
+          '| raw:', err)
+
+        var friendly = self._friendlyError(err)
+        chatStore.setError(friendly)
+        wx.showToast({ title: friendly, icon: 'none', duration: 2500 })
 
         var errMsg = {
           id:      Date.now(),
           role:    'assistant',
-          content: '⚠ ' + msg,
+          content: '⚠ ' + friendly,
           isError: true,
         }
         self.setData({
@@ -161,10 +216,119 @@ Page({
           isThinking:       false,
           isStreaming:      false,
           ragSteps:         [],
+          loadingHint:      '',
         })
         self._scrollToBottom()
       },
     })
+  },
+
+  // ── Stop generation ───────────────────────────────────────────────────────
+
+  stopStream: function () {
+    var self = this
+    if (!self.data.isThinking && !self.data.isStreaming) return
+
+    if (self._perf) {
+      console.log('[perf] stream aborted by user at',
+        Date.now() - self._perf.sendAt, 'ms')
+    }
+
+    if (self._streamTask) {
+      self._streamTask.abort()
+      self._streamTask = null
+    }
+    self._clearHintTimers()
+    self._forceFlush()
+
+    // Preserve whatever was accumulated; append stop marker
+    var accumulated  = self.data.streamingContent
+      || chatStore.getState().streamingBuffer
+      || ''
+    var finalContent = accumulated
+      ? accumulated + '\n\n（已停止）'
+      : '（已停止）'
+
+    chatStore.finishAssistantMessage({ content: finalContent })
+
+    var stoppedMsg = {
+      id:      Date.now(),
+      role:    'assistant',
+      content: finalContent,
+    }
+    self.setData({
+      messages:         self.data.messages.concat(stoppedMsg),
+      streamingContent: '',
+      isThinking:       false,
+      isStreaming:      false,
+      ragSteps:         [],
+      loadingHint:      '',
+    })
+    self._scrollToBottom()
+  },
+
+  // ── Chunk-flush helpers ────────────────────────────────────────────────────
+
+  /**
+   * Schedule a 80 ms batch flush of _chunkBuffer → streamingContent setData.
+   * Multiple chunk arrivals within the same 80 ms window are batched into one
+   * setData call, reducing JS-to-renderer bridge traffic significantly.
+   */
+  _scheduleFlush: function () {
+    var self = this
+    if (self._flushTimer) return  // already scheduled; accumulate into buffer
+    self._flushTimer = setTimeout(function () {
+      self._flushTimer = null
+      if (self._chunkBuffer) {
+        var next = self.data.streamingContent + self._chunkBuffer
+        self._chunkBuffer = ''
+        self.setData({ streamingContent: next })
+        self._scrollToBottom()
+      }
+    }, 80)
+  },
+
+  /** Synchronously flush _chunkBuffer (used on done / stop / error). */
+  _forceFlush: function () {
+    this._clearFlushTimer()
+    if (this._chunkBuffer) {
+      var next = this.data.streamingContent + this._chunkBuffer
+      this._chunkBuffer = ''
+      this.setData({ streamingContent: next })
+    }
+  },
+
+  _clearFlushTimer: function () {
+    if (this._flushTimer) {
+      clearTimeout(this._flushTimer)
+      this._flushTimer = null
+    }
+  },
+
+  // ── Hint-timer helpers ────────────────────────────────────────────────────
+
+  _clearHintTimers: function () {
+    if (this._hintTimer3) { clearTimeout(this._hintTimer3); this._hintTimer3 = null }
+    if (this._hintTimer8) { clearTimeout(this._hintTimer8); this._hintTimer8 = null }
+  },
+
+  // ── User-friendly error mapper ────────────────────────────────────────────
+
+  _friendlyError: function (err) {
+    var raw    = (err && err.message) || ''
+    var status = (err && err.status)  || 0
+
+    if (raw.indexOf('timeout') >= 0 || raw.indexOf('超时') >= 0) {
+      return 'AI 导览员响应超时，请稍后再试。'
+    }
+    if (status >= 500) {
+      return '服务器暂时繁忙，请稍后再试。'
+    }
+    if (status >= 400 && status < 500) {
+      return '请求参数有误，请重试或刷新页面。'
+    }
+    // Network failures: wx errMsg contains 'request:fail', 'ERR_', etc.
+    return '连接 AI 导览员失败，请检查网络后重试。'
   },
 
   // ── Demo-mode mock reply (no session) ─────────────────────────────────────
@@ -179,6 +343,7 @@ Page({
     var tick = setInterval(function () {
       if (i >= reply.length) {
         clearInterval(tick)
+        self._forceFlush()
         chatStore.finishAssistantMessage({ content: reply })
         var aiMsg = { id: Date.now(), role: 'assistant', content: reply }
         self.setData({
@@ -190,11 +355,10 @@ Page({
         self._scrollToBottom()
         return
       }
-      // Feed one character at a time to simulate streaming
-      var chunk = reply.charAt(i)
-      chatStore.appendAssistantChunk(chunk)
-      self.setData({ streamingContent: self.data.streamingContent + chunk })
-      if (i % 4 === 0) self._scrollToBottom()
+      var ch = reply.charAt(i)
+      chatStore.appendAssistantChunk(ch)
+      self._chunkBuffer += ch
+      self._scheduleFlush()
       i++
     }, 35)
   },
