@@ -3,9 +3,11 @@
  *
  * BASE_URL: http://122.152.232.190:3000/api/v1  (set in utils/request.js)
  * Health endpoint hits the server root directly (not /api/v1).
+ * Streaming endpoints use api/stream.js (wx.request enableChunked).
  */
 
-const req     = require('../utils/request')
+const req    = require('../utils/request')
+const stream = require('./stream')
 const storage = require('../utils/storage')
 
 const SERVER_ROOT = 'http://122.152.232.190:3000'
@@ -25,8 +27,8 @@ const healthApi = {
   check: function() {
     return new Promise(function(resolve, reject) {
       wx.request({
-        url: SERVER_ROOT + '/health',
-        method: 'GET',
+        url:     SERVER_ROOT + '/health',
+        method:  'GET',
         timeout: 5000,
         success: function(res) {
           resolve({
@@ -97,14 +99,14 @@ const chatApi = {
     return req.post('/chat/ask', { session_id: sessionId, message: message })
   },
 
-  // ── Streaming — Phase 6 ──────────────────────────────────────────────────
+  // ── Streaming stubs — will be wired in a later batch ─────────────────────
   askStream: function(sessionId, message, ttsOptions) {
-    console.warn('[chatApi] askStream: SSE streaming not yet implemented (Phase 6)')
+    console.warn('[chatApi] askStream: not yet wired (use tourApi.chatStream for tour flow)')
     return Promise.reject(new Error('streaming_not_implemented'))
   },
 
   guestMessage: function(sessionId, message, ttsOptions) {
-    console.warn('[chatApi] guestMessage: SSE streaming not yet implemented (Phase 6)')
+    console.warn('[chatApi] guestMessage: not yet wired (use tourApi.chatStream for tour flow)')
     return Promise.reject(new Error('streaming_not_implemented'))
   },
 }
@@ -117,7 +119,7 @@ const chatApi = {
 // POST  /tour/sessions/:id/complete-hall
 // POST  /tour/sessions/:id/report
 // GET   /tour/sessions/:id/report
-// POST  /tour/sessions/:id/chat/stream     (SSE — Phase 6)
+// POST  /tour/sessions/:id/chat/stream     (SSE — stream.js)
 // GET   /tour/halls
 const tourApi = {
   createSession: function(data) {
@@ -166,10 +168,48 @@ const tourApi = {
     return req.get('/tour/halls', { retries: 1 })
   },
 
-  // ── Streaming — Phase 6 ──────────────────────────────────────────────────
-  chatStream: function(id, message, token, exhibitId, style, ttsOptions) {
-    console.warn('[tourApi] chatStream: SSE streaming not yet implemented (Phase 6)')
-    return Promise.reject(new Error('streaming_not_implemented'))
+  /**
+   * Stream a tour chat response via SSE.
+   *
+   * @param {string} id    Tour session ID
+   * @param {object} opts
+   * @param {string}   opts.message      User message text
+   * @param {string}   [opts.token]      X-Session-Token (falls back to storage)
+   * @param {string}   [opts.exhibitId]  Current exhibit ID
+   * @param {object}   [opts.style]      Style preferences object
+   * @param {object}   [opts.ttsOptions] TTS options object
+   * @param {Function} [opts.onChunk]    (text) => void — content delta
+   * @param {Function} [opts.onEvent]    (event) => void — rag_step / thinking
+   * @param {Function} [opts.onDone]     (payload) => void — stream completed
+   * @param {Function} [opts.onError]    (err) => void — error
+   *
+   * @returns {{ abort: Function }}
+   */
+  chatStream: function(id, opts) {
+    var token   = opts.token || null
+    var headers = token ? { 'X-Session-Token': token } : {}
+
+    // ── Build body to match backend TourChatRequest schema exactly ──────────
+    // message: str  (required)
+    // exhibit_id: str | None  (omit when falsy — backend default None)
+    // style: TourChatStyle | None  (omit when falsy)
+    // tts: bool  (MUST be bool, not null — backend default False)
+    var body = { message: opts.message || '' }
+    if (opts.exhibitId) body.exhibit_id = opts.exhibitId
+    if (opts.style)     body.style      = opts.style
+    // ttsOptions is an object {enabled, voice, autoPlay}; map to bool for backend
+    body.tts = !!(opts.ttsOptions && opts.ttsOptions.enabled)
+
+    return stream.streamRequest({
+      path:    '/tour/sessions/' + id + '/chat/stream',
+      method:  'POST',
+      data:    body,
+      headers: headers,
+      onChunk: opts.onChunk || null,
+      onEvent: opts.onEvent || null,
+      onDone:  opts.onDone  || null,
+      onError: opts.onError || null,
+    })
   },
 }
 
@@ -192,7 +232,7 @@ const ttsApi = {
   synthesize: function(text, voice, style, persona) {
     return req.post('/tts/synthesize', {
       text:    text,
-      voice:   voice || '冰糖',
+      voice:   voice   || '冰糖',
       style:   style   || null,
       persona: persona || null,
     })
@@ -221,6 +261,7 @@ const curatorApi = {
 module.exports = {
   request:  req,
   storage:  storage,
+  stream:   stream,
 
   healthApi,
   authApi,

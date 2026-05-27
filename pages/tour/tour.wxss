@@ -6,6 +6,8 @@
   overflow: hidden;
 }
 
+/* ── Top bar ─────────────────────────────────────────────────────────────── */
+
 .tour-topbar {
   display: flex;
   align-items: center;
@@ -42,6 +44,8 @@
   color: #DDD0C0;
 }
 
+/* ── Message list ────────────────────────────────────────────────────────── */
+
 .msg-list {
   flex: 1;
   overflow: hidden;
@@ -51,10 +55,70 @@
   padding: 24rpx 24rpx 16rpx;
 }
 
+/* ── RAG pipeline progress bar ──────────────────────────────────────────── */
+
+.rag-bar {
+  margin: 4rpx 8rpx 20rpx;
+  background: #F5F0E8;
+  border-radius: 16rpx;
+  padding: 16rpx 20rpx;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12rpx 20rpx;
+}
+
+.rag-step {
+  display: flex;
+  align-items: center;
+  gap: 8rpx;
+  transition: opacity 0.3s;
+}
+
+.rag-step--pending {
+  opacity: 0.35;
+}
+
+.rag-step--running {
+  opacity: 1;
+}
+
+.rag-step--completed {
+  opacity: 0.55;
+}
+
+.rag-icon {
+  font-size: 24rpx;
+}
+
+.rag-label {
+  font-size: 22rpx;
+  color: #5A3E2B;
+}
+
+.rag-indicator {
+  font-size: 20rpx;
+}
+
+.rag-running {
+  color: #C4845A;
+  animation: rag-pulse 1s ease-in-out infinite;
+}
+
+.rag-done {
+  color: #7A9B6E;
+}
+
+@keyframes rag-pulse {
+  0%, 100% { opacity: 0.4; }
+  50%       { opacity: 1;   }
+}
+
+/* ── Thinking dots ───────────────────────────────────────────────────────── */
+
 .thinking-row {
   display: flex;
   justify-content: flex-start;
-  padding: 12rpx 16rpx 20rpx;
+  padding: 8rpx 16rpx 20rpx;
 }
 
 .thinking-dots {
@@ -63,6 +127,7 @@
   background: #F5F0E8;
   padding: 18rpx 24rpx;
   border-radius: 20rpx;
+  border-bottom-left-radius: 6rpx;
 }
 
 .dot {
@@ -78,8 +143,54 @@
 
 @keyframes blink {
   0%, 80%, 100% { opacity: 0.2; }
-  40% { opacity: 1; }
+  40%            { opacity: 1;   }
 }
+
+/* ── Live streaming bubble ───────────────────────────────────────────────── */
+
+.stream-bubble {
+  display: flex;
+  justify-content: flex-start;
+  margin-bottom: 20rpx;
+}
+
+.stream-bubble-inner {
+  max-width: 72%;
+  padding: 22rpx 28rpx;
+  background: #F5F0E8;
+  border-radius: 24rpx;
+  border-bottom-left-radius: 6rpx;
+  display: flex;
+  align-items: flex-end;
+  flex-wrap: wrap;
+}
+
+.stream-text {
+  font-size: 28rpx;
+  line-height: 1.7;
+  color: #2C1810;
+  white-space: pre-wrap;
+  word-break: break-all;
+}
+
+/* Blinking cursor shown at end of streaming text */
+.typing-cursor {
+  display: inline-block;
+  width: 4rpx;
+  height: 28rpx;
+  background: #C4845A;
+  border-radius: 2rpx;
+  margin-left: 6rpx;
+  vertical-align: text-bottom;
+  animation: cursor-blink 0.8s step-end infinite;
+}
+
+@keyframes cursor-blink {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0; }
+}
+
+/* ── Input bar ───────────────────────────────────────────────────────────── */
 
 .input-bar {
   display: flex;

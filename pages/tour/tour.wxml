@@ -13,22 +13,59 @@
   </view>
 
   <!-- Message list -->
-  <scroll-view class="msg-list" scroll-y scroll-into-view="{{scrollTarget}}" scroll-with-animation>
+  <scroll-view
+    class="msg-list"
+    scroll-y
+    scroll-into-view="{{scrollTarget}}"
+    scroll-with-animation
+  >
     <view class="msg-list-inner">
+
+      <!-- ── Committed messages ── -->
       <message-bubble
         wx:for="{{messages}}"
         wx:key="id"
         role="{{item.role}}"
         content="{{item.content}}"
+        is-error="{{item.isError}}"
       />
-      <view wx:if="{{isThinking}}" class="thinking-row">
+
+      <!-- ── RAG pipeline progress bar ── -->
+      <view wx:if="{{ragSteps.length > 0 && (isThinking || isStreaming)}}" class="rag-bar">
+        <view
+          wx:for="{{ragSteps}}"
+          wx:key="step"
+          wx:for-item="rs"
+          class="rag-step rag-step--{{rs.status}}"
+        >
+          <text class="rag-icon">{{rs.icon}}</text>
+          <text class="rag-label">{{rs.label}}</text>
+          <text wx:if="{{rs.status === 'running'}}"   class="rag-indicator rag-running">…</text>
+          <text wx:if="{{rs.status === 'completed'}}" class="rag-indicator rag-done">✓</text>
+        </view>
+      </view>
+
+      <!-- ── Thinking dots (waiting for first chunk) ── -->
+      <view wx:if="{{isThinking && !isStreaming}}" class="thinking-row">
         <view class="thinking-dots">
           <view class="dot"></view>
           <view class="dot"></view>
           <view class="dot"></view>
         </view>
       </view>
-      <view id="msg-bottom" style="height:1rpx;"></view>
+
+      <!-- ── Live streaming assistant bubble ── -->
+      <view wx:if="{{isStreaming}}" class="stream-bubble">
+        <view class="stream-bubble-inner">
+          <text class="stream-text" selectable>{{streamingContent}}</text>
+          <view class="typing-cursor"></view>
+        </view>
+      </view>
+
+      <!-- Scroll anchors (toggle between a/b so scroll-into-view always fires) -->
+      <view id="msg-bottom-a" style="height:1rpx;"></view>
+      <view id="msg-bottom-b" style="height:1rpx;"></view>
+
     </view>
   </scroll-view>
 
@@ -45,7 +82,7 @@
       adjust-position
     />
     <text
-      class="send-btn {{inputText ? 'active' : ''}}"
+      class="send-btn {{inputText && !isThinking && !isStreaming ? 'active' : ''}}"
       bindtap="sendMessage"
     >发送</text>
   </view>
