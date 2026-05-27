@@ -1,0 +1,5 @@
+<view class="persona-card {{selected ? 'selected' : ''}}" bindtap="onTap">
+  <text class="pc-icon">{{icon}}</text>
+  <text class="pc-label">{{label}}</text>
+  <text class="pc-desc">{{desc}}</text>
+</view>

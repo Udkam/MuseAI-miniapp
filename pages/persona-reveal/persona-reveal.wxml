@@ -1,0 +1,25 @@
+<view class="page-wrap reveal" wx:if="{{persona}}">
+
+  <view class="reveal-top">
+    <text class="reveal-hint text-muted text-sm">根据你的回答，</text>
+  </view>
+
+  <!-- Persona card -->
+  <view class="persona-card" style="border-color: {{persona.color}}">
+    <text class="persona-icon">{{persona.icon}}</text>
+    <text class="persona-title" style="color: {{persona.color}}">{{persona.title}}</text>
+    <text class="persona-desc">{{persona.desc}}</text>
+  </view>
+
+  <!-- Badge -->
+  <view class="badge-row">
+    <view class="badge" style="background: {{persona.color}}">
+      <text class="badge-text">{{persona.label}}</text>
+    </view>
+  </view>
+
+  <view class="bottom-action">
+    <button class="btn-primary" bindtap="goHall">进入展厅 →</button>
+  </view>
+
+</view>

@@ -1,0 +1,27 @@
+<view class="page-wrap hall">
+
+  <view class="hall-header">
+    <text class="hall-title">选择你的探索区域</text>
+    <text class="hall-sub text-muted text-sm">点击展厅，开始 AI 导览对话</text>
+  </view>
+
+  <view class="hall-list">
+    <view
+      wx:for="{{halls}}"
+      wx:key="id"
+      class="hall-card"
+      bindtap="selectHall"
+      data-hall="{{item}}"
+    >
+      <view class="hall-icon-wrap">
+        <text class="hall-icon">{{item.icon}}</text>
+      </view>
+      <view class="hall-info">
+        <text class="hall-name">{{item.name}}</text>
+        <text class="hall-desc text-muted">{{item.desc}}</text>
+      </view>
+      <text class="hall-arrow text-clay">›</text>
+    </view>
+  </view>
+
+</view>

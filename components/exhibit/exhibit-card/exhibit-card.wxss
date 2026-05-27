@@ -1,0 +1,67 @@
+.exhibit-card {
+  display: flex;
+  align-items: flex-start;
+  background: #F5F0E8;
+  border-radius: 20rpx;
+  padding: 24rpx;
+  gap: 20rpx;
+  margin-bottom: 20rpx;
+}
+
+.ec-img-placeholder {
+  width: 96rpx;
+  height: 96rpx;
+  background: #EDE3D6;
+  border-radius: 16rpx;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.ec-icon {
+  font-size: 48rpx;
+}
+
+.ec-body {
+  flex: 1;
+  overflow: hidden;
+}
+
+.ec-name {
+  font-size: 30rpx;
+  font-weight: 600;
+  color: #3D2B1A;
+  display: block;
+  margin-bottom: 10rpx;
+}
+
+.ec-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8rpx;
+  margin-bottom: 12rpx;
+}
+
+.ec-tag {
+  font-size: 22rpx;
+  color: #8B6B55;
+  background: #EDE3D6;
+  padding: 4rpx 16rpx;
+  border-radius: 100rpx;
+}
+
+.ec-tag-hall {
+  background: #C4845A18;
+  color: #C4845A;
+}
+
+.ec-desc {
+  font-size: 24rpx;
+  color: #8B6B55;
+  line-height: 1.5;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}

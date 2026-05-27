@@ -1,0 +1,28 @@
+<view class="page-wrap scan">
+
+  <!-- Camera area -->
+  <view class="camera-area" bindtap="takePhoto">
+    <text class="camera-icon">📷</text>
+    <text class="camera-hint">点击拍摄展品</text>
+    <text class="camera-sub text-muted text-sm">AI 自动识别并讲解</text>
+  </view>
+
+  <view class="divider">
+    <text class="divider-text text-muted text-sm">或</text>
+  </view>
+
+  <!-- Name input -->
+  <view class="name-input-block">
+    <text class="input-label text-brown text-bold">手动输入展品名称</text>
+    <input
+      class="name-input"
+      value="{{exhibitName}}"
+      bindinput="onNameInput"
+      placeholder="例如：人面鱼纹盆"
+      confirm-type="search"
+      bindconfirm="submitName"
+    />
+    <button class="btn-primary" bindtap="submitName" style="margin-top:24rpx;">查看讲解 →</button>
+  </view>
+
+</view>

@@ -1,0 +1,34 @@
+.persona-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 40rpx 24rpx;
+  background: #F5F0E8;
+  border: 3rpx solid transparent;
+  border-radius: 20rpx;
+  text-align: center;
+  transition: border-color 0.2s;
+}
+
+.persona-card.selected {
+  border-color: #C4845A;
+  background: #FFF8F2;
+}
+
+.pc-icon {
+  font-size: 72rpx;
+  margin-bottom: 16rpx;
+}
+
+.pc-label {
+  font-size: 32rpx;
+  font-weight: 700;
+  color: #3D2B1A;
+  margin-bottom: 12rpx;
+}
+
+.pc-desc {
+  font-size: 24rpx;
+  color: #8B6B55;
+  line-height: 1.5;
+}

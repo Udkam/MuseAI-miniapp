@@ -1,19 +1,16 @@
-// app.js
-App({
-  onLaunch() {
-    // 展示本地存储能力
-    const logs = wx.getStorageSync('logs') || []
-    logs.unshift(Date.now())
-    wx.setStorageSync('logs', logs)
+const authStore = require('./store/auth')
 
-    // 登录
-    wx.login({
-      success: res => {
-        // 发送 res.code 到后台换取 openId, sessionKey, unionId
-      }
-    })
+App({
+  onLaunch: function () {
+    this.globalData.authState = authStore.getAuthState()
   },
+
+  onShow: function () {
+    this.globalData.authState = authStore.getAuthState()
+  },
+
   globalData: {
-    userInfo: null
-  }
+    authState: null,
+    tourSession: null,
+  },
 })

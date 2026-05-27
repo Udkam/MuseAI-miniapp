@@ -1,0 +1,41 @@
+<view class="page-wrap route">
+
+  <view class="route-header">
+    <text class="route-title">为你规划的参观路线</text>
+    <text class="route-total text-muted text-sm">预计总时长：{{totalTime}}</text>
+  </view>
+
+  <!-- Timeline -->
+  <view class="timeline">
+    <view
+      wx:for="{{route}}"
+      wx:key="order"
+      class="timeline-item"
+    >
+      <view class="timeline-line-wrap">
+        <view class="timeline-dot">{{item.order}}</view>
+        <view wx:if="{{index < route.length - 1}}" class="timeline-connector"></view>
+      </view>
+      <view class="timeline-card card">
+        <view class="card-header-row">
+          <text class="tl-icon">{{item.icon}}</text>
+          <view>
+            <text class="tl-hall">{{item.hall}}</text>
+            <text class="tl-duration text-muted text-sm">{{item.duration}}</text>
+          </view>
+        </view>
+        <view class="highlights">
+          <text
+            wx:for="{{item.highlights}}"
+            wx:key="*this"
+            wx:for-item="h"
+            class="highlight-tag"
+          >{{h}}</text>
+        </view>
+      </view>
+    </view>
+  </view>
+
+  <button class="btn-primary" style="margin-top:48rpx;" bindtap="startTour">开始导览 →</button>
+
+</view>

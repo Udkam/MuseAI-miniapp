@@ -1,10 +1,73 @@
-/**app.wxss**/
-.container {
-  height: 100%;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: space-between;
-  padding: 200rpx 0;
+/* Global tokens */
+page {
+  background-color: #FAF7F2;
+  color: #2C1810;
+  font-family: -apple-system, 'PingFang SC', sans-serif;
+  font-size: 28rpx;
+  line-height: 1.6;
+}
+
+/* Buttons */
+.btn-primary {
+  display: block;
+  width: 100%;
+  padding: 28rpx 0;
+  background: #3D2B1A;
+  color: #F5F0E8;
+  border-radius: 16rpx;
+  font-size: 32rpx;
+  font-weight: 600;
+  text-align: center;
+  border: none;
+  letter-spacing: 4rpx;
+}
+
+.btn-primary::after { border: none; }
+
+.btn-secondary {
+  display: block;
+  width: 100%;
+  padding: 26rpx 0;
+  background: transparent;
+  color: #3D2B1A;
+  border: 2rpx solid #C4845A;
+  border-radius: 16rpx;
+  font-size: 30rpx;
+  text-align: center;
+  letter-spacing: 2rpx;
+}
+
+.btn-secondary::after { border: none; }
+
+/* Cards */
+.card {
+  background: #F5F0E8;
+  border-radius: 20rpx;
+  padding: 32rpx;
+  margin-bottom: 24rpx;
+}
+
+/* Divider */
+.divider {
+  height: 2rpx;
+  background: #DDD0C0;
+  margin: 32rpx 0;
+}
+
+/* Page layout */
+.page-wrap {
+  min-height: 100vh;
+  padding: 40rpx 32rpx;
   box-sizing: border-box;
-} 
+}
+
+/* Text helpers */
+.text-clay   { color: #C4845A; }
+.text-brown  { color: #3D2B1A; }
+.text-muted  { color: #8B6B55; }
+.text-gold   { color: #D4A86A; }
+.text-center { text-align: center; }
+.text-sm     { font-size: 24rpx; }
+.text-lg     { font-size: 36rpx; }
+.text-xl     { font-size: 44rpx; }
+.text-bold   { font-weight: 600; }

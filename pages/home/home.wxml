@@ -1,0 +1,24 @@
+<view class="page-wrap home">
+
+  <!-- Hero -->
+  <view class="hero">
+    <view class="hero-emblem">𓂀</view>
+    <text class="hero-title">半坡遗址</text>
+    <text class="hero-sub">AI 智慧导览</text>
+    <text class="hero-tagline">与六千年前的半坡先民相遇</text>
+  </view>
+
+  <!-- Actions -->
+  <view class="actions">
+    <button class="btn-primary" bindtap="goOnboarding">开始 AI 导览</button>
+    <view wx:if="{{hasTourSession}}" style="margin-top:24rpx;">
+      <button class="btn-secondary" bindtap="resumeTour">继续上次游览</button>
+    </view>
+  </view>
+
+  <!-- Footer note -->
+  <view class="footer-note">
+    <text class="text-muted text-sm text-center">陕西省西安市半坡博物馆 · 国家一级博物馆</text>
+  </view>
+
+</view>

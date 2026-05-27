@@ -1,0 +1,56 @@
+<view class="page-wrap report" wx:if="{{isReady}}">
+
+  <!-- Header -->
+  <view class="report-header">
+    <text class="report-badge-icon">📜</text>
+    <text class="report-title">{{reportTitle}}</text>
+    <text class="report-persona text-clay">身份：{{persona}}</text>
+  </view>
+
+  <!-- Stats -->
+  <view class="stats-grid">
+    <view class="stat-item">
+      <text class="stat-num">{{stats.halls}}</text>
+      <text class="stat-label text-muted">展厅</text>
+    </view>
+    <view class="stat-item">
+      <text class="stat-num">{{stats.exhibits}}</text>
+      <text class="stat-label text-muted">展品</text>
+    </view>
+    <view class="stat-item">
+      <text class="stat-num">{{stats.messages}}</text>
+      <text class="stat-label text-muted">互动</text>
+    </view>
+    <view class="stat-item">
+      <text class="stat-num">{{stats.duration}}</text>
+      <text class="stat-label text-muted">时长</text>
+    </view>
+  </view>
+
+  <!-- Highlights -->
+  <view class="card">
+    <text class="section-label text-clay text-bold">本次游览亮点</text>
+    <view class="highlight-list">
+      <view
+        wx:for="{{highlights}}"
+        wx:key="*this"
+        class="highlight-row"
+      >
+        <text class="highlight-dot text-gold">◆</text>
+        <text class="highlight-text">{{item}}</text>
+      </view>
+    </view>
+  </view>
+
+  <!-- AI note -->
+  <view class="ai-note">
+    <text class="ai-note-text text-muted text-sm">完整 AI 分析报告将在 Phase 6 接入后端后自动生成</text>
+  </view>
+
+  <!-- Actions -->
+  <view class="report-actions">
+    <button class="btn-primary" bindtap="shareReport">分享报告</button>
+    <button class="btn-secondary" style="margin-top:20rpx;" bindtap="goHome">返回首页</button>
+  </view>
+
+</view>

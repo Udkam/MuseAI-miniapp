@@ -1,0 +1,51 @@
+<view class="tour-page">
+
+  <!-- Top bar -->
+  <view class="tour-topbar">
+    <text class="topbar-hall">{{hallName}}</text>
+    <view class="topbar-actions">
+      <text class="topbar-btn" bindtap="goRoute">路线</text>
+      <text class="topbar-sep">|</text>
+      <text class="topbar-btn" bindtap="goReport">报告</text>
+    </view>
+  </view>
+
+  <!-- Message list -->
+  <scroll-view class="msg-list" scroll-y scroll-into-view="{{scrollTarget}}" scroll-with-animation>
+    <view class="msg-list-inner">
+      <message-bubble
+        wx:for="{{messages}}"
+        wx:key="id"
+        role="{{item.role}}"
+        content="{{item.content}}"
+      />
+      <view wx:if="{{isThinking}}" class="thinking-row">
+        <view class="thinking-dots">
+          <view class="dot"></view>
+          <view class="dot"></view>
+          <view class="dot"></view>
+        </view>
+      </view>
+      <view id="msg-bottom" style="height:1rpx;"></view>
+    </view>
+  </scroll-view>
+
+  <!-- Input bar -->
+  <view class="input-bar">
+    <text class="input-icon" bindtap="goScan">📷</text>
+    <input
+      class="input-field"
+      value="{{inputText}}"
+      bindinput="onInputChange"
+      placeholder="问问 MuseAI…"
+      confirm-type="send"
+      bindconfirm="sendMessage"
+      adjust-position
+    />
+    <text
+      class="send-btn {{inputText ? 'active' : ''}}"
+      bindtap="sendMessage"
+    >发送</text>
+  </view>
+
+</view>

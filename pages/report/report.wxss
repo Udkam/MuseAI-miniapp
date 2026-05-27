@@ -1,0 +1,101 @@
+.report {
+  min-height: 100vh;
+}
+
+.report-header {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 40rpx 0 48rpx;
+}
+
+.report-badge-icon {
+  font-size: 88rpx;
+  margin-bottom: 20rpx;
+}
+
+.report-title {
+  font-size: 40rpx;
+  font-weight: 700;
+  color: #3D2B1A;
+  margin-bottom: 12rpx;
+  text-align: center;
+}
+
+.report-persona {
+  font-size: 28rpx;
+  letter-spacing: 2rpx;
+}
+
+.stats-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  background: #F5F0E8;
+  border-radius: 20rpx;
+  padding: 32rpx 16rpx;
+  margin-bottom: 32rpx;
+  text-align: center;
+}
+
+.stat-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.stat-num {
+  font-size: 36rpx;
+  font-weight: 700;
+  color: #3D2B1A;
+  display: block;
+  margin-bottom: 8rpx;
+}
+
+.stat-label {
+  font-size: 22rpx;
+  display: block;
+}
+
+.section-label {
+  font-size: 28rpx;
+  display: block;
+  margin-bottom: 24rpx;
+}
+
+.highlight-list {
+  display: flex;
+  flex-direction: column;
+  gap: 20rpx;
+}
+
+.highlight-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 16rpx;
+}
+
+.highlight-dot {
+  font-size: 18rpx;
+  margin-top: 8rpx;
+  flex-shrink: 0;
+}
+
+.highlight-text {
+  font-size: 28rpx;
+  color: #5A3E2B;
+  line-height: 1.6;
+  flex: 1;
+}
+
+.ai-note {
+  text-align: center;
+  padding: 24rpx 0 8rpx;
+}
+
+.ai-note-text {
+  display: block;
+}
+
+.report-actions {
+  padding: 16rpx 0 60rpx;
+}

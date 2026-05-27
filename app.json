@@ -1,12 +1,20 @@
 {
   "pages": [
-    "pages/index/index",
-    "pages/logs/logs"
+    "pages/home/home",
+    "pages/onboarding/onboarding",
+    "pages/persona-reveal/persona-reveal",
+    "pages/hall/hall",
+    "pages/tour/tour",
+    "pages/exhibit-scan/exhibit-scan",
+    "pages/exhibit-detail/exhibit-detail",
+    "pages/route/route",
+    "pages/report/report"
   ],
   "window": {
-    "navigationBarTextStyle": "black",
-    "navigationBarTitleText": "Weixin",
-    "navigationBarBackgroundColor": "#ffffff"
+    "navigationBarTextStyle": "white",
+    "navigationBarTitleText": "半坡 · MuseAI",
+    "navigationBarBackgroundColor": "#3D2B1A",
+    "backgroundColor": "#FAF7F2"
   },
   "style": "v2",
   "sitemapLocation": "sitemap.json",

@@ -1,0 +1,5 @@
+<view class="bubble-wrap {{role}}">
+  <view class="bubble {{role}}">
+    <text class="bubble-text">{{content}}</text>
+  </view>
+</view>

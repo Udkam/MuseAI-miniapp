@@ -1,0 +1,32 @@
+<view class="page-wrap detail">
+
+  <!-- Exhibit image placeholder -->
+  <view class="exhibit-img-wrap">
+    <view class="exhibit-img-placeholder">
+      <text class="exhibit-img-icon">🏺</text>
+    </view>
+  </view>
+
+  <!-- Basic info -->
+  <view class="exhibit-info card">
+    <text class="exhibit-name">{{exhibit.name}}</text>
+    <view class="exhibit-tags">
+      <text class="tag">{{exhibit.category}}</text>
+      <text class="tag">{{exhibit.period}}</text>
+      <text class="tag tag-hall">{{exhibit.hall}}</text>
+    </view>
+  </view>
+
+  <!-- Description -->
+  <view class="card">
+    <text class="section-title text-clay">展品简介</text>
+    <text class="desc-text">{{exhibit.desc}}</text>
+  </view>
+
+  <!-- Actions -->
+  <view class="action-row">
+    <button class="btn-primary" bindtap="goDeeper">与 AI 深入探讨 →</button>
+    <button class="btn-secondary" style="margin-top:20rpx;" bindtap="goNext">返回上一步</button>
+  </view>
+
+</view>

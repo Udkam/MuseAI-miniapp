@@ -1,0 +1,42 @@
+.bubble-wrap {
+  display: flex;
+  margin-bottom: 20rpx;
+}
+
+.bubble-wrap.user {
+  justify-content: flex-end;
+}
+
+.bubble-wrap.assistant {
+  justify-content: flex-start;
+}
+
+.bubble {
+  max-width: 72%;
+  padding: 22rpx 28rpx;
+  border-radius: 24rpx;
+}
+
+.bubble.user {
+  background: #3D2B1A;
+  border-bottom-right-radius: 6rpx;
+}
+
+.bubble.assistant {
+  background: #F5F0E8;
+  border-bottom-left-radius: 6rpx;
+}
+
+.bubble-text {
+  font-size: 28rpx;
+  line-height: 1.7;
+  white-space: pre-wrap;
+}
+
+.bubble.user .bubble-text {
+  color: #F5F0E8;
+}
+
+.bubble.assistant .bubble-text {
+  color: #2C1810;
+}
