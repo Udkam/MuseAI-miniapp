@@ -7,6 +7,8 @@
       <text class="topbar-btn" bindtap="goRoute">路线</text>
       <text class="topbar-sep">|</text>
       <text class="topbar-btn" bindtap="goReport">报告</text>
+      <text class="topbar-sep">|</text>
+      <text class="topbar-btn topbar-btn-ping" bindtap="checkHealth">连接</text>
     </view>
   </view>
 

@@ -1,15 +1,14 @@
 /**
  * MuseAI Mini Program — API layer
  *
- * All non-streaming endpoints are fully implemented via utils/request.js.
- * Streaming endpoints (askStream, guestMessage, chatStream) are stubbed —
- * they will be wired to wx.request enableChunked in Phase 6.
- *
  * BASE_URL: http://122.152.232.190:3000/api/v1  (set in utils/request.js)
+ * Health endpoint hits the server root directly (not /api/v1).
  */
 
 const req     = require('../utils/request')
 const storage = require('../utils/storage')
+
+const SERVER_ROOT = 'http://122.152.232.190:3000'
 
 // ─── Helper: strip null/undefined query params ─────────────────────────────
 function _clean(params) {
@@ -18,6 +17,30 @@ function _clean(params) {
     if (params[k] !== null && params[k] !== undefined) out[k] = params[k]
   })
   return out
+}
+
+// ─── Health ────────────────────────────────────────────────────────────────
+// GET /health  (server root, not under /api/v1)
+const healthApi = {
+  check: function() {
+    return new Promise(function(resolve, reject) {
+      wx.request({
+        url: SERVER_ROOT + '/health',
+        method: 'GET',
+        timeout: 5000,
+        success: function(res) {
+          resolve({
+            ok:     res.statusCode >= 200 && res.statusCode < 300,
+            status: res.statusCode,
+            data:   res.data || {},
+          })
+        },
+        fail: function(err) {
+          reject(new Error((err && err.errMsg) || '网络不可达'))
+        },
+      })
+    })
+  },
 }
 
 // ─── Auth  ─────────────────────────────────────────────────────────────────
@@ -70,14 +93,11 @@ const chatApi = {
     return req.get('/chat/sessions/' + sessionId + '/messages')
   },
 
-  // Non-streaming ask (fallback for when SSE is not available)
   ask: function(sessionId, message) {
     return req.post('/chat/ask', { session_id: sessionId, message: message })
   },
 
   // ── Streaming — Phase 6 ──────────────────────────────────────────────────
-  // Implemented via wx.request enableChunked + onChunkReceived.
-  // Stub returns a rejected promise so callers can detect unavailability.
   askStream: function(sessionId, message, ttsOptions) {
     console.warn('[chatApi] askStream: SSE streaming not yet implemented (Phase 6)')
     return Promise.reject(new Error('streaming_not_implemented'))
@@ -90,10 +110,10 @@ const chatApi = {
 }
 
 // ─── Tour ──────────────────────────────────────────────────────────────────
-// POST  /tour/sessions
+// POST  /tour/sessions                { interest_type, persona, assumption, guest_id? }
 // GET   /tour/sessions/:id
-// PATCH /tour/sessions/:id
-// POST  /tour/sessions/:id/events          { events }
+// PATCH /tour/sessions/:id            { status?, current_hall?, current_exhibit_id? }
+// POST  /tour/sessions/:id/events     { events }
 // POST  /tour/sessions/:id/complete-hall
 // POST  /tour/sessions/:id/report
 // GET   /tour/sessions/:id/report
@@ -199,9 +219,10 @@ const curatorApi = {
 
 // ─── Exports ───────────────────────────────────────────────────────────────
 module.exports = {
-  request:     req,      // raw request util for one-off calls
-  storage:     storage,  // storage util
+  request:  req,
+  storage:  storage,
 
+  healthApi,
   authApi,
   chatApi,
   tourApi,

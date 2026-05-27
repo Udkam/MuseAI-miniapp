@@ -33,9 +33,10 @@
   <!-- Next button -->
   <view class="bottom-action">
     <button
-      class="btn-primary {{canNext ? '' : 'btn-disabled'}}"
+      class="btn-primary {{(canNext && !loading) ? '' : 'btn-disabled'}}"
+      loading="{{loading}}"
       bindtap="goNext"
-    >{{step < 2 ? '下一题 →' : '揭晓我的身份 →'}}</button>
+    >{{loading ? '创建导览会话…' : (step < 2 ? '下一题 →' : '揭晓我的身份 →')}}</button>
   </view>
 
 </view>

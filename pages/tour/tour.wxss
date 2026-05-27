@@ -33,6 +33,10 @@
   color: #C4845A;
 }
 
+.topbar-btn-ping {
+  color: #7A9B6E;
+}
+
 .topbar-sep {
   font-size: 24rpx;
   color: #DDD0C0;

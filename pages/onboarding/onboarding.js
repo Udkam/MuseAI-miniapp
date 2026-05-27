@@ -1,8 +1,12 @@
+const tourStore = require('../../store/tour')
+const api       = require('../../api/index')
+
 Page({
   data: {
     step: 0,
     answers: [null, null, null],
     canNext: false,
+    loading: false,
     questions: [
       {
         text: '你更像哪种探索者？',
@@ -39,7 +43,7 @@ Page({
   },
 
   goNext: function () {
-    if (!this.data.canNext) return
+    if (!this.data.canNext || this.data.loading) return
     var nextStep = this.data.step + 1
     if (nextStep < 3) {
       this.setData({
@@ -52,12 +56,54 @@ Page({
   },
 
   _finish: function () {
+    var self    = this
     var answers = this.data.answers
-    var counts = { A: 0, B: 0, C: 0 }
+    var counts  = { A: 0, B: 0, C: 0 }
     answers.forEach(function (v) { if (v) counts[v]++ })
+
     var persona = 'A'
     if (counts.B >= counts.A && counts.B >= counts.C) persona = 'B'
-    if (counts.C > counts.B && counts.C > counts.A) persona = 'C'
-    wx.navigateTo({ url: '/pages/persona-reveal/persona-reveal?persona=' + persona })
+    if (counts.C > counts.B && counts.C > counts.A)  persona = 'C'
+
+    // 先写入本地状态，确保后续页面有 persona 可用（即使 API 失败也能继续）
+    tourStore.createLocalTourState({
+      interestType: persona,
+      persona:      persona,
+      assumption:   persona,
+    })
+
+    self.setData({ loading: true })
+
+    var guestId = 'miniapp_guest_' + Date.now()
+
+    api.tourApi.createSession({
+      interest_type: persona,
+      persona:       persona,
+      assumption:    persona,
+      guest_id:      guestId,
+    }).then(function (res) {
+      self.setData({ loading: false })
+      if (res.ok) {
+        var d = res.data || {}
+        tourStore.setTourSession({
+          sessionId:    d.id || d.session_id || null,
+          sessionToken: d.session_token      || null,
+        })
+        tourStore.updateTourState({
+          interestType: persona,
+          persona:      persona,
+          assumption:   persona,
+        })
+      } else {
+        var msg = (res.data && res.data.detail) || ('创建会话失败 (' + res.status + ')')
+        wx.showToast({ title: msg, icon: 'none', duration: 2500 })
+      }
+      wx.navigateTo({ url: '/pages/persona-reveal/persona-reveal?persona=' + persona })
+    }).catch(function (err) {
+      self.setData({ loading: false })
+      var msg = (err && err.message) || '网络错误'
+      wx.showToast({ title: msg + '，进入演示模式', icon: 'none', duration: 2500 })
+      wx.navigateTo({ url: '/pages/persona-reveal/persona-reveal?persona=' + persona })
+    })
   },
 })
