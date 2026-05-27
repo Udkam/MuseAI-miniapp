@@ -69,8 +69,9 @@ frontend/
 | Stage 5 | ✅ 完成 | 游客导览会话接入后端 |
 | Stage 6 Batch 1 | ✅ 完成 | SSE 流式底层 api/stream.js |
 | Stage 6 Batch 2 | ✅ 完成 | tour 页面真实 SSE 流式 AI 回复 |
-| **Stage 6 Batch 3** | **✅ 当前** | **流式性能优化与 UX 改善** |
-| Stage 7 | 🔲 待开始 | TTS 语音播报（wx.createInnerAudioContext） |
+| Stage 6 Batch 3 | ✅ 完成 | 流式性能优化与 UX 改善 |
+| **Stage 7** | **✅ 当前** | **游览事件记录 + 报告生成闭环** |
+| Stage 8 | 🔲 待开始 | TTS 语音播报（wx.createInnerAudioContext） |
 
 ### Stage 6 Batch 2 — 流式 AI 对话
 
@@ -149,6 +150,55 @@ frontend/
 | HTTP 5xx | 服务器暂时繁忙，请稍后再试。 | 同上 |
 | HTTP 4xx | 请求参数有误，请重试或刷新页面。 | 同上 |
 | 其他 / 网络 | 连接 AI 导览员失败，请检查网络后重试。 | 同上 |
+
+### Stage 7 — 游览事件记录与报告生成闭环
+
+#### 游览事件上报
+
+各页面通过 `tourStore.addTourEvent()` 将行为事件写入本地缓冲区（同步持久化到 `wx.storage`），由以下时机批量上传至 `POST /tour/sessions/:id/events`：
+
+| 事件类型 | 触发时机 | 触发页面 |
+|----------|----------|----------|
+| `hall_enter` | 用户选择进入某展厅 | `pages/hall/hall.js` |
+| `exhibit_question` | 用户在聊天页发送消息 | `pages/tour/tour.js` |
+| `exhibit_view` | 用户离开展品详情页（含停留时长） | `pages/exhibit-detail/exhibit-detail.js` |
+| `exhibit_deep_dive` | 用户点击"与 AI 深入探讨" | `pages/exhibit-detail/exhibit-detail.js` |
+
+**Flush 时机**（事件上报到服务器）：
+- `tour.js` 的 `goReport()`：导航到报告页前 flush，确保报告包含完整数据
+- `tour.js` 的 `onUnload()`：页面离开时 fire-and-forget flush（best-effort）
+- `report.js` 的 `onLoad()`：报告页进入时再次 flush（兜底）
+
+**失败保护**：`drainPendingEvents()` 原子性取出事件并清空缓冲；若上传失败，`restorePendingEvents()` 将事件归还缓冲，下次 flush 时重试。
+
+#### 报告生成流程
+
+```
+report 页面进入
+  → flush pending events (POST /events)
+  → POST /tour/sessions/:id/report   (触发 AI 生成)
+  → 如返回包含 one_liner → 直接使用
+  → 否则 GET /tour/sessions/:id/report  (获取生成结果)
+  → _applyReport(data) 渲染真实字段
+  → 任意步骤失败 → _applyFallback(true) 兜底本地演示数据 + Toast 提示
+```
+
+#### 报告展示字段
+
+| 后端字段 | UI 展示位置 |
+|---------|-----------|
+| `one_liner` | 页面顶部金句引用卡片 |
+| `identity_tags` | 橙色圆角标签行 |
+| `total_duration_minutes` | 数据格 "时长" |
+| `total_questions` | 数据格 "互动" |
+| `total_exhibits_viewed` | 数据格 "展品" |
+| `radar_scores` | 条形进度图（替代雷达图，无 canvas 依赖） |
+| `highlights` | 亮点列表（◆ 符号行） |
+
+#### 本地兜底逻辑
+
+- 无 `sessionId`（未完成问卷）→ 静默展示演示数据，无 Toast
+- API 失败 → 展示演示数据 + Toast「报告生成失败，已使用本地演示报告」+ 页面内小字提示
 
 ## 与后端 API 的关系
 

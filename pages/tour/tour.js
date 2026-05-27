@@ -53,6 +53,8 @@ Page({
       this._streamTask.abort()
       this._streamTask = null
     }
+    // Fire-and-forget: best-effort flush of pending events on page leave
+    this._flushEvents(null)
   },
 
   // ── Input ─────────────────────────────────────────────────────────────────
@@ -111,6 +113,13 @@ Page({
       return
     }
 
+    // ── Record exhibit_question event ──────────────────────────────────────
+    tourStore.addTourEvent({
+      eventType: 'exhibit_question',
+      hall:      self.data.hallName || '',
+      metadata:  { message: text.slice(0, 200) },
+    })
+
     // ── Start SSE stream ───────────────────────────────────────────────────
     self._streamTask = api.tourApi.chatStream(id, {
       message: text,
@@ -142,14 +151,12 @@ Page({
           chatStore.setRagStep(ev.step, ev.status, ev.message)
           self.setData({ ragSteps: chatStore.getState().ragSteps })
         }
-        // thinking events are visual-only — thinking dots already shown
       },
 
       onDone: function (payload) {
         self._streamTask = null
         self._clearHintTimers()
 
-        // ── Performance summary ────────────────────────────────────────────
         if (self._perf) {
           self._perf.doneAt = Date.now()
           var totalDuration     = self._perf.doneAt - self._perf.sendAt
@@ -163,7 +170,6 @@ Page({
         // Force-flush any buffered chunk text before committing message
         self._forceFlush()
 
-        // Resolve final content (three shapes the backend may send)
         var finalContent = payload.content
           || (payload.chunks && payload.chunks.join(''))
           || chatStore.getState().streamingBuffer
@@ -195,7 +201,6 @@ Page({
         self._clearHintTimers()
         self._forceFlush()
 
-        // Preserve raw error in console for debugging
         console.error('[stream] error at',
           self._perf ? (Date.now() - self._perf.sendAt) + ' ms' : '?',
           '| raw:', err)
@@ -230,8 +235,7 @@ Page({
     if (!self.data.isThinking && !self.data.isStreaming) return
 
     if (self._perf) {
-      console.log('[perf] stream aborted by user at',
-        Date.now() - self._perf.sendAt, 'ms')
+      console.log('[perf] stream aborted by user at', Date.now() - self._perf.sendAt, 'ms')
     }
 
     if (self._streamTask) {
@@ -241,7 +245,6 @@ Page({
     self._clearHintTimers()
     self._forceFlush()
 
-    // Preserve whatever was accumulated; append stop marker
     var accumulated  = self.data.streamingContent
       || chatStore.getState().streamingBuffer
       || ''
@@ -267,16 +270,38 @@ Page({
     self._scrollToBottom()
   },
 
-  // ── Chunk-flush helpers ────────────────────────────────────────────────────
+  // ── Pending-events flush helper ────────────────────────────────────────────
 
   /**
-   * Schedule a 80 ms batch flush of _chunkBuffer → streamingContent setData.
-   * Multiple chunk arrivals within the same 80 ms window are batched into one
-   * setData call, reducing JS-to-renderer bridge traffic significantly.
+   * Upload all buffered tour events to the backend.
+   * If the upload fails, events are restored to the buffer.
+   * @param {Function|null} callback  Called when flush completes (success or failure).
    */
+  _flushEvents: function (callback) {
+    var state  = tourStore.getTourState()
+    var events = tourStore.drainPendingEvents()
+
+    if (!events.length || !state.sessionId) {
+      if (callback) callback()
+      return
+    }
+
+    api.tourApi.recordEvents(state.sessionId, events, state.sessionToken)
+      .then(function () {
+        if (callback) callback()
+      })
+      .catch(function (err) {
+        console.warn('[tour] flush events failed, restoring:', err)
+        tourStore.restorePendingEvents(events)
+        if (callback) callback()
+      })
+  },
+
+  // ── Chunk-flush helpers ────────────────────────────────────────────────────
+
   _scheduleFlush: function () {
     var self = this
-    if (self._flushTimer) return  // already scheduled; accumulate into buffer
+    if (self._flushTimer) return
     self._flushTimer = setTimeout(function () {
       self._flushTimer = null
       if (self._chunkBuffer) {
@@ -288,7 +313,6 @@ Page({
     }, 80)
   },
 
-  /** Synchronously flush _chunkBuffer (used on done / stop / error). */
   _forceFlush: function () {
     this._clearFlushTimer()
     if (this._chunkBuffer) {
@@ -321,13 +345,8 @@ Page({
     if (raw.indexOf('timeout') >= 0 || raw.indexOf('超时') >= 0) {
       return 'AI 导览员响应超时，请稍后再试。'
     }
-    if (status >= 500) {
-      return '服务器暂时繁忙，请稍后再试。'
-    }
-    if (status >= 400 && status < 500) {
-      return '请求参数有误，请重试或刷新页面。'
-    }
-    // Network failures: wx errMsg contains 'request:fail', 'ERR_', etc.
+    if (status >= 500) return '服务器暂时繁忙，请稍后再试。'
+    if (status >= 400 && status < 500) return '请求参数有误，请重试或刷新页面。'
     return '连接 AI 导览员失败，请检查网络后重试。'
   },
 
@@ -397,7 +416,19 @@ Page({
 
   // ── Navigation ────────────────────────────────────────────────────────────
 
-  goScan:   function () { wx.navigateTo({ url: '/pages/exhibit-scan/exhibit-scan' }) },
-  goReport: function () { wx.navigateTo({ url: '/pages/report/report' }) },
-  goRoute:  function () { wx.navigateTo({ url: '/pages/route/route' }) },
+  goScan: function () {
+    wx.navigateTo({ url: '/pages/exhibit-scan/exhibit-scan' })
+  },
+
+  goReport: function () {
+    var self = this
+    // Flush pending events before navigating to report page
+    self._flushEvents(function () {
+      wx.navigateTo({ url: '/pages/report/report' })
+    })
+  },
+
+  goRoute: function () {
+    wx.navigateTo({ url: '/pages/route/route' })
+  },
 })

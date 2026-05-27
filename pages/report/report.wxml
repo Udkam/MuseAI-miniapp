@@ -1,4 +1,17 @@
-<view class="page-wrap report" wx:if="{{isReady}}">
+<!-- ── Loading state ─────────────────────────────────────────────────────── -->
+<view wx:if="{{isLoading}}" class="report-loading">
+  <text class="report-loading-icon">📊</text>
+  <view class="report-loading-dots">
+    <view class="rdot"></view>
+    <view class="rdot"></view>
+    <view class="rdot"></view>
+  </view>
+  <text class="report-loading-text">正在生成你的专属报告…</text>
+</view>
+
+<!-- ── Report content ─────────────────────────────────────────────────────── -->
+<scroll-view wx:if="{{isReady}}" scroll-y class="report-scroll">
+<view class="page-wrap report">
 
   <!-- Header -->
   <view class="report-header">
@@ -7,7 +20,23 @@
     <text class="report-persona text-clay">身份：{{persona}}</text>
   </view>
 
-  <!-- Stats -->
+  <!-- One-liner gold quote -->
+  <view wx:if="{{oneLiner}}" class="one-liner-card">
+    <text class="one-liner-mark">"</text>
+    <text class="one-liner-text">{{oneLiner}}</text>
+    <text class="one-liner-mark one-liner-mark-right">"</text>
+  </view>
+
+  <!-- Identity tags -->
+  <view wx:if="{{identityTags.length > 0}}" class="identity-tags-row">
+    <text
+      wx:for="{{identityTags}}"
+      wx:key="*this"
+      class="identity-tag"
+    >{{item}}</text>
+  </view>
+
+  <!-- Stats grid -->
   <view class="stats-grid">
     <view class="stat-item">
       <text class="stat-num">{{stats.halls}}</text>
@@ -27,8 +56,26 @@
     </view>
   </view>
 
+  <!-- Radar / trait analysis (bar chart) -->
+  <view wx:if="{{radarBars.length > 0}}" class="card">
+    <text class="section-label text-clay text-bold">游览特质分析</text>
+    <view class="radar-bars">
+      <view
+        wx:for="{{radarBars}}"
+        wx:key="label"
+        class="radar-bar-row"
+      >
+        <text class="radar-bar-label">{{item.label}}</text>
+        <view class="radar-bar-track">
+          <view class="radar-bar-fill" style="width: {{item.value}}%;"></view>
+        </view>
+        <text class="radar-bar-value">{{item.value}}</text>
+      </view>
+    </view>
+  </view>
+
   <!-- Highlights -->
-  <view class="card">
+  <view wx:if="{{highlights.length > 0}}" class="card">
     <text class="section-label text-clay text-bold">本次游览亮点</text>
     <view class="highlight-list">
       <view
@@ -42,15 +89,16 @@
     </view>
   </view>
 
-  <!-- AI note -->
-  <view class="ai-note">
-    <text class="ai-note-text text-muted text-sm">完整 AI 分析报告将在 Phase 6 接入后端后自动生成</text>
+  <!-- Fallback notice (shown only when local demo data is used after API error) -->
+  <view wx:if="{{loadError}}" class="error-notice">
+    <text class="error-notice-text">⚠ 报告生成失败，当前显示为演示数据</text>
   </view>
 
   <!-- Actions -->
   <view class="report-actions">
-    <button class="btn-primary" bindtap="shareReport">分享报告</button>
+    <button class="btn-primary"  bindtap="shareReport">分享报告</button>
     <button class="btn-secondary" style="margin-top:20rpx;" bindtap="goHome">返回首页</button>
   </view>
 
 </view>
+</scroll-view>

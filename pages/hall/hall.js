@@ -36,15 +36,17 @@ Page({
     var id    = state.sessionId
     var token = state.sessionToken
 
-    var _navigate = function () {
+    var _navigateToHall = function () {
+      tourStore.updateTourState({ currentHall: hall.name, status: 'touring' })
+      // ── Record hall_enter event ───────────────────────────────────────────
+      tourStore.addTourEvent({ eventType: 'hall_enter', hall: hall.name })
       wx.navigateTo({
         url: '/pages/tour/tour?hall=' + encodeURIComponent(hall.name) + '&hallId=' + hall.id,
       })
     }
 
     if (!id) {
-      tourStore.updateTourState({ currentHall: hall.name })
-      _navigate()
+      _navigateToHall()
       return
     }
 
@@ -58,13 +60,11 @@ Page({
       if (!res.ok) {
         console.warn('[hall] updateSession failed:', res.status, res.data)
       }
-      tourStore.updateTourState({ currentHall: hall.name, status: 'touring' })
-      _navigate()
+      _navigateToHall()
     }).catch(function (err) {
       self.setData({ entering: false })
-      console.warn('[hall] updateSession error:', err)
-      tourStore.updateTourState({ currentHall: hall.name })
-      _navigate()
+      console.warn('[hall] updateSession error — navigating anyway:', err)
+      _navigateToHall()
     })
   },
 })
