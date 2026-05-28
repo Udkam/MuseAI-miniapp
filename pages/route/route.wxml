@@ -1,41 +1,155 @@
-<view class="page-wrap route">
+<view class="page-wrap route-page" wx:if="{{loaded}}">
 
+  <!-- ── Header ─────────────────────────────────────────────────────────────── -->
   <view class="route-header">
+    <view class="ai-badge">
+      <text class="ai-badge-text">AI 推荐路线</text>
+    </view>
     <text class="route-title">为你规划的参观路线</text>
-    <text class="route-total text-muted text-sm">预计总时长：{{totalTime}}</text>
+    <text class="route-tagline">{{tagline}}</text>
   </view>
 
-  <!-- Timeline -->
-  <view class="timeline">
-    <view
-      wx:for="{{route}}"
-      wx:key="order"
-      class="timeline-item"
-    >
-      <view class="timeline-line-wrap">
-        <view class="timeline-dot">{{item.order}}</view>
-        <view wx:if="{{index < route.length - 1}}" class="timeline-connector"></view>
+  <!-- ── Stats row ──────────────────────────────────────────────────────────── -->
+  <view class="stats-row">
+    <view class="stat-block">
+      <text class="stat-label">预计时长</text>
+      <text class="stat-value">{{totalDesc}}</text>
+    </view>
+    <view class="stat-sep"></view>
+    <view class="stat-block">
+      <text class="stat-label">路线风格</text>
+      <text class="stat-value">{{personaLabel}}</text>
+    </view>
+  </view>
+
+  <!-- ── CSS floor plan ─────────────────────────────────────────────────────── -->
+  <view class="floor-section">
+    <text class="section-label">展厅平面示意</text>
+    <view class="floor-map">
+
+      <!-- Hall 1: settlement -->
+      <view class="floor-hall floor-hall-{{floorItems[0].status}}">
+        <text class="floor-hall-short">{{floorItems[0].short}}</text>
+        <view wx:if="{{floorItems[0].status === 'visited'}}" class="floor-visited-mark"></view>
+        <view wx:if="{{floorItems[0].status === 'current'}}"  class="floor-curr-dot"></view>
       </view>
-      <view class="timeline-card card">
-        <view class="card-header-row">
-          <text class="tl-icon">{{item.icon}}</text>
-          <view>
-            <text class="tl-hall">{{item.hall}}</text>
-            <text class="tl-duration text-muted text-sm">{{item.duration}}</text>
-          </view>
-        </view>
-        <view class="highlights">
-          <text
-            wx:for="{{item.highlights}}"
-            wx:key="*this"
-            wx:for-item="h"
-            class="highlight-tag"
-          >{{h}}</text>
-        </view>
+
+      <!-- Connector -->
+      <view class="floor-conn"><view class="floor-conn-line"></view></view>
+
+      <!-- Hall 2: artifacts -->
+      <view class="floor-hall floor-hall-{{floorItems[1].status}}">
+        <text class="floor-hall-short">{{floorItems[1].short}}</text>
+        <view wx:if="{{floorItems[1].status === 'visited'}}" class="floor-visited-mark"></view>
+        <view wx:if="{{floorItems[1].status === 'current'}}"  class="floor-curr-dot"></view>
+      </view>
+
+      <!-- Connector -->
+      <view class="floor-conn"><view class="floor-conn-line"></view></view>
+
+      <!-- Hall 3: culture -->
+      <view class="floor-hall floor-hall-{{floorItems[2].status}}">
+        <text class="floor-hall-short">{{floorItems[2].short}}</text>
+        <view wx:if="{{floorItems[2].status === 'visited'}}" class="floor-visited-mark"></view>
+        <view wx:if="{{floorItems[2].status === 'current'}}"  class="floor-curr-dot"></view>
+      </view>
+
+    </view>
+
+    <!-- Entrance label -->
+    <view class="floor-entrance-row">
+      <view class="floor-entrance-line"></view>
+      <text class="floor-entrance-text">入口</text>
+      <view class="floor-entrance-line"></view>
+    </view>
+
+    <!-- Legend -->
+    <view class="floor-legend">
+      <view class="legend-item">
+        <view class="legend-swatch legend-swatch-visited"></view>
+        <text class="legend-text">已访问</text>
+      </view>
+      <view class="legend-item">
+        <view class="legend-swatch legend-swatch-current"></view>
+        <text class="legend-text">当前推荐</text>
+      </view>
+      <view class="legend-item">
+        <view class="legend-swatch legend-swatch-upcoming"></view>
+        <text class="legend-text">待参观</text>
       </view>
     </view>
   </view>
 
-  <button class="btn-primary" style="margin-top:48rpx;" bindtap="startTour">开始导览 →</button>
+  <!-- ── Detailed step cards ─────────────────────────────────────────────────── -->
+  <view class="steps-section">
+    <text class="section-label">详细路线</text>
+    <view class="steps-list">
+
+      <view
+        wx:for="{{steps}}"
+        wx:key="hallId"
+        class="step-wrap"
+        style="animation-delay: {{index * 130}}ms"
+      >
+        <!-- Rail (left column) -->
+        <view class="step-rail">
+          <view class="step-node step-node-{{item.status}}">
+            <text wx:if="{{item.isVisited}}" class="step-node-icon">✓</text>
+            <text wx:else class="step-node-num">{{item.order}}</text>
+          </view>
+          <view
+            wx:if="{{index < stepsCount - 1}}"
+            class="step-conn-line step-conn-line-{{item.status}}"
+          ></view>
+        </view>
+
+        <!-- Card body (right column) -->
+        <view class="step-card step-card-{{item.status}}">
+
+          <!-- Status badge -->
+          <view class="step-status-badge step-status-badge-{{item.status}}">
+            <text class="step-status-text step-status-text-{{item.status}}">
+              {{item.status === 'visited' ? '已访问' : item.status === 'current' ? '当前推荐' : '即将到达'}}
+            </text>
+          </view>
+
+          <!-- Hall name + duration -->
+          <view class="step-title-row">
+            <text class="step-hall-name step-hall-name-{{item.status}}">{{item.name}}</text>
+            <text class="step-duration">{{item.duration}}</text>
+          </view>
+
+          <!-- AI rationale (hidden for visited halls) -->
+          <view class="step-reason-block" wx:if="{{!item.isVisited}}">
+            <text class="step-reason-label">AI 说</text>
+            <text class="step-reason-text">{{item.reason}}</text>
+          </view>
+
+          <!-- Focus tip (hidden for visited halls) -->
+          <view class="step-focus-row" wx:if="{{!item.isVisited}}">
+            <text class="step-focus-label">重点关注</text>
+            <text class="step-focus-text">{{item.focus}}</text>
+          </view>
+
+          <!-- Highlight tags -->
+          <view class="step-highlights">
+            <text
+              wx:for="{{item.highlights}}"
+              wx:key="*this"
+              wx:for-item="h"
+              class="step-tag step-tag-{{item.status}}"
+            >{{h}}</text>
+          </view>
+
+        </view>
+      </view>
+
+    </view>
+  </view>
+
+  <!-- ── CTA ────────────────────────────────────────────────────────────────── -->
+  <view class="bottom-action">
+    <button class="btn-primary" bindtap="startTour">选择展厅，开始导览 →</button>
+  </view>
 
 </view>
