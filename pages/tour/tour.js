@@ -121,9 +121,16 @@ Page({
     })
 
     // ── Start SSE stream ───────────────────────────────────────────────────
+    var stylePrefs = tourStore.getStylePrefs()
+    var style = stylePrefs.enabled !== false
+      ? { answer_length: stylePrefs.answerLength, depth: stylePrefs.depth, terminology: stylePrefs.terminology }
+      : null
+    console.log('[tour] chat style payload', style)
+
     self._streamTask = api.tourApi.chatStream(id, {
       message: text,
       token:   token,
+      style:   style,
 
       onChunk: function (chunk) {
         if (!chunk) return
