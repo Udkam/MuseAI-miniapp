@@ -10,6 +10,8 @@
   width: 100%;
 }
 
+/* ── Persona card ───────────────────────────────────────────────────────────── */
+
 .persona-card {
   width: 100%;
   background: #F5F0E8;
@@ -19,7 +21,7 @@
   display: flex;
   flex-direction: column;
   align-items: center;
-  margin-bottom: 40rpx;
+  margin-bottom: 32rpx;
   box-sizing: border-box;
 }
 
@@ -42,10 +44,12 @@
   text-align: center;
 }
 
+/* ── Badge ──────────────────────────────────────────────────────────────────── */
+
 .badge-row {
   display: flex;
   justify-content: center;
-  margin-bottom: 60rpx;
+  margin-bottom: 40rpx;
 }
 
 .badge {
@@ -59,6 +63,64 @@
   font-weight: 600;
   letter-spacing: 4rpx;
 }
+
+/* ── AI behavior description ────────────────────────────────────────────────── */
+
+.ai-behavior-block {
+  width: 100%;
+  margin-bottom: 24rpx;
+}
+
+.ai-behavior-label {
+  font-size: 22rpx;
+  color: #B08060;
+  display: block;
+  margin-bottom: 16rpx;
+  letter-spacing: 1rpx;
+}
+
+.ai-behavior-bubble {
+  background: #F5F0E8;
+  border-left: 6rpx solid #C4845A;
+  border-radius: 0 16rpx 16rpx 0;
+  padding: 24rpx 28rpx;
+}
+
+.ai-behavior-text {
+  font-size: 28rpx;
+  color: #3D2B1A;
+  line-height: 1.7;
+}
+
+/* ── Challenge preview ──────────────────────────────────────────────────────── */
+
+.challenge-preview {
+  width: 100%;
+  background: #FFFBF5;
+  border: 2rpx solid #EDD8B8;
+  border-radius: 16rpx;
+  padding: 24rpx 28rpx;
+  display: flex;
+  align-items: flex-start;
+  gap: 16rpx;
+  margin-bottom: 40rpx;
+  box-sizing: border-box;
+}
+
+.challenge-icon {
+  font-size: 36rpx;
+  flex-shrink: 0;
+  margin-top: 2rpx;
+}
+
+.challenge-text {
+  font-size: 26rpx;
+  color: #8A6E55;
+  line-height: 1.65;
+  flex: 1;
+}
+
+/* ── Bottom action ──────────────────────────────────────────────────────────── */
 
 .bottom-action {
   width: 100%;

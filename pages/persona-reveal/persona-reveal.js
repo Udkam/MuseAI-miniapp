@@ -3,42 +3,55 @@ const api       = require('../../api/index')
 
 var PERSONA_MAP = {
   A: {
-    key:   'A',
-    label: '考古队长',
-    icon:  '🏺',
-    title: '你是 考古队长',
-    desc:  '目光锐利，善于从细节中读出历史的密码。你会带着探索精神深挖每一件器物背后的故事，让半坡遗址在你眼中变成一部立体的考古报告。',
-    color: '#C4845A',
+    key:    'A',
+    label:  '考古队长',
+    icon:   '🏺',
+    title:  '你是 考古队长',
+    desc:   '目光锐利，善于从细节中读出历史的密码。你会带着探索精神深挖每一件器物背后的故事，让半坡遗址在你眼中变成一部立体的考古报告。',
+    aiDesc: '我会用证据和数据带你还原历史，遇到学界争议会直说"目前尚无定论"，不会给你模糊的答案。',
+    color:  '#C4845A',
   },
   B: {
-    key:   'B',
-    label: '半坡原住民',
-    icon:  '🌾',
-    title: '你是 半坡原住民',
-    desc:  '天生共情，能把自己代入六千年前的日常生活。炊烟、陶罐、窖穴——这些对你来说不是文物，而是邻居家的故事。',
-    color: '#7A9B6E',
+    key:    'B',
+    label:  '半坡原住民',
+    icon:   '🌾',
+    title:  '你是 半坡原住民',
+    desc:   '天生共情，能把自己代入六千年前的日常生活。炊烟、陶罐、窖穴——这些对你来说不是文物，而是邻居家的故事。',
+    aiDesc: '我会以第一人称带你穿越，用阿妈、部落、围火这些词讲述我们先民的生活，让你感受而非背诵。',
+    color:  '#7A9B6E',
   },
   C: {
-    key:   'C',
-    label: '历史老师',
-    icon:  '📜',
-    title: '你是 历史老师',
-    desc:  '系统思维，善于将碎片化信息编织成完整的历史图景。你的参观将成为一堂生动的历史课，每个展品都是一个知识节点。',
-    color: '#6B8CAE',
+    key:    'C',
+    label:  '历史老师',
+    icon:   '📜',
+    title:  '你是 历史老师',
+    desc:   '系统思维，善于将碎片化信息编织成完整的历史图景。你的参观将成为一堂生动的历史课，每个展品都是一个知识节点。',
+    aiDesc: '我会在每个知识点后抛出一个问题，引导你自己思考，而不是直接给结论——苏格拉底式对话。',
+    color:  '#6B8CAE',
   },
+}
+
+var ASSUMPTION_HINTS = {
+  A: '你认为原始社会平等和谐——游览中 AI 会在某个时刻带你看看半坡社会结构的另一面',
+  B: '你觉得原始社会艰苦不堪——AI 也许会发现一些出人意料的"小确幸"证据',
+  C: '你认为强弱之分自古皆然——AI 会带你探索半坡合作与分工的真实图景',
 }
 
 Page({
   data: {
-    persona:  null,
-    entering: false,
+    persona:        null,
+    assumptionHint: '',
+    entering:       false,
   },
 
   onLoad: function (options) {
-    // 读 URL 参数（onboarding 传来），不重置已有 tourStore 状态
-    var p    = options.persona || tourStore.getTourState().persona || 'A'
+    var p    = options.persona    || tourStore.getTourState().persona    || 'A'
+    var aKey = options.assumption || tourStore.getTourState().assumption || 'A'
+
     var info = PERSONA_MAP[p] || PERSONA_MAP.A
-    this.setData({ persona: info })
+    var hint = ASSUMPTION_HINTS[aKey] || ASSUMPTION_HINTS.A
+
+    this.setData({ persona: info, assumptionHint: hint })
   },
 
   goHall: function () {

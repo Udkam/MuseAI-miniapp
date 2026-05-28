@@ -11,6 +11,7 @@
   <!-- Question -->
   <view class="question-block">
     <text class="question-text">{{questions[step].text}}</text>
+    <text class="question-hint">{{questions[step].hint}}</text>
   </view>
 
   <!-- Options -->
@@ -22,7 +23,10 @@
       bindtap="selectOption"
       data-key="{{item.key}}"
     >
-      <view class="option-badge">{{item.key}}</view>
+      <view class="option-badge">
+        <text wx:if="{{answers[step] === item.key}}" class="option-check">✓</text>
+        <text wx:else>{{item.key}}</text>
+      </view>
       <view class="option-body">
         <text class="option-title">{{item.label}}</text>
         <text class="option-desc">{{item.desc}}</text>

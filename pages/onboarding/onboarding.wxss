@@ -4,6 +4,8 @@
   min-height: 100vh;
 }
 
+/* ── Progress ──────────────────────────────────────────────────────────────── */
+
 .progress-row {
   margin-bottom: 48rpx;
 }
@@ -12,33 +14,46 @@
   font-size: 24rpx;
   color: #8B6B55;
   display: block;
-  margin-bottom: 12rpx;
+  margin-bottom: 16rpx;
 }
 
 .progress-track {
-  height: 8rpx;
+  height: 10rpx;
   background: #DDD0C0;
-  border-radius: 4rpx;
+  border-radius: 5rpx;
   overflow: hidden;
 }
 
 .progress-fill {
   height: 100%;
-  background: #C4845A;
-  border-radius: 4rpx;
-  transition: width 0.3s;
+  background: linear-gradient(90deg, #C4845A, #E8A878);
+  border-radius: 5rpx;
+  transition: width 0.35s ease-out;
 }
 
+/* ── Question ──────────────────────────────────────────────────────────────── */
+
 .question-block {
-  margin-bottom: 48rpx;
+  margin-bottom: 40rpx;
 }
 
 .question-text {
-  font-size: 40rpx;
+  font-size: 38rpx;
   font-weight: 700;
   color: #3D2B1A;
-  line-height: 1.4;
+  line-height: 1.45;
+  display: block;
+  margin-bottom: 12rpx;
 }
+
+.question-hint {
+  font-size: 24rpx;
+  color: #B08060;
+  display: block;
+  line-height: 1.5;
+}
+
+/* ── Options ───────────────────────────────────────────────────────────────── */
 
 .options-list {
   flex: 1;
@@ -52,12 +67,15 @@
   border-radius: 20rpx;
   padding: 32rpx;
   margin-bottom: 24rpx;
-  transition: border-color 0.2s, background 0.2s;
+  min-height: 88rpx;
+  box-sizing: border-box;
+  transition: border-color 0.2s, background 0.2s, box-shadow 0.2s;
 }
 
 .option-item.selected {
   border-color: #C4845A;
   background: #FFF8F2;
+  box-shadow: 0 4rpx 20rpx rgba(196, 132, 90, 0.18);
 }
 
 .option-badge {
@@ -74,11 +92,16 @@
   flex-shrink: 0;
   margin-right: 24rpx;
   margin-top: 4rpx;
+  transition: background 0.2s, color 0.2s;
 }
 
 .option-item.selected .option-badge {
   background: #C4845A;
   color: #FAF7F2;
+}
+
+.option-check {
+  font-size: 30rpx;
 }
 
 .option-body {
@@ -93,11 +116,17 @@
   margin-bottom: 8rpx;
 }
 
+.option-item.selected .option-title {
+  color: #C4845A;
+}
+
 .option-desc {
   font-size: 26rpx;
   color: #8B6B55;
-  line-height: 1.5;
+  line-height: 1.55;
 }
+
+/* ── Bottom action ─────────────────────────────────────────────────────────── */
 
 .bottom-action {
   padding: 40rpx 0 60rpx;

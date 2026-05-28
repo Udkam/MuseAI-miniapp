@@ -18,8 +18,22 @@
     </view>
   </view>
 
+  <!-- AI behavior description -->
+  <view class="ai-behavior-block">
+    <text class="ai-behavior-label">AI 导览员会这样陪你</text>
+    <view class="ai-behavior-bubble">
+      <text class="ai-behavior-text">{{persona.aiDesc}}</text>
+    </view>
+  </view>
+
+  <!-- Assumption challenge preview -->
+  <view wx:if="{{assumptionHint}}" class="challenge-preview">
+    <text class="challenge-icon">💡</text>
+    <text class="challenge-text">{{assumptionHint}}</text>
+  </view>
+
   <view class="bottom-action">
-    <button class="btn-primary" bindtap="goHall">进入展厅 →</button>
+    <button class="btn-primary" loading="{{entering}}" bindtap="goHall">进入展厅 →</button>
   </view>
 
 </view>
