@@ -9,7 +9,7 @@
     <view
       wx:for="{{halls}}"
       wx:key="id"
-      class="hall-card"
+      class="hall-card {{item.isRecommended ? 'recommended' : ''}}"
       bindtap="selectHall"
       data-hall="{{item}}"
     >
@@ -17,7 +17,10 @@
         <text class="hall-icon">{{item.icon}}</text>
       </view>
       <view class="hall-info">
-        <text class="hall-name">{{item.name}}</text>
+        <view class="hall-name-row">
+          <text class="hall-name">{{item.name}}</text>
+          <view wx:if="{{item.isRecommended}}" class="hall-recommend-badge">AI 推荐先去</view>
+        </view>
         <text class="hall-desc text-muted">{{item.desc}}</text>
       </view>
       <text class="hall-arrow text-clay">›</text>

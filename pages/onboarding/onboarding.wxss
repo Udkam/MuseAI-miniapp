@@ -1,137 +1,227 @@
 .onboarding {
+  min-height: 100vh;
   display: flex;
   flex-direction: column;
-  min-height: 100vh;
 }
 
-/* ── Progress ──────────────────────────────────────────────────────────────── */
+/* ── Header ─────────────────────────────────────────────────────────────────── */
 
-.progress-row {
-  margin-bottom: 48rpx;
+.ob-header {
+  padding-bottom: 36rpx;
 }
 
-.step-label {
-  font-size: 24rpx;
-  color: #8B6B55;
-  display: block;
-  margin-bottom: 16rpx;
-}
-
-.progress-track {
-  height: 10rpx;
-  background: #DDD0C0;
-  border-radius: 5rpx;
-  overflow: hidden;
-}
-
-.progress-fill {
-  height: 100%;
-  background: linear-gradient(90deg, #C4845A, #E8A878);
-  border-radius: 5rpx;
-  transition: width 0.35s ease-out;
-}
-
-/* ── Question ──────────────────────────────────────────────────────────────── */
-
-.question-block {
-  margin-bottom: 40rpx;
-}
-
-.question-text {
-  font-size: 38rpx;
+.ob-title {
+  font-size: 44rpx;
   font-weight: 700;
-  color: #3D2B1A;
-  line-height: 1.45;
+  color: #2C1810;
   display: block;
-  margin-bottom: 12rpx;
+  line-height: 1.35;
 }
 
-.question-hint {
-  font-size: 24rpx;
+.ob-hint {
+  font-size: 26rpx;
   color: #B08060;
   display: block;
+  margin-top: 12rpx;
   line-height: 1.5;
 }
 
-/* ── Options ───────────────────────────────────────────────────────────────── */
+/* ── Intent card grid (2×2) ─────────────────────────────────────────────────── */
 
-.options-list {
-  flex: 1;
+.card-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 20rpx;
+  margin-bottom: 28rpx;
 }
 
-.option-item {
-  display: flex;
-  align-items: flex-start;
+.intent-card {
   background: #F5F0E8;
   border: 3rpx solid transparent;
-  border-radius: 20rpx;
-  padding: 32rpx;
-  margin-bottom: 24rpx;
-  min-height: 88rpx;
+  border-radius: 24rpx;
+  padding: 32rpx 24rpx 28rpx;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  position: relative;
+  min-height: 200rpx;
   box-sizing: border-box;
   transition: border-color 0.2s, background 0.2s, box-shadow 0.2s;
 }
 
-.option-item.selected {
+.intent-card.selected {
   border-color: #C4845A;
   background: #FFF8F2;
   box-shadow: 0 4rpx 20rpx rgba(196, 132, 90, 0.18);
 }
 
-.option-badge {
-  width: 56rpx;
-  height: 56rpx;
+.card-check {
+  position: absolute;
+  top: 16rpx;
+  right: 16rpx;
+  width: 40rpx;
+  height: 40rpx;
+  background: #C4845A;
+  color: #FAF7F2;
   border-radius: 50%;
-  background: #DDD0C0;
-  color: #3D2B1A;
+  font-size: 22rpx;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.card-icon {
+  font-size: 52rpx;
+  display: block;
+  margin-bottom: 16rpx;
+}
+
+.card-title {
+  font-size: 30rpx;
+  font-weight: 700;
+  color: #2C1810;
+  line-height: 1.3;
+  display: block;
+  margin-bottom: 10rpx;
+}
+
+.intent-card.selected .card-title {
+  color: #C4845A;
+}
+
+.card-desc {
+  font-size: 24rpx;
+  color: #8B6B55;
+  line-height: 1.5;
+  display: block;
+}
+
+/* ── Natural language input ──────────────────────────────────────────────────── */
+
+.intent-input-wrap {
+  background: #F5F0E8;
+  border-radius: 16rpx;
+  padding: 20rpx 24rpx;
+  margin-bottom: 20rpx;
+}
+
+.intent-input {
+  width: 100%;
   font-size: 28rpx;
+  color: #2C1810;
+  line-height: 1.5;
+}
+
+.intent-placeholder {
+  color: #C4A882;
+  font-size: 28rpx;
+}
+
+/* ── Persona preview ─────────────────────────────────────────────────────────── */
+
+.persona-preview {
+  background: #FFF8F2;
+  border-left: 4rpx solid #C4845A;
+  border-radius: 0 12rpx 12rpx 0;
+  padding: 16rpx 20rpx;
+  margin-bottom: 20rpx;
+}
+
+.persona-preview-text {
+  font-size: 26rpx;
+  color: #8B6B55;
+  line-height: 1.5;
+}
+
+/* ── Bottom action (step 1) ──────────────────────────────────────────────────── */
+
+.bottom-action {
+  padding: 24rpx 0 60rpx;
+}
+
+/* ── Time budget options ─────────────────────────────────────────────────────── */
+
+.time-list {
+  margin-bottom: 24rpx;
+}
+
+.time-item {
+  display: flex;
+  align-items: center;
+  background: #F5F0E8;
+  border: 3rpx solid transparent;
+  border-radius: 20rpx;
+  padding: 32rpx 28rpx;
+  margin-bottom: 20rpx;
+  min-height: 88rpx;
+  box-sizing: border-box;
+  transition: border-color 0.2s, background 0.2s, box-shadow 0.2s;
+  position: relative;
+}
+
+.time-item.selected {
+  border-color: #C4845A;
+  background: #FFF8F2;
+  box-shadow: 0 4rpx 20rpx rgba(196, 132, 90, 0.18);
+}
+
+.time-icon {
+  font-size: 44rpx;
+  margin-right: 24rpx;
+  flex-shrink: 0;
+}
+
+.time-body {
+  flex: 1;
+}
+
+.time-title {
+  font-size: 32rpx;
+  font-weight: 600;
+  color: #2C1810;
+  display: block;
+  margin-bottom: 6rpx;
+}
+
+.time-item.selected .time-title {
+  color: #C4845A;
+}
+
+.time-desc {
+  font-size: 26rpx;
+  color: #8B6B55;
+  display: block;
+}
+
+.time-check {
+  width: 48rpx;
+  height: 48rpx;
+  background: #C4845A;
+  color: #FAF7F2;
+  border-radius: 50%;
+  font-size: 24rpx;
   font-weight: 700;
   display: flex;
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
-  margin-right: 24rpx;
-  margin-top: 4rpx;
-  transition: background 0.2s, color 0.2s;
+  margin-left: 16rpx;
 }
 
-.option-item.selected .option-badge {
-  background: #C4845A;
-  color: #FAF7F2;
+/* ── Bottom action (step 2) ──────────────────────────────────────────────────── */
+
+.time-bottom {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  padding-bottom: 60rpx;
+  gap: 24rpx;
 }
 
-.option-check {
-  font-size: 30rpx;
-}
-
-.option-body {
-  flex: 1;
-}
-
-.option-title {
-  font-size: 32rpx;
-  font-weight: 600;
-  color: #2C1810;
-  display: block;
-  margin-bottom: 8rpx;
-}
-
-.option-item.selected .option-title {
-  color: #C4845A;
-}
-
-.option-desc {
+.skip-link {
   font-size: 26rpx;
-  color: #8B6B55;
-  line-height: 1.55;
-}
-
-/* ── Bottom action ─────────────────────────────────────────────────────────── */
-
-.bottom-action {
-  padding: 40rpx 0 60rpx;
-}
-
-.btn-disabled {
-  opacity: 0.45;
+  color: #B08060;
+  text-align: right;
+  display: block;
 }

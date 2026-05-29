@@ -214,15 +214,108 @@ const tourApi = {
 }
 
 // ─── Exhibits (public) ─────────────────────────────────────────────────────
-// GET /exhibits          ?category=&hall=
+// GET /exhibits          ?category=&hall=&search=&limit=&skip=
 // GET /exhibits/:id
+// GET /exhibits/stats
+// GET /exhibits/categories/list
+// GET /exhibits/halls/list
+
+// ── Hall slug ↔ Chinese name mapping ──────────────────────────────────────
+// Backend slugs come from import_real_exhibits_via_api.py / HALL_SPECS.
+// Frontend hall.js uses its own HALLS_MAP display names for currentHall.
+// HALL_SLUG_NAMES maps backend slug → frontend display name (matching hall.js).
+
+var HALL_SLUG_NAMES = {
+  'pottery-spirit-hall':     '出土文物陈列区',  // 陶器灵肉展厅  (artifacts, confirmed live)
+  'site-archaeology-hall':   '半坡聚落复原区',  // 遗址考古展厅  (settlement/site)
+  'civilization-spark-hall': '专题文化展区',    // 文明曙光展厅  (culture/civilization)
+}
+
+// Build reverse map: Chinese name → slug
+var HALL_NAME_SLUGS = {}
+Object.keys(HALL_SLUG_NAMES).forEach(function (slug) {
+  HALL_NAME_SLUGS[HALL_SLUG_NAMES[slug]] = slug
+})
+
+/** Convert a backend hall slug to a user-visible Chinese name. */
+function hallSlugToName(slug) {
+  return HALL_SLUG_NAMES[slug] || slug
+}
+
+/** Convert a frontend Chinese hall name to a backend slug.  Returns null if unknown. */
+function hallNameToSlug(name) {
+  return HALL_NAME_SLUGS[name] || null
+}
+
+// ── Exhibit alias map ──────────────────────────────────────────────────────
+// Maps common user-facing aliases → canonical DB exhibit names.
+// Used in client-side search to catch name variants the backend ILIKE misses.
+var EXHIBIT_ALIASES = {
+  '人面鱼纹盆':    ['人面网纹彩陶盆'],
+  '鱼纹盆':        ['人面网纹彩陶盆'],
+  '人面彩陶盆':    ['人面网纹彩陶盆'],
+  '人面鱼纹彩陶':  ['人面网纹彩陶盆'],
+  '鹿纹盆':        ['鹿纹彩陶盆'],
+  '彩陶盆':        ['人面网纹彩陶盆', '鹿纹彩陶盆'],
+  '镇馆之宝':      ['人面网纹彩陶盆'],
+}
+
+/**
+ * Given a search keyword, return an array of canonical names to also search.
+ * Returns [] if no alias match.
+ * @param {string} keyword
+ * @returns {string[]}
+ */
+function resolveAliases(keyword) {
+  if (!keyword) return []
+  var canonical = []
+  var seen = {}
+  Object.keys(EXHIBIT_ALIASES).forEach(function (alias) {
+    if (alias.indexOf(keyword) >= 0 || keyword.indexOf(alias) >= 0) {
+      EXHIBIT_ALIASES[alias].forEach(function (name) {
+        if (!seen[name]) { seen[name] = true; canonical.push(name) }
+      })
+    }
+  })
+  return canonical
+}
+
+function normalizeExhibit(raw) {
+  if (!raw) return null
+  var slug = raw.hall || raw.hall_name || ''
+  return {
+    id:                raw.id                   || '',
+    name:              raw.name                 || raw.title || '未知展品',
+    hall:              slug,
+    hallDisplay:       hallSlugToName(slug),     // user-visible Chinese name
+    category:          raw.category             || '',
+    era:               raw.era                  || raw.dynasty || raw.period || '',
+    importance:        raw.importance           || 0,
+    description:       raw.description          || raw.summary || raw.desc || '',
+    floor:             raw.floor                || null,
+    estimatedVisitTime: raw.estimated_visit_time || null,
+  }
+}
+
 const exhibitsApi = {
   list: function(params) {
     return req.get('/exhibits', { data: _clean(params || {}), retries: 1 })
   },
 
   get: function(id) {
-    return req.get('/exhibits/' + id, { retries: 1 })
+    return req.get('/exhibits/' + encodeURIComponent(id), { retries: 1 })
+  },
+
+  search: function(keyword) {
+    return req.get('/exhibits', { data: _clean({ search: keyword, limit: 20 }), retries: 1 })
+  },
+
+  listByHall: function(hall) {
+    return req.get('/exhibits', { data: _clean({ hall: hall, limit: 50 }), retries: 1 })
+  },
+
+  listHalls: function() {
+    return req.get('/exhibits/halls/list', { retries: 1 })
   },
 }
 
@@ -262,6 +355,14 @@ module.exports = {
   request:  req,
   storage:  storage,
   stream:   stream,
+
+  normalizeExhibit,
+  hallSlugToName,
+  hallNameToSlug,
+  HALL_SLUG_NAMES,
+  HALL_NAME_SLUGS,
+  EXHIBIT_ALIASES,
+  resolveAliases,
 
   healthApi,
   authApi,

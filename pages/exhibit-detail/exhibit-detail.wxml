@@ -11,16 +11,16 @@
   <view class="exhibit-info card">
     <text class="exhibit-name">{{exhibit.name}}</text>
     <view class="exhibit-tags">
-      <text class="tag">{{exhibit.category}}</text>
-      <text class="tag">{{exhibit.period}}</text>
-      <text class="tag tag-hall">{{exhibit.hall}}</text>
+      <text wx:if="{{exhibit.category}}" class="tag">{{exhibit.category}}</text>
+      <text wx:if="{{exhibit.era}}"      class="tag">{{exhibit.era}}</text>
+      <text wx:if="{{exhibit.hallDisplay}}" class="tag tag-hall">{{exhibit.hallDisplay}}</text>
     </view>
   </view>
 
   <!-- Description -->
   <view class="card">
     <text class="section-title text-clay">展品简介</text>
-    <text class="desc-text">{{exhibit.desc}}</text>
+    <text class="desc-text">{{exhibit.description}}</text>
   </view>
 
   <!-- Actions -->

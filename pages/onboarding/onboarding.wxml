@@ -1,46 +1,91 @@
 <view class="page-wrap onboarding">
 
-  <!-- Progress -->
-  <view class="progress-row">
-    <text class="step-label">第 {{step + 1}} 题 / 共 3 题</text>
-    <view class="progress-track">
-      <view class="progress-fill" style="width: {{(step + 1) / 3 * 100}}%"></view>
+  <!-- ═══ STEP 1: Intent cards ═══════════════════════════════════════════════ -->
+  <view wx:if="{{step === 1}}">
+
+    <view class="ob-header">
+      <text class="ob-title">今天来半坡，</text>
+      <text class="ob-title">你最想——</text>
     </view>
-  </view>
 
-  <!-- Question -->
-  <view class="question-block">
-    <text class="question-text">{{questions[step].text}}</text>
-    <text class="question-hint">{{questions[step].hint}}</text>
-  </view>
-
-  <!-- Options -->
-  <view class="options-list">
-    <view
-      wx:for="{{questions[step].options}}"
-      wx:key="key"
-      class="option-item {{answers[step] === item.key ? 'selected' : ''}}"
-      bindtap="selectOption"
-      data-key="{{item.key}}"
-    >
-      <view class="option-badge">
-        <text wx:if="{{answers[step] === item.key}}" class="option-check">✓</text>
-        <text wx:else>{{item.key}}</text>
-      </view>
-      <view class="option-body">
-        <text class="option-title">{{item.label}}</text>
-        <text class="option-desc">{{item.desc}}</text>
+    <!-- 2×2 intent card grid -->
+    <view class="card-grid">
+      <view
+        wx:for="{{intentCards}}"
+        wx:key="id"
+        class="intent-card {{selectedCardId === item.id ? 'selected' : ''}}"
+        bindtap="selectCard"
+        data-id="{{item.id}}"
+      >
+        <view wx:if="{{selectedCardId === item.id}}" class="card-check">✓</view>
+        <text class="card-icon">{{item.icon}}</text>
+        <text class="card-title">{{item.title}}</text>
+        <text class="card-desc">{{item.desc}}</text>
       </view>
     </view>
+
+    <!-- Natural language input (optional) -->
+    <view class="intent-input-wrap">
+      <input
+        class="intent-input"
+        placeholder="或者，用自己的话说……（选填）"
+        placeholder-class="intent-placeholder"
+        maxlength="50"
+        bindinput="onIntentInput"
+        value="{{intentText}}"
+      />
+    </view>
+
+    <!-- Inline persona preview after card selection -->
+    <view wx:if="{{selectedCardPersonaName}}" class="persona-preview">
+      <text class="persona-preview-text">✨ 你的 AI 导览员将以「{{selectedCardPersonaName}}」身份陪你</text>
+    </view>
+
+    <view class="bottom-action">
+      <button
+        class="btn-primary"
+        loading="{{false}}"
+        bindtap="goToStep2"
+      >{{selectedCardId ? '好，继续 →' : '直接开始导览 →'}}</button>
+    </view>
+
   </view>
 
-  <!-- Next button -->
-  <view class="bottom-action">
-    <button
-      class="btn-primary {{(canNext && !loading) ? '' : 'btn-disabled'}}"
-      loading="{{loading}}"
-      bindtap="goNext"
-    >{{loading ? '创建导览会话…' : (step < 2 ? '下一题 →' : '揭晓我的身份 →')}}</button>
+  <!-- ═══ STEP 2: Time budget ═════════════════════════════════════════════════ -->
+  <view wx:elif="{{step === 2}}">
+
+    <view class="ob-header">
+      <text class="ob-title">今天大概有</text>
+      <text class="ob-title">多少时间？</text>
+      <text class="ob-hint">这会影响 AI 给你的内容详略</text>
+    </view>
+
+    <view class="time-list">
+      <view
+        wx:for="{{timeOptions}}"
+        wx:key="id"
+        class="time-item {{selectedTimeId === item.id ? 'selected' : ''}}"
+        bindtap="selectTime"
+        data-id="{{item.id}}"
+      >
+        <text class="time-icon">{{item.icon}}</text>
+        <view class="time-body">
+          <text class="time-title">{{item.title}}</text>
+          <text class="time-desc">{{item.desc}}</text>
+        </view>
+        <view wx:if="{{selectedTimeId === item.id}}" class="time-check">✓</view>
+      </view>
+    </view>
+
+    <view class="time-bottom">
+      <button
+        class="btn-primary {{loading ? '' : ''}}"
+        loading="{{loading}}"
+        bindtap="confirmTime"
+      >{{loading ? '正在创建导览…' : '进入导览 →'}}</button>
+      <text class="skip-link" bindtap="skipTime">跳过，自由参观 →</text>
+    </view>
+
   </view>
 
 </view>

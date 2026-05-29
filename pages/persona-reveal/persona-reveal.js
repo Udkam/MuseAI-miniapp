@@ -37,21 +37,40 @@ var ASSUMPTION_HINTS = {
   C: '你认为强弱之分自古皆然——AI 会带你探索半坡合作与分工的真实图景',
 }
 
+var HALL_NAMES = {
+  settlement: '半坡聚落复原区',
+  artifacts:  '出土文物陈列区',
+  culture:    '专题文化展区',
+}
+
+var HALL_DESCS = {
+  settlement: '那里能最直接感受到先民的居住痕迹',
+  artifacts:  '珍贵文物集中，人面鱼纹盆是重点',
+  culture:    '建立历史框架，理解半坡文化全貌',
+}
+
 Page({
   data: {
     persona:        null,
     assumptionHint: '',
+    preferredHall:     '',
+    preferredHallDesc: '',
     entering:       false,
   },
 
   onLoad: function (options) {
-    var p    = options.persona    || tourStore.getTourState().persona    || 'A'
-    var aKey = options.assumption || tourStore.getTourState().assumption || 'A'
+    var state = tourStore.getTourState()
+    var p     = options.persona    || state.persona    || 'A'
+    var aKey  = options.assumption || state.assumption || 'A'
+    var order = state.preferredHallOrder || ['settlement', 'artifacts', 'culture']
 
-    var info = PERSONA_MAP[p] || PERSONA_MAP.A
-    var hint = ASSUMPTION_HINTS[aKey] || ASSUMPTION_HINTS.A
+    var info          = PERSONA_MAP[p] || PERSONA_MAP.A
+    var hint          = ASSUMPTION_HINTS[aKey] || ASSUMPTION_HINTS.A
+    var firstHallId   = order[0] || 'artifacts'
+    var preferredHall     = HALL_NAMES[firstHallId] || ''
+    var preferredHallDesc = HALL_DESCS[firstHallId]  || ''
 
-    this.setData({ persona: info, assumptionHint: hint })
+    this.setData({ persona: info, assumptionHint: hint, preferredHall: preferredHall, preferredHallDesc: preferredHallDesc })
   },
 
   goHall: function () {

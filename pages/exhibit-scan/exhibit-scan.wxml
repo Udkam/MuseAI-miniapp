@@ -1,28 +1,58 @@
 <view class="page-wrap scan">
 
-  <!-- Camera area -->
-  <view class="camera-area" bindtap="takePhoto">
-    <text class="camera-icon">📷</text>
-    <text class="camera-hint">点击拍摄展品</text>
-    <text class="camera-sub text-muted text-sm">AI 自动识别并讲解</text>
+  <view class="scan-header">
+    <text class="scan-title">展品浏览</text>
+    <text class="scan-hint text-muted text-sm">{{hallHint}}</text>
   </view>
 
-  <view class="divider">
-    <text class="divider-text text-muted text-sm">或</text>
-  </view>
-
-  <!-- Name input -->
-  <view class="name-input-block">
-    <text class="input-label text-brown text-bold">手动输入展品名称</text>
+  <!-- Search bar -->
+  <view class="search-bar">
+    <text class="search-icon">🔍</text>
     <input
-      class="name-input"
-      value="{{exhibitName}}"
-      bindinput="onNameInput"
-      placeholder="例如：人面鱼纹盆"
+      class="search-input"
+      value="{{searchText}}"
+      placeholder="搜索展品名称"
+      bindinput="onSearchInput"
       confirm-type="search"
-      bindconfirm="submitName"
+      bindconfirm="doSearch"
     />
-    <button class="btn-primary" bindtap="submitName" style="margin-top:24rpx;">查看讲解 →</button>
+    <view wx:if="{{searchText}}" class="search-clear" bindtap="clearSearch">
+      <text>✕</text>
+    </view>
+  </view>
+
+  <!-- Loading -->
+  <view wx:if="{{loading}}" class="state-wrap">
+    <text class="text-muted text-sm">加载展品中…</text>
+  </view>
+
+  <!-- Exhibit list -->
+  <view wx:elif="{{exhibits.length}}" class="exhibit-list">
+    <view
+      wx:for="{{exhibits}}"
+      wx:key="id"
+      class="exhibit-card"
+      bindtap="selectExhibit"
+      data-exhibit="{{item}}"
+    >
+      <view class="exhibit-card-icon">🏺</view>
+      <view class="exhibit-card-info">
+        <text class="exhibit-card-name">{{item.name}}</text>
+        <view class="exhibit-card-tags">
+          <text wx:if="{{item.hallDisplay}}" class="etag">{{item.hallDisplay}}</text>
+          <text wx:if="{{item.category}}"    class="etag">{{item.category}}</text>
+          <text wx:if="{{item.era}}"         class="etag etag-era">{{item.era}}</text>
+        </view>
+      </view>
+      <text class="exhibit-card-arrow text-clay">›</text>
+    </view>
+  </view>
+
+  <!-- Empty state -->
+  <view wx:elif="{{!loading}}" class="state-wrap">
+    <text class="empty-icon">🔍</text>
+    <text class="empty-text text-muted">没有找到相关展品</text>
+    <text class="text-muted text-sm" style="display:block;margin-top:8rpx;">换个关键词试试</text>
   </view>
 
 </view>

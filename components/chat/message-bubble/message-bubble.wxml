@@ -1,5 +1,54 @@
 <view class="bubble-wrap {{role}}">
-  <view class="bubble {{role}}">
-    <text class="bubble-text">{{content}}</text>
+  <view class="bubble {{role}}{{isError ? ' error' : ''}}">
+
+    <!-- User message: always plain text -->
+    <text wx:if="{{role === 'user'}}" class="bubble-text">{{content}}</text>
+
+    <!-- Assistant message with Markdown blocks -->
+    <view wx:elif="{{role === 'assistant' && blocks.length > 0}}" class="md-body">
+      <block wx:for="{{blocks}}" wx:key="id" wx:for-item="blk">
+
+        <!-- Headings h1 / h2 / h3 -->
+        <view wx:if="{{blk.type === 'heading'}}" class="md-h md-h{{blk.level}}">{{blk.text}}</view>
+
+        <!-- Paragraph: inline segments (bold / code / plain) -->
+        <view wx:elif="{{blk.type === 'paragraph'}}" class="md-p">
+          <text
+            wx:for="{{blk.segments}}"
+            wx:key="text"
+            wx:for-index="si"
+            wx:for-item="seg"
+            class="md-seg{{seg.bold ? ' md-bold' : ''}}{{seg.code ? ' md-code' : ''}}"
+          >{{seg.text}}</text>
+        </view>
+
+        <!-- List: unordered bullet • or ordered 1. 2. -->
+        <view wx:elif="{{blk.type === 'list'}}" class="md-list">
+          <view
+            wx:for="{{blk.items}}"
+            wx:key="index"
+            wx:for-index="li"
+            wx:for-item="listItem"
+            class="md-li"
+          >
+            <text class="md-bullet">{{blk.ordered ? (li+1)+'.' : '•'}}</text>
+            <view class="md-li-body">
+              <text
+                wx:for="{{listItem}}"
+                wx:key="text"
+                wx:for-index="si2"
+                wx:for-item="seg2"
+                class="md-seg{{seg2.bold ? ' md-bold' : ''}}{{seg2.code ? ' md-code' : ''}}"
+              >{{seg2.text}}</text>
+            </view>
+          </view>
+        </view>
+
+      </block>
+    </view>
+
+    <!-- Fallback: no blocks (empty content or user msg edge case) -->
+    <text wx:else class="bubble-text">{{content}}</text>
+
   </view>
 </view>

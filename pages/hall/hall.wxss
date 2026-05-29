@@ -58,7 +58,6 @@
   font-weight: 600;
   color: #2C1810;
   display: block;
-  margin-bottom: 8rpx;
 }
 
 .hall-desc {
@@ -73,5 +72,29 @@
 
 .hall-arrow {
   font-size: 48rpx;
+  flex-shrink: 0;
+}
+
+/* ── Recommended badge ──────────────────────────────────────────────────────── */
+
+.hall-card.recommended {
+  border: 3rpx solid #C4845A;
+}
+
+.hall-name-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12rpx;
+  margin-bottom: 8rpx;
+}
+
+.hall-recommend-badge {
+  background: #C4845A;
+  color: #FAF7F2;
+  font-size: 20rpx;
+  font-weight: 600;
+  padding: 4rpx 16rpx;
+  border-radius: 100rpx;
   flex-shrink: 0;
 }

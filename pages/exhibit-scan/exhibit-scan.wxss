@@ -2,68 +2,170 @@
   min-height: 100vh;
 }
 
-.camera-area {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  background: #F5F0E8;
-  border: 3rpx dashed #C4845A;
-  border-radius: 24rpx;
-  padding: 80rpx 40rpx;
-  margin-bottom: 0;
+/* ── Header ──────────────────────────────────────────────────────────────── */
+
+.scan-header {
+  padding: 32rpx 0 24rpx;
 }
 
-.camera-icon {
-  font-size: 96rpx;
-  margin-bottom: 24rpx;
-}
-
-.camera-hint {
-  font-size: 32rpx;
-  font-weight: 600;
+.scan-title {
+  font-size: 44rpx;
+  font-weight: 700;
   color: #3D2B1A;
-  margin-bottom: 12rpx;
+  display: block;
+  margin-bottom: 8rpx;
 }
 
-.camera-sub {
+.scan-hint {
   display: block;
 }
 
-.divider {
+/* ── Search bar ───────────────────────────────────────────────────────────── */
+
+.search-bar {
   display: flex;
   align-items: center;
-  margin: 48rpx 0;
+  background: #F5F0E8;
+  border: 2rpx solid #DDD0C0;
+  border-radius: 100rpx;
+  padding: 16rpx 28rpx;
+  gap: 16rpx;
+  margin-bottom: 32rpx;
 }
 
-.divider::before,
-.divider::after {
-  content: '';
+.search-icon {
+  font-size: 32rpx;
+  flex-shrink: 0;
+}
+
+.search-input {
   flex: 1;
-  height: 2rpx;
-  background: #DDD0C0;
+  font-size: 28rpx;
+  color: #2C1810;
 }
 
-.divider-text {
-  padding: 0 24rpx;
+.search-clear {
+  flex-shrink: 0;
+  color: #8B6B55;
+  font-size: 28rpx;
+  padding: 4rpx 8rpx;
 }
 
-.name-input-block {
+/* ── Exhibit list ─────────────────────────────────────────────────────────── */
+
+.exhibit-list {
   display: flex;
   flex-direction: column;
+  gap: 16rpx;
+  margin-bottom: 48rpx;
 }
 
-.input-label {
-  font-size: 28rpx;
+.exhibit-card {
+  display: flex;
+  align-items: center;
+  background: #F5F0E8;
+  border-radius: 20rpx;
+  padding: 28rpx 24rpx;
+  gap: 20rpx;
+}
+
+.exhibit-card-icon {
+  font-size: 52rpx;
+  flex-shrink: 0;
+  width: 72rpx;
+  text-align: center;
+}
+
+.exhibit-card-info {
+  flex: 1;
+  overflow: hidden;
+}
+
+.exhibit-card-name {
+  font-size: 30rpx;
+  font-weight: 600;
+  color: #2C1810;
+  display: block;
+  margin-bottom: 12rpx;
+}
+
+.exhibit-card-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8rpx;
+}
+
+.etag {
+  font-size: 22rpx;
+  color: #8B6B55;
+  background: #EDE3D6;
+  padding: 4rpx 16rpx;
+  border-radius: 100rpx;
+}
+
+.etag-era {
+  background: #C4845A22;
+  color: #C4845A;
+}
+
+.exhibit-card-arrow {
+  font-size: 44rpx;
+  flex-shrink: 0;
+}
+
+/* ── States ───────────────────────────────────────────────────────────────── */
+
+.state-wrap {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 80rpx 40rpx;
+  gap: 16rpx;
+}
+
+.empty-icon {
+  font-size: 80rpx;
+}
+
+.empty-text {
+  font-size: 30rpx;
+}
+
+/* ── Manual input fallback ────────────────────────────────────────────────── */
+
+.manual-section {
+  border-top: 2rpx solid #DDD0C0;
+  padding-top: 32rpx;
+  margin-top: 8rpx;
+}
+
+.manual-label {
   display: block;
   margin-bottom: 16rpx;
 }
 
-.name-input {
+.manual-row {
+  display: flex;
+  gap: 16rpx;
+  align-items: center;
+}
+
+.manual-input {
+  flex: 1;
   background: #F5F0E8;
   border: 2rpx solid #DDD0C0;
   border-radius: 16rpx;
-  padding: 24rpx 28rpx;
-  font-size: 30rpx;
+  padding: 20rpx 24rpx;
+  font-size: 28rpx;
   color: #2C1810;
+}
+
+.manual-btn {
+  background: #C4845A;
+  color: #FAF7F2;
+  font-size: 26rpx;
+  padding: 20rpx 32rpx;
+  border-radius: 16rpx;
+  flex-shrink: 0;
+  line-height: 1.4;
 }

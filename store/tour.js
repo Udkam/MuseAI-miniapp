@@ -42,6 +42,43 @@ const DEFAULT_TTS_PREFS = {
   enabled:  true,
 }
 
+// ─── Persona definitions ───────────────────────────────────────────────────
+// personaId: frontend ID used to look up prompt prefix + display name.
+// backendPersona: 'A'|'B'|'C' sent to createSession (backend system prompt).
+// promptPrefix: prepended to every user message for extra persona flavour.
+var PERSONA_DEFS = {
+  'default': {
+    id:             'default',
+    name:           'MuseAI 导览员',
+    backendPersona: 'B',
+    promptPrefix:   '[导览员设定：请以专业中立的博物馆导览员身份介绍，综合考古、历史和文化多角度，客观全面，不扮演特定历史角色。]',
+  },
+  'A': {
+    id:             'A',
+    name:           '考古队长',
+    backendPersona: 'A',
+    promptPrefix:   '',   // backend system prompt fully handles persona A
+  },
+  'B': {
+    id:             'B',
+    name:           '半坡原住民',
+    backendPersona: 'B',
+    promptPrefix:   '',   // backend system prompt fully handles persona B
+  },
+  'C': {
+    id:             'C',
+    name:           '历史老师',
+    backendPersona: 'C',
+    promptPrefix:   '',   // backend system prompt fully handles persona C
+  },
+  'artisan': {
+    id:             'artisan',
+    name:           '陶器工匠',
+    backendPersona: 'B',
+    promptPrefix:   '[工匠视角：你是六千年前的半坡制陶工匠，请从制作工艺、材料选择和实用功能角度讲解，用词朴实，分享匠人的技艺心得与生活体验，避免学术腔。]',
+  },
+}
+
 // ─── Runtime state ─────────────────────────────────────────────────────────
 function _makeEmptyTour() {
   return {
@@ -50,12 +87,17 @@ function _makeEmptyTour() {
     status:            TOUR_STATUS.ONBOARDING,
     interestType:      null,
     persona:           null,
+    personaId:         null,   // 'default'|'A'|'B'|'C'|'artisan'
     assumption:        null,
     currentHall:       null,
     currentExhibitId:  null,
     visitedHalls:      [],
     visitedExhibitIds: [],
     pendingEvents:     [],
+    // Onboarding extras (set by Stage 8G intent card flow)
+    intentText:         null,
+    preferredHallOrder: ['settlement', 'artifacts', 'culture'],
+    timeBudget:         null,
   }
 }
 
@@ -100,6 +142,7 @@ function createLocalTourState(opts) {
   _tour.interestType = o.interestType || null
   _tour.persona      = o.persona      || null
   _tour.assumption   = o.assumption   || null
+  _tour.personaId    = o.personaId    || o.persona || null
 
   // Recover any events that were buffered before a forced page restart
   var stored = storage.get(STORAGE_KEYS.TOUR_PENDING_EVENTS, null)
@@ -116,6 +159,17 @@ function setTourSession(param) {
   _tour.sessionId    = param.sessionId    || null
   _tour.sessionToken = param.sessionToken || null
   storage.setTourSession({ sessionId: _tour.sessionId, sessionToken: _tour.sessionToken })
+}
+
+/**
+ * Save intent card extras captured during the Stage 8G onboarding flow.
+ * @param {{ intentText?: string, preferredHallOrder?: string[], timeBudget?: string }} opts
+ */
+function setOnboardingExtras(opts) {
+  var o = opts || {}
+  if (o.intentText         !== undefined) _tour.intentText         = o.intentText         || null
+  if (o.preferredHallOrder !== undefined) _tour.preferredHallOrder = o.preferredHallOrder || ['settlement', 'artifacts', 'culture']
+  if (o.timeBudget         !== undefined) _tour.timeBudget         = o.timeBudget         || null
 }
 
 /**
@@ -213,15 +267,37 @@ function getTourHeader() {
  */
 function buildStyledPrompt(rawInput, styleOverride) {
   var style = styleOverride || getStylePrefs()
-  if (style.enabled === false) return rawInput
+  var def   = PERSONA_DEFS[_tour.personaId] || PERSONA_DEFS['default']
 
-  var lines = ['[风格约束]']
-  if (style.answerLength) lines.push('回答长度: ' + (ANSWER_LENGTH_MAP[style.answerLength] || style.answerLength))
-  if (style.depth)        lines.push('讲解深浅: ' + (DEPTH_MAP[style.depth]               || style.depth))
-  if (style.terminology)  lines.push('术语难度: ' + (TERMINOLOGY_MAP[style.terminology]    || style.terminology))
-  lines.push('---')
-  lines.push(rawInput)
-  return lines.join('\n')
+  var parts = []
+
+  // Persona prompt prefix (empty string for A/B/C — backend handles those)
+  if (def.promptPrefix) parts.push(def.promptPrefix)
+
+  // Style constraints
+  if (style.enabled !== false) {
+    parts.push('[风格约束]')
+    if (style.answerLength) parts.push('回答长度: ' + (ANSWER_LENGTH_MAP[style.answerLength] || style.answerLength))
+    if (style.depth)        parts.push('讲解深浅: ' + (DEPTH_MAP[style.depth]               || style.depth))
+    if (style.terminology)  parts.push('术语难度: ' + (TERMINOLOGY_MAP[style.terminology]    || style.terminology))
+    parts.push('---')
+  }
+
+  parts.push(rawInput)
+  return parts.join('\n')
+}
+
+/** Return the persona definition for the current session. */
+function getPersonaDef() {
+  return PERSONA_DEFS[_tour.personaId] || PERSONA_DEFS['default']
+}
+
+/**
+ * Return the backend persona letter ('A'|'B'|'C') for createSession calls.
+ * artisan and default both map to 'B'.
+ */
+function getBackendPersona() {
+  return getPersonaDef().backendPersona || 'B'
 }
 
 // ─── Persona helpers (ported from useTour computed props) ──────────────────
@@ -251,6 +327,7 @@ module.exports = {
   updateTourState,
   getTourState,
   clearTour,
+  setOnboardingExtras,
 
   // Event buffer
   addTourEvent,
@@ -272,4 +349,9 @@ module.exports = {
   // Persona display
   getPersonaLabel,
   getReportThemeTitle,
+
+  // Persona system
+  PERSONA_DEFS,
+  getPersonaDef,
+  getBackendPersona,
 }

@@ -1,100 +1,165 @@
-const tourStore = require('../../store/tour')
-const api       = require('../../api/index')
+var tourStore = require('../../store/tour')
+var api       = require('../../api/index')
 
-// Q3 answer → style preferences stored in tour store
-var STYLE_MAP = {
-  A: { answerLength: 'brief',    depth: 'introductory', terminology: 'plain' },
-  B: { answerLength: 'balanced', depth: 'standard',     terminology: 'plain' },
-  C: { answerLength: 'detailed', depth: 'deep',         terminology: 'academic' },
+var PERSONA_NAMES = { A: '考古队长', B: '半坡原住民', C: '历史老师' }
+
+var INTENT_CARDS = [
+  {
+    id:                 'immerse',
+    icon:               '🏺',
+    title:              '穿越到六千年前',
+    desc:               '用想象力感受那时人们的日常',
+    persona:            'B',
+    personaId:          'B',       // 半坡原住民 — backend handles system prompt
+    assumption:         'B',
+    answerLength:       'balanced',
+    depth:              'standard',
+    preferredHallOrder: ['settlement', 'artifacts', 'culture'],
+  },
+  {
+    id:                 'evidence',
+    icon:               '🔬',
+    title:              '跟着考古证据走',
+    desc:               '细看文物，还原有据可查的历史',
+    persona:            'A',
+    personaId:          'A',       // 考古队长 — backend handles system prompt
+    assumption:         'C',
+    answerLength:       'balanced',
+    depth:              'deep',
+    preferredHallOrder: ['artifacts', 'settlement', 'culture'],
+  },
+  {
+    id:                 'reflect',
+    icon:               '💡',
+    title:              '提问，找新启发',
+    desc:               '用现代眼光反思古人留下了什么',
+    persona:            'C',
+    personaId:          'C',       // 历史老师 — backend handles system prompt
+    assumption:         'A',
+    answerLength:       'balanced',
+    depth:              'deep',
+    preferredHallOrder: ['culture', 'artifacts', 'settlement'],
+  },
+  {
+    id:                 'artisan',
+    icon:               '🏛️',
+    title:              '以陶器工匠视角看',
+    desc:               '从制作工艺和匠人视角感受文物',
+    persona:            'B',
+    personaId:          'artisan', // 前端 prompt prefix 注入，backend 用 B 作基础
+    assumption:         'B',
+    answerLength:       'balanced',
+    depth:              'standard',
+    preferredHallOrder: ['artifacts', 'culture', 'settlement'],
+  },
+]
+
+var TIME_OPTIONS = [
+  { id: '30min',     icon: '⏱',  title: '30 分钟', desc: '精华优先，重点展品',     answerLength: 'brief',    overrideDepth: 'introductory' },
+  { id: '1hour',     icon: '⏰',  title: '1 小时',  desc: '正常节奏，有故事有细节', answerLength: 'balanced', overrideDepth: null          },
+  { id: 'unlimited', icon: '🕐',  title: '随便逛',  desc: '不限时，越详细越好',     answerLength: 'detailed', overrideDepth: 'deep'         },
+]
+
+var DEFAULT_CARD = {
+  persona:            'B',
+  personaId:          'default',
+  assumption:         'B',
+  answerLength:       'balanced',
+  depth:              'standard',
+  preferredHallOrder: ['settlement', 'artifacts', 'culture'],
 }
 
 Page({
   data: {
-    step: 0,
-    answers: [null, null, null],
-    canNext: false,
-    loading: false,
-    questions: [
-      {
-        // Q1 → assumption（先验认知，决定 AI 挑战哪个观点）
-        text: '关于 6000 年前的半坡先民，你最先想到的是？',
-        hint: '你的直觉将影响 AI 导览员与你的对话方式',
-        options: [
-          { key: 'A', label: '朴素平等', desc: '那时候人们简单纯朴，应该平等和谐，没有压迫' },
-          { key: 'B', label: '艰难求生', desc: '原始社会一定很艰难，食不果腹，危机四伏' },
-          { key: 'C', label: '强弱自古', desc: '就算那么远古，社会也已经有了强者和弱者之分' },
-        ],
-      },
-      {
-        // Q2 → persona（叙事口吻，决定 AI 的讲故事方式）
-        text: '参观博物馆时，你更喜欢哪种方式获取信息？',
-        hint: '这决定了 AI 导览员的讲述风格',
-        options: [
-          { key: 'A', label: '考证派', desc: '看数据、看时间线，搞清楚来龙去脉，越严谨越好' },
-          { key: 'B', label: '代入派', desc: '闭上眼睛想象当时的生活场景，用感受去理解历史' },
-          { key: 'C', label: '思辨派', desc: '提出问题，自己思考，喜欢在讨论中发现新角度' },
-        ],
-      },
-      {
-        // Q3 → style（回答风格：长度/深度）
-        text: '你希望 AI 导览员怎么和你说话？',
-        hint: '这决定了 AI 的回答长度和讲解深度',
-        options: [
-          { key: 'A', label: '简洁直接', desc: '给我重点就好，不要太长，说完就行' },
-          { key: 'B', label: '有故事有细节', desc: '正常节奏，既有叙述也有细节，不太短不太长' },
-          { key: 'C', label: '深度详尽', desc: '越详细越好，我不怕长，喜欢深入了解每一个点' },
-        ],
-      },
-    ],
+    step:                    1,
+    intentCards:             INTENT_CARDS,
+    timeOptions:             TIME_OPTIONS,
+    selectedCardId:          null,
+    selectedCardPersonaName: '',
+    intentText:              '',
+    selectedTimeId:          null,
+    loading:                 false,
   },
 
-  selectOption: function (e) {
-    var key     = e.currentTarget.dataset.key
-    var answers = this.data.answers.slice()
-    answers[this.data.step] = key
-    this.setData({ answers: answers, canNext: true })
+  selectCard: function (e) {
+    var id   = e.currentTarget.dataset.id
+    var card = this._findCard(id)
+    this.setData({
+      selectedCardId:          id,
+      selectedCardPersonaName: card ? PERSONA_NAMES[card.persona] : '',
+    })
   },
 
-  goNext: function () {
-    if (!this.data.canNext || this.data.loading) return
-    var nextStep = this.data.step + 1
-    if (nextStep < 3) {
-      this.setData({
-        step:    nextStep,
-        canNext: !!this.data.answers[nextStep],
-      })
-    } else {
-      this._finish()
+  onIntentInput: function (e) {
+    this.setData({ intentText: e.detail.value || '' })
+  },
+
+  goToStep2: function () {
+    this.setData({ step: 2 })
+  },
+
+  selectTime: function (e) {
+    this.setData({ selectedTimeId: e.currentTarget.dataset.id })
+  },
+
+  confirmTime: function () {
+    this._finish()
+  },
+
+  skipTime: function () {
+    this.setData({ selectedTimeId: null })
+    this._finish()
+  },
+
+  // ─── Helpers ────────────────────────────────────────────────────────────────
+
+  _findCard: function (id) {
+    for (var i = 0; i < INTENT_CARDS.length; i++) {
+      if (INTENT_CARDS[i].id === id) return INTENT_CARDS[i]
     }
+    return null
+  },
+
+  _findTime: function (id) {
+    for (var i = 0; i < TIME_OPTIONS.length; i++) {
+      if (TIME_OPTIONS[i].id === id) return TIME_OPTIONS[i]
+    }
+    return null
   },
 
   _finish: function () {
+    if (this.data.loading) return
     var self    = this
-    var answers = this.data.answers
+    var card    = this._findCard(this.data.selectedCardId) || DEFAULT_CARD
+    var timeSel = this._findTime(this.data.selectedTimeId)
 
-    // 直接映射，无需多数表决
-    var assumption = answers[0] || 'A'  // Q1 → assumption
-    var persona    = answers[1] || 'A'  // Q2 → persona
-    var styleKey   = answers[2] || 'B'  // Q3 → style prefs
+    var persona            = card.persona
+    var personaId          = card.personaId || card.persona
+    var assumption         = card.assumption
+    var preferredHallOrder = card.preferredHallOrder
+    var intentText         = this.data.intentText.trim()
 
-    // 保存风格偏好到 storage（tour.js 聊天时读取）
-    var style = STYLE_MAP[styleKey] || STYLE_MAP.B
-    tourStore.setStylePrefs(style)
+    // Time selection overrides answerLength; overrideDepth replaces card depth when set
+    var answerLength = timeSel ? timeSel.answerLength : card.answerLength
+    var depth        = (timeSel && timeSel.overrideDepth) ? timeSel.overrideDepth : card.depth
 
-    // 写入本地状态，确保后续页面有 persona/assumption 可用（即使 API 失败也能继续）
-    tourStore.createLocalTourState({
-      interestType: persona,
-      persona:      persona,
-      assumption:   assumption,
+    tourStore.setStylePrefs({ answerLength: answerLength, depth: depth, terminology: 'plain' })
+    tourStore.createLocalTourState({ interestType: persona, persona: persona, assumption: assumption, personaId: personaId })
+    tourStore.setOnboardingExtras({
+      intentText:         intentText,
+      preferredHallOrder: preferredHallOrder,
+      timeBudget:         timeSel ? timeSel.id : null,
     })
 
     self.setData({ loading: true })
 
     var guestId = 'miniapp_guest_' + Date.now()
+    // For artisan persona, use 'B' as backend persona (backend only knows A/B/C)
+    var backendPersona = (persona === 'artisan') ? 'B' : persona
 
     api.tourApi.createSession({
-      interest_type: persona,
-      persona:       persona,
+      interest_type: backendPersona,
+      persona:       backendPersona,
       assumption:    assumption,
       guest_id:      guestId,
     }).then(function (res) {
@@ -105,11 +170,7 @@ Page({
           sessionId:    d.id || d.session_id || null,
           sessionToken: d.session_token      || null,
         })
-        tourStore.updateTourState({
-          interestType: persona,
-          persona:      persona,
-          assumption:   assumption,
-        })
+        tourStore.updateTourState({ interestType: persona, persona: persona, assumption: assumption, personaId: personaId })
       } else {
         var msg = (res.data && res.data.detail) || ('创建会话失败 (' + res.status + ')')
         wx.showToast({ title: msg, icon: 'none', duration: 2500 })
@@ -119,8 +180,7 @@ Page({
       })
     }).catch(function (err) {
       self.setData({ loading: false })
-      var msg = (err && err.message) || '网络错误'
-      wx.showToast({ title: msg + '，进入演示模式', icon: 'none', duration: 2500 })
+      wx.showToast({ title: '网络错误，进入演示模式', icon: 'none', duration: 2000 })
       wx.navigateTo({
         url: '/pages/persona-reveal/persona-reveal?persona=' + persona + '&assumption=' + assumption,
       })

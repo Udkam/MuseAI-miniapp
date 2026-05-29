@@ -32,6 +32,18 @@
     <text class="challenge-text">{{assumptionHint}}</text>
   </view>
 
+  <!-- Preferred hall recommendation -->
+  <view wx:if="{{preferredHall}}" class="preferred-hall-block">
+    <text class="preferred-hall-label">为你优先推荐</text>
+    <view class="preferred-hall-row">
+      <text class="preferred-hall-arrow">▶</text>
+      <view class="preferred-hall-info">
+        <text class="preferred-hall-name">{{preferredHall}}</text>
+        <text class="preferred-hall-desc">{{preferredHallDesc}}</text>
+      </view>
+    </view>
+  </view>
+
   <view class="bottom-action">
     <button class="btn-primary" loading="{{entering}}" bindtap="goHall">进入展厅 →</button>
   </view>

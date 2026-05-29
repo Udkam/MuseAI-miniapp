@@ -70,8 +70,13 @@ frontend/
 | Stage 6 Batch 1 | ✅ 完成 | SSE 流式底层 api/stream.js |
 | Stage 6 Batch 2 | ✅ 完成 | tour 页面真实 SSE 流式 AI 回复 |
 | Stage 6 Batch 3 | ✅ 完成 | 流式性能优化与 UX 改善 |
-| **Stage 7** | **✅ 当前** | **游览事件记录 + 报告生成闭环** |
-| Stage 8 | 🔲 待开始 | TTS 语音播报（wx.createInnerAudioContext） |
+| Stage 7 | ✅ 完成 | 游览事件记录 + 报告生成闭环 |
+| Stage 8A | ✅ 完成 | 问卷重构（意图卡片 + 时间预算）+ assumption 接入 |
+| Stage 8B | ✅ 完成 | 路线页个性化（preferredHallOrder + SVG 展厅示意） |
+| **Stage 9A** | **✅ 当前** | **展品真实数据接入 + Hall 映射修复 + Persona Prompt 系统** |
+| Stage 9B | 🔲 待开始 | style 偏好（answerLength/depth）真正传入 chatStream |
+| Stage 9C | 🔲 待分析 | AI 速度优化（需先通过 llm-traces 测量链路） |
+| Stage 9D | 🔲 待分析 | TTS 语音播报（PCM16 → wx.createInnerAudioContext） |
 
 ### Stage 6 Batch 2 — 流式 AI 对话
 
@@ -199,6 +204,69 @@ report 页面进入
 
 - 无 `sessionId`（未完成问卷）→ 静默展示演示数据，无 Toast
 - API 失败 → 展示演示数据 + Toast「报告生成失败，已使用本地演示报告」+ 页面内小字提示
+
+### Stage 8A — 问卷重构（意图卡片 + 时间预算）
+
+将原 3 题 A/B/C 单选问卷重构为更直观的「意图卡片 + 时间预算」两步入场，同时接入了 assumption 字段和 style 偏好。
+
+**意图卡片**（onboarding Step 1）：
+
+| 卡片 | persona | assumption | depth |
+|------|---------|-----------|-------|
+| 穿越到六千年前 | B（半坡原住民） | B | standard |
+| 跟着考古证据走 | A（考古队长） | C | deep |
+| 提问，找新启发 | C（历史老师） | A | deep |
+| 以陶器工匠视角看 | B（工匠前端注入） | B | standard |
+
+**时间预算**（onboarding Step 2，可跳过）：`answerLength` + `overrideDepth` 写入 `tourStore.stylePrefs`。
+
+**直接开始**（home 页）：跳过所有问卷，使用默认 persona B，仍会调用 `POST /tour/sessions` 获取真实 sessionId，不会触发「请先完成问卷」错误。
+
+### Stage 9A — 展品数据接入 + Hall 映射 + Persona Prompt 系统
+
+#### 9A.5 — 展品数据一致性修复
+
+**Hall slug 映射（`api/index.js` `HALL_SLUG_NAMES`）**：
+
+| 后端 slug | 前端展示名（与 hall.js 一致） |
+|-----------|--------------------------|
+| `pottery-spirit-hall` | 出土文物陈列区 |
+| `site-archaeology-hall` | 半坡聚落复原区 |
+| `civilization-spark-hall` | 专题文化展区 |
+
+以上映射已修复旧版中 `settlement-area` / `culture-exhibition` 的错误 slug。
+
+**展品别名机制（`api/index.js` `EXHIBIT_ALIASES`）**：
+
+用户常用的口语化名称（如「人面鱼纹盆」）与后端 DB 实际名称（「人面网纹彩陶盆」）不一致。新增 `EXHIBIT_ALIASES` 映射表和 `resolveAliases(keyword)` 函数，在 `exhibit-scan` 客户端搜索时同步扩展为 canonical 名称，保证搜索命中。
+
+`resolveAliases(keyword)` 采用双向子字符串匹配：用户关键词包含别名键 **或** 别名键包含用户关键词，均触发别名展开。
+
+**exhibit-scan 重构**：
+- 删除底部「输入完整展品名」重复入口，仅保留顶部搜索框
+- `_enhancedSearch` 同时执行后端 API 搜索 + 客户端 `includes()` 过滤 + 别名扩展，三路结果去重合并后按 `importance` 倒序排列
+- Mock fallback 展品名称已更新为 DB 实际名称
+
+**`normalizeExhibit()`（`api/index.js`）**：为每个展品计算 `hallDisplay`（中文展厅名），exhibit-detail 和 exhibit-scan 展示标签时使用 `hallDisplay` 而非原始 slug。
+
+#### 9A.6 — Persona Prompt 系统
+
+**PERSONA_DEFS（`store/tour.js`）**：
+
+| personaId | 展示名 | backend persona | promptPrefix 机制 |
+|-----------|--------|----------------|-----------------|
+| `default` | MuseAI 导览员 | B | 前端注入中立导览员设定 |
+| `A` | 考古队长 | A | 后端 system prompt 全权处理 |
+| `B` | 半坡原住民 | B | 后端 system prompt 全权处理 |
+| `C` | 历史老师 | C | 后端 system prompt 全权处理 |
+| `artisan` | 陶器工匠 | B | 前端注入工匠视角 prompt prefix |
+
+`buildStyledPrompt(rawInput)` 在每条消息前同时拼接：
+1. `PERSONA_DEFS[personaId].promptPrefix`（`artisan` / `default` 注入角色设定，A/B/C 为空字符串由后端处理）
+2. `[风格约束]` 块（answerLength / depth / terminology）
+3. 用户原始输入
+
+**artisan persona 实现原理**：使用 backend persona B 的基础系统提示，在前端每条消息前注入工匠视角 prefix，无需后端改动即可实现第5种风格。
 
 ## 与后端 API 的关系
 
