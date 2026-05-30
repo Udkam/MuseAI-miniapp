@@ -1,7 +1,7 @@
 <view class="page-wrap onboarding">
 
   <!-- ═══ STEP 1: Intent cards ═══════════════════════════════════════════════ -->
-  <view wx:if="{{step === 1}}">
+  <view hidden="{{step !== 1}}">
 
     <view class="ob-header">
       <text class="ob-title">今天来半坡，</text>
@@ -17,7 +17,7 @@
         bindtap="selectCard"
         data-id="{{item.id}}"
       >
-        <view wx:if="{{selectedCardId === item.id}}" class="card-check">✓</view>
+        <view hidden="{{selectedCardId !== item.id}}" class="card-check">✓</view>
         <text class="card-icon">{{item.icon}}</text>
         <text class="card-title">{{item.title}}</text>
         <text class="card-desc">{{item.desc}}</text>
@@ -52,7 +52,7 @@
   </view>
 
   <!-- ═══ STEP 2: Time budget ═════════════════════════════════════════════════ -->
-  <view wx:elif="{{step === 2}}">
+  <view hidden="{{step !== 2}}">
 
     <view class="ob-header">
       <text class="ob-title">今天大概有</text>
@@ -73,7 +73,7 @@
           <text class="time-title">{{item.title}}</text>
           <text class="time-desc">{{item.desc}}</text>
         </view>
-        <view wx:if="{{selectedTimeId === item.id}}" class="time-check">✓</view>
+        <view hidden="{{selectedTimeId !== item.id}}" class="time-check">✓</view>
       </view>
     </view>
 

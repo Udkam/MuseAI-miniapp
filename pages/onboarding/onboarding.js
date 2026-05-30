@@ -163,7 +163,6 @@ Page({
       assumption:    assumption,
       guest_id:      guestId,
     }).then(function (res) {
-      self.setData({ loading: false })
       if (res.ok) {
         var d = res.data || {}
         tourStore.setTourSession({
@@ -175,11 +174,11 @@ Page({
         var msg = (res.data && res.data.detail) || ('创建会话失败 (' + res.status + ')')
         wx.showToast({ title: msg, icon: 'none', duration: 2500 })
       }
+      // Navigate without resetting loading state — avoids a rerender during transition animation
       wx.navigateTo({
         url: '/pages/persona-reveal/persona-reveal?persona=' + persona + '&assumption=' + assumption,
       })
     }).catch(function (err) {
-      self.setData({ loading: false })
       wx.showToast({ title: '网络错误，进入演示模式', icon: 'none', duration: 2000 })
       wx.navigateTo({
         url: '/pages/persona-reveal/persona-reveal?persona=' + persona + '&assumption=' + assumption,

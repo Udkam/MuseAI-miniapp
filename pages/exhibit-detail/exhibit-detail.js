@@ -98,17 +98,44 @@ Page({
   goDeeper: function () {
     var exhibit = this.data.exhibit
     var state   = tourStore.getTourState()
-    if (state.sessionId) {
-      tourStore.addTourEvent({
-        eventType: 'exhibit_deep_dive',
-        exhibitId: exhibit.id   || undefined,
-        hall:      exhibit.hall || state.currentHall || '',
-        metadata:  { exhibit_name: exhibit.name },
+
+    // Always set exhibit context before navigating so tour page can inject it
+    tourStore.setCurrentExhibit(exhibit)
+
+    var doNavigate = function (sid) {
+      if (sid) {
+        tourStore.addTourEvent({
+          eventType: 'exhibit_deep_dive',
+          exhibitId: exhibit.id   || exhibit.name || undefined,
+          hall:      exhibit.hall || state.currentHall || '',
+          metadata:  { exhibit_name: exhibit.name },
+        })
+      }
+      wx.navigateTo({
+        url: '/pages/tour/tour?exhibit=' + encodeURIComponent(exhibit.name),
       })
     }
-    wx.navigateTo({
-      url: '/pages/tour/tour?exhibit=' + encodeURIComponent(exhibit.name),
-    })
+
+    if (!state.sessionId) {
+      // No session — create a quick-start one so tour doesn't show "请先完成问卷"
+      var guestId = 'miniapp_guest_' + Date.now()
+      tourStore.setStylePrefs({ answerLength: 'balanced', depth: 'standard', terminology: 'plain' })
+      tourStore.createLocalTourState({ interestType: 'B', persona: 'B', assumption: 'B', personaId: 'default' })
+      api.tourApi.createSession({ interest_type: 'B', persona: 'B', assumption: 'B', guest_id: guestId })
+        .then(function (res) {
+          var newId = null
+          if (res.ok) {
+            var d = res.data || {}
+            newId = d.id || d.session_id || null
+            tourStore.setTourSession({ sessionId: newId, sessionToken: d.session_token || null })
+          }
+          doNavigate(newId)
+        })
+        .catch(function () { doNavigate(null) })
+      return
+    }
+
+    doNavigate(state.sessionId)
   },
 
   goNext: function () {

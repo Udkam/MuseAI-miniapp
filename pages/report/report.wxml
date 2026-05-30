@@ -67,7 +67,7 @@
       >
         <text class="radar-bar-label">{{item.label}}</text>
         <view class="radar-bar-track">
-          <view class="radar-bar-fill" style="width: {{item.value}}%;"></view>
+          <view class="radar-bar-fill" style="width: {{item.barWidth}}%;"></view>
         </view>
         <text class="radar-bar-value">{{item.value}}</text>
       </view>

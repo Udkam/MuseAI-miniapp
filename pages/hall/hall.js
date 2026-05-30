@@ -60,35 +60,24 @@ Page({
     var id    = state.sessionId
     var token = state.sessionToken
 
-    var _navigateToHall = function () {
-      tourStore.updateTourState({ currentHall: hall.name, status: 'touring' })
-      // ── Record hall_enter event ───────────────────────────────────────────
-      tourStore.addTourEvent({ eventType: 'hall_enter', hall: hall.name })
-      wx.navigateTo({
-        url: '/pages/tour/tour?hall=' + encodeURIComponent(hall.name) + '&hallId=' + hall.id,
-      })
-    }
-
-    if (!id) {
-      _navigateToHall()
-      return
-    }
-
     self.setData({ entering: true })
 
-    api.tourApi.updateSession(id, {
-      status:       'touring',
-      current_hall: hall.name,
-    }, token).then(function (res) {
-      self.setData({ entering: false })
-      if (!res.ok) {
-        console.warn('[hall] updateSession failed:', res.status, res.data)
-      }
-      _navigateToHall()
-    }).catch(function (err) {
-      self.setData({ entering: false })
-      console.warn('[hall] updateSession error — navigating anyway:', err)
-      _navigateToHall()
+    // Update local state and navigate immediately — no waiting for API
+    tourStore.updateTourState({ currentHall: hall.name, status: 'touring' })
+    tourStore.addTourEvent({ eventType: 'hall_enter', hall: hall.name })
+    wx.navigateTo({
+      url: '/pages/tour/tour?hall=' + encodeURIComponent(hall.name) + '&hallId=' + hall.id,
+      complete: function () { self.setData({ entering: false }) },
     })
+
+    // Fire-and-forget: sync backend state in background
+    if (id) {
+      api.tourApi.updateSession(id, {
+        status:       'touring',
+        current_hall: hall.name,
+      }, token).catch(function (err) {
+        console.warn('[hall] updateSession error (background):', err)
+      })
+    }
   },
 })

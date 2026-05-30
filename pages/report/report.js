@@ -1,22 +1,24 @@
 const api       = require('../../api/index')
 const tourStore = require('../../store/tour')
 
-// ── Radar score display labels ────────────────────────────────────────────────
+// ── Radar score display labels (backend keys → Chinese) ───────────────────────
+// Backend: civilization_resonance / imagination_breadth / history_collection /
+//          life_experience / ceramic_aesthetics  (1–3 integer scale)
 var RADAR_LABELS = {
-  cultural_affinity:         '文化认同',
-  historical_curiosity:      '历史探究',
-  art_appreciation:          '艺术感知',
-  archaeological_enthusiasm: '考古热情',
-  knowledge_depth:           '知识深度',
+  civilization_resonance: '文明共鸣',
+  imagination_breadth:    '想象广度',
+  history_collection:     '历史收藏',
+  life_experience:        '生活体验',
+  ceramic_aesthetics:     '陶瓷美学',
 }
 
 // ── Fallback radar bars (shown when API returns no scores) ────────────────────
 var FALLBACK_RADAR = [
-  { label: '文化认同', value: 70 },
-  { label: '历史探究', value: 65 },
-  { label: '艺术感知', value: 75 },
-  { label: '考古热情', value: 60 },
-  { label: '知识深度', value: 68 },
+  { label: '文明共鸣', value: 2, barWidth: 67 },
+  { label: '想象广度', value: 2, barWidth: 67 },
+  { label: '生活体验', value: 2, barWidth: 67 },
+  { label: '历史收藏', value: 2, barWidth: 67 },
+  { label: '陶瓷美学', value: 2, barWidth: 67 },
 ]
 
 // ── Persona display maps ──────────────────────────────────────────────────────
@@ -147,14 +149,16 @@ Page({
    * @param {object} data  Backend report payload
    */
   _applyReport: function (data) {
-    // Convert radar_scores { key: value } → [{ label, value }]
+    // Convert radar_scores { key: value } → [{ label, value, barWidth }]
+    // Backend returns 1–3 integer scale; barWidth scales to 0–100% for display.
     var radarBars = []
     if (data.radar_scores && typeof data.radar_scores === 'object') {
       Object.keys(data.radar_scores).forEach(function (key) {
-        var val = data.radar_scores[key]
+        var raw = Math.min(3, Math.max(1, Math.round(Number(data.radar_scores[key])) || 1))
         radarBars.push({
-          label: RADAR_LABELS[key] || key,
-          value: Math.min(100, Math.max(0, Math.round(Number(val)) || 0)),
+          label:    RADAR_LABELS[key] || key,
+          value:    raw,
+          barWidth: Math.round((raw / 3) * 100),
         })
       })
     }

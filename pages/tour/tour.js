@@ -9,7 +9,7 @@ Page({
       {
         id:      1,
         role:    'assistant',
-        content: '欢迎来到半坡遗址！我是你的 AI 导览伙伴 MuseAI。\n\n这里是距今约6000年的半坡先民聚居地，也是中国最早发掘、保存完整的新石器时代村落遗址之一。\n\n你想从哪里开始探索？',
+        content: '欢迎来到半坡遗址！这里是距今约6000年的半坡先民聚居地，也是中国最早发掘、保存完整的新石器时代村落遗址之一。\n我是你的 AI 导览伙伴 MuseAI。你想了解什么呢？',
       },
     ],
     streamingContent: '',    // live text — throttled setData, NOT stored in messages[]
@@ -20,9 +20,12 @@ Page({
     sessionId:        null,
     scrollTarget:     'msg-bottom-a',
     loadingHint:      '',    // progressive hint text while waiting for first chunk
+    currentExhibit:   null,  // set by exhibit-detail goDeeper; null = general tour mode
+    guideSuggestions: [],   // array of { id, type, icon, title, actionType, payload }
+    showSuggestions:  false,
   },
 
-  // ── Instance vars (non-reactive) ──────────────────────────────────────────
+  // ── Instance vars (non-reactive) ────────────────────────────────────────── 
   _streamTask:    null,   // active RequestTask — call .abort() to cancel
   _scrollPending: false,  // debounce flag for _scrollToBottom
   _perf:          null,   // { sendAt, streamStartAt, firstChunkAt, doneAt }
@@ -34,16 +37,31 @@ Page({
   // ── Lifecycle ─────────────────────────────────────────────────────────────
 
   onLoad: function (options) {
-    var state = tourStore.getTourState()
-    chatStore.resetChat()
+    var state   = tourStore.getTourState()
+    var exhibit = state.currentExhibit || null
+    // Only reset chat on a fresh tour entry (hall page → tour).
+    // When coming from exhibit-detail goDeeper(), options.exhibit is set —
+    // preserve history so the user can still ask "我们刚才在讨论什么".
+    if (!options.exhibit) {
+      chatStore.resetChat()
+    }
 
     if (options.hall) {
       var hallName = decodeURIComponent(options.hall)
       wx.setNavigationBarTitle({ title: hallName })
-      this.setData({ hallName: hallName, sessionId: state.sessionId || null })
+      // Persist into tourStore so buildStyledPrompt can inject hall context
+      tourStore.updateTourState({ currentHall: hallName })
+      this.setData({ hallName: hallName, sessionId: state.sessionId || null, currentExhibit: exhibit })
     } else {
-      this.setData({ sessionId: state.sessionId || null })
+      this.setData({ sessionId: state.sessionId || null, currentExhibit: exhibit })
     }
+  },
+
+  // Refresh exhibit context when navigating back to this page (also after goDeeper)
+  onShow: function () {
+    var state = tourStore.getTourState()
+    this.setData({ currentExhibit: state.currentExhibit || null, sessionId: state.sessionId || null })
+    this._loadSuggestions()
   },
 
   onUnload: function () {
@@ -125,12 +143,33 @@ Page({
     var style = stylePrefs.enabled !== false
       ? { answer_length: stylePrefs.answerLength, depth: stylePrefs.depth, terminology: stylePrefs.terminology }
       : null
-    console.log('[tour] chat style payload', style)
+
+    // Detect referential questions (e.g. "我们在讨论什么") and inject recent history
+    var currentExhibit = state.currentExhibit || null
+    var isCtxQ         = tourStore.isContextQuestion(text)
+    var recentMsgs     = isCtxQ ? chatStore.getRecentMessages(6) : []
+
+    // buildStyledPrompt injects exhibit disambiguation + optional history + style/tone/format.
+    // For context questions, pass the array even when empty so buildStyledPrompt can
+    // inject the "no history yet" hint (scenario C: 无历史时问"我们在讨论什么").
+    var builtMessage  = tourStore.buildStyledPrompt(text, {
+      recentMessages: isCtxQ ? recentMsgs : null,
+    })
+    var _DEBUG_PROMPT = false   // set true locally to dump full prompt text
+    console.log('[tour] context build', {
+      hasExhibit:  !!currentExhibit,
+      exhibitName: currentExhibit ? currentExhibit.name : '(none)',
+      isCtxQ:      isCtxQ,
+      recentCount: recentMsgs.length,
+      msgLen:      builtMessage.length,
+    })
+    if (_DEBUG_PROMPT) { console.log('[tour] full prompt', builtMessage) }
 
     self._streamTask = api.tourApi.chatStream(id, {
-      message: text,
-      token:   token,
-      style:   style,
+      message:   builtMessage,
+      token:     token,
+      style:     style,
+      exhibitId: currentExhibit ? currentExhibit.id : undefined,
 
       onChunk: function (chunk) {
         if (!chunk) return
@@ -277,6 +316,108 @@ Page({
     self._scrollToBottom()
   },
 
+  // ── Guide suggestions ─────────────────────────────────────────────────────
+
+  /**
+   * Build guide suggestions for the current hall/exhibit context.
+   * Phase 1 (instant): rule-based templates from tourStore.
+   * Phase 2 (async):   enrich with real API exhibit data, update in place.
+   */
+  _loadSuggestions: function () {
+    var self    = this
+    var exhibit = this.data.currentExhibit || null
+    var hall    = this.data.hallName       || tourStore.getTourState().currentHall || null
+
+    // Phase 1 — instant rule-based suggestions
+    var initial = tourStore.generateGuideSuggestions({
+      currentExhibit: exhibit,
+      currentHall:    hall,
+      exhibits:       [],
+    })
+    self.setData({ guideSuggestions: initial, showSuggestions: initial.length > 0 })
+
+    // Phase 2 — enrich with real exhibit data from API (non-blocking)
+    // exhibit.hall is already a backend slug; otherwise convert hall display name to slug.
+    var hallSlug = exhibit
+      ? (exhibit.hall || null)
+      : (hall ? api.hallNameToSlug(hall) : null)
+    if (!hallSlug) return
+
+    api.exhibitsApi.listByHall(hallSlug)
+      .then(function (res) {
+        if (!res.ok || !res.data) return
+        var rawList    = res.data.exhibits || res.data.items || (Array.isArray(res.data) ? res.data : [])
+        var normalized = rawList.map(function (e) { return api.normalizeExhibit(e) })
+        var enhanced   = tourStore.generateGuideSuggestions({
+          currentExhibit: self.data.currentExhibit || null,
+          currentHall:    self.data.hallName        || null,
+          exhibits:       normalized,
+        })
+        if (enhanced.length > 0) {
+          self.setData({ guideSuggestions: enhanced, showSuggestions: true })
+        }
+      })
+      .catch(function (err) {
+        console.warn('[tour] suggestions: exhibit fetch failed', err)
+        // Keep phase-1 suggestions — no user-visible error
+      })
+  },
+
+  dismissSuggestions: function () {
+    this.setData({ showSuggestions: false })
+  },
+
+  /**
+   * Handle suggestion chip tap.
+   * actionType:
+   *   'ask'            — fill input box with prompt (user still taps Send)
+   *   'open_exhibit'   — navigate to exhibit-detail
+   *   'search_exhibit' — navigate to exhibit-scan with keyword
+   *   'navigate_back'  — wx.navigateBack
+   *   anything else    — dismiss suggestions
+   */
+  onSuggestionTap: function (e) {
+    var idx        = e.currentTarget.dataset.index
+    var suggestion = this.data.guideSuggestions[idx]
+    if (!suggestion) return
+
+    var payload = suggestion.payload || {}
+
+    switch (suggestion.actionType) {
+      case 'ask': {
+        var prompt = payload.prompt || suggestion.title
+        this.setData({ inputText: prompt, showSuggestions: false })
+        this.sendMessage()
+        break
+      }
+
+      case 'open_exhibit': {
+        var url = '/pages/exhibit-detail/exhibit-detail?'
+        if (payload.exhibitId) {
+          url += 'id=' + encodeURIComponent(payload.exhibitId)
+        } else if (payload.exhibitName) {
+          url += 'name=' + encodeURIComponent(payload.exhibitName)
+        } else { break }
+        wx.navigateTo({ url: url })
+        break
+      }
+
+      case 'search_exhibit': {
+        var kw = payload.keyword || ''
+        wx.navigateTo({ url: '/pages/exhibit-scan/exhibit-scan?keyword=' + encodeURIComponent(kw) })
+        break
+      }
+
+      case 'navigate_back':
+        wx.navigateBack({ delta: 1 })
+        break
+
+      default:
+        this.setData({ showSuggestions: false })
+        break
+    }
+  },
+
   // ── Pending-events flush helper ────────────────────────────────────────────
 
   /**
@@ -419,6 +560,14 @@ Page({
       wx.hideLoading()
       wx.showToast({ title: (err && err.message) || '连接失败', icon: 'none', duration: 2500 })
     })
+  },
+
+  // ── Exhibit context ───────────────────────────────────────────────────────
+
+  clearExhibitContext: function () {
+    tourStore.clearCurrentExhibit()
+    this.setData({ currentExhibit: null })
+    this._loadSuggestions()
   },
 
   // ── Navigation ────────────────────────────────────────────────────────────

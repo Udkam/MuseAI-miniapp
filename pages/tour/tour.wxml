@@ -12,6 +12,13 @@
     </view>
   </view>
 
+  <!-- Exhibit Context Bar (only shown when entered via exhibit-detail goDeeper) -->
+  <view wx:if="{{currentExhibit}}" class="exhibit-ctx-bar">
+    <text class="ctx-icon">🏺</text>
+    <text class="ctx-name">正在讨论：{{currentExhibit.name}}</text>
+    <text class="ctx-close" bindtap="clearExhibitContext">✕</text>
+  </view>
+
   <!-- Message list -->
   <scroll-view
     class="msg-list"
@@ -73,6 +80,25 @@
 
     </view>
   </scroll-view>
+
+  <!-- Guide Suggestions Bar -->
+  <view wx:if="{{showSuggestions && guideSuggestions.length > 0}}" class="suggestions-bar">
+    <scroll-view scroll-x class="suggestions-scroll">
+      <view class="suggestions-inner">
+        <view
+          wx:for="{{guideSuggestions}}"
+          wx:key="id"
+          class="suggestion-chip"
+          data-index="{{index}}"
+          bindtap="onSuggestionTap"
+        >
+          <text class="sg-icon">{{item.icon}}</text>
+          <text class="sg-title">{{item.title}}</text>
+        </view>
+      </view>
+    </scroll-view>
+    <view class="suggestions-dismiss" bindtap="dismissSuggestions">×</view>
+  </view>
 
   <!-- Input bar -->
   <view class="input-bar">

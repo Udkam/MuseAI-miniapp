@@ -160,6 +160,19 @@ function setGuestSessionId(id) {
   _state.guestSessionId = id
 }
 
+// ─── Recent messages ────────────────────────────────────────────────────────
+
+/**
+ * Return the last N committed messages for use as conversation context.
+ * Only returns messages already in _state.messages (not the in-progress stream).
+ * @param {number} [maxCount=6]
+ * @returns {Array<{role:string, content:string}>}
+ */
+function getRecentMessages(maxCount) {
+  var n = Math.min(Math.max(maxCount || 6, 1), 10)
+  return _state.messages.slice(-n)
+}
+
 // ─── Full reset ────────────────────────────────────────────────────────────
 
 /** Wipe all chat state (e.g. on logout or page unload). */
@@ -182,5 +195,6 @@ module.exports = {
   setCurrentSession,
   setMessages,
   setGuestSessionId,
+  getRecentMessages,
   resetChat,
 }
