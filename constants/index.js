@@ -31,6 +31,7 @@ const STORAGE_KEYS = {
   TOUR_SESSION_ID:       'tour_session_id',
   TOUR_SESSION_TOKEN:    'tour_session_token',
   TOUR_PENDING_EVENTS:   'tour_pending_events',
+  TOUR_CURRENT_HALL:     'tour_current_hall',
   TOUR_UI_PREFS:         'tour_workbench_ui_prefs',
   TOUR_STYLE_PREFS:      'tour_workbench_style_prefs',
   TOUR_TTS_PREFS:        'tour_workbench_tts_prefs',

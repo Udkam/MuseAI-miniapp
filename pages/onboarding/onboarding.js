@@ -81,7 +81,20 @@ Page({
     loading:                 false,
   },
 
+  // Non-reactive re-entry guard. Reactive `loading` only drives the button spinner;
+  // navigation gating uses this flag so it can be reset without a render.
+  _navigating: false,
+
+  // Reset spinner + guard whenever the page becomes visible again (e.g. user taps
+  // back from persona-reveal). Without this the spinner stays stuck and the
+  // `loading` guard permanently blocks re-submission.
+  onShow: function () {
+    this._navigating = false
+    if (this.data.loading) this.setData({ loading: false })
+  },
+
   selectCard: function (e) {
+    if (this.data.loading) return
     var id   = e.currentTarget.dataset.id
     var card = this._findCard(id)
     this.setData({
@@ -91,25 +104,32 @@ Page({
   },
 
   onIntentInput: function (e) {
+    if (this.data.loading) return
     this.setData({ intentText: e.detail.value || '' })
   },
 
   goToStep2: function () {
+    if (this.data.loading) return
     this.setData({ step: 2 })
   },
 
   selectTime: function (e) {
+    if (this.data.loading) return
     this.setData({ selectedTimeId: e.currentTarget.dataset.id })
   },
 
   confirmTime: function () {
+    if (this.data.loading) return
     this._finish()
   },
 
   skipTime: function () {
+    if (this.data.loading) return
     this.setData({ selectedTimeId: null })
     this._finish()
   },
+
+  noop: function () {},
 
   // ─── Helpers ────────────────────────────────────────────────────────────────
 
@@ -128,7 +148,8 @@ Page({
   },
 
   _finish: function () {
-    if (this.data.loading) return
+    if (this._navigating) return
+    this._navigating = true
     var self    = this
     var card    = this._findCard(this.data.selectedCardId) || DEFAULT_CARD
     var timeSel = this._findTime(this.data.selectedTimeId)
@@ -157,6 +178,19 @@ Page({
     // For artisan persona, use 'B' as backend persona (backend only knows A/B/C)
     var backendPersona = (persona === 'artisan') ? 'B' : persona
 
+    // onboarding → persona-reveal is a one-way flow. redirectTo destroys this page,
+    // so there's no stuck spinner / flicker when the user later taps back, and the
+    // page stack stays shallow (matches the route/tour redirectTo pattern).
+    var go = function () {
+      wx.redirectTo({
+        url: '/pages/persona-reveal/persona-reveal?persona=' + persona + '&assumption=' + assumption,
+        fail: function () {
+          self._navigating = false
+          self.setData({ loading: false })
+        },
+      })
+    }
+
     api.tourApi.createSession({
       interest_type: backendPersona,
       persona:       backendPersona,
@@ -174,15 +208,10 @@ Page({
         var msg = (res.data && res.data.detail) || ('创建会话失败 (' + res.status + ')')
         wx.showToast({ title: msg, icon: 'none', duration: 2500 })
       }
-      // Navigate without resetting loading state — avoids a rerender during transition animation
-      wx.navigateTo({
-        url: '/pages/persona-reveal/persona-reveal?persona=' + persona + '&assumption=' + assumption,
-      })
+      go()
     }).catch(function (err) {
       wx.showToast({ title: '网络错误，进入演示模式', icon: 'none', duration: 2000 })
-      wx.navigateTo({
-        url: '/pages/persona-reveal/persona-reveal?persona=' + persona + '&assumption=' + assumption,
-      })
+      go()
     })
   },
 })

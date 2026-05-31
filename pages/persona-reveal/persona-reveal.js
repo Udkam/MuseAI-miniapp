@@ -58,6 +58,9 @@ Page({
     entering:       false,
   },
 
+  // Non-reactive navigation guard (no render → no flicker).
+  _navigating: false,
+
   onLoad: function (options) {
     var state = tourStore.getTourState()
     var p     = options.persona    || state.persona    || 'A'
@@ -74,14 +77,17 @@ Page({
   },
 
   goHall: function () {
-    if (this.data.entering) return
+    if (this._navigating) return
+    this._navigating = true
     var self  = this
     var state = tourStore.getTourState()
     var id    = state.sessionId
     var token = state.sessionToken
 
+    // redirectTo destroys persona-reveal — one-way flow into the hall picker,
+    // avoids a stuck "进入展厅" spinner and iOS flicker on back-navigation.
     var _navigate = function () {
-      wx.navigateTo({ url: '/pages/hall/hall' })
+      wx.redirectTo({ url: '/pages/hall/hall' })
     }
 
     if (!id) {
@@ -89,20 +95,12 @@ Page({
       return
     }
 
-    self.setData({ entering: true })
-
+    // Fire-and-forget the status update; navigate immediately so the button
+    // never shows a lingering spinner while waiting on the network.
     api.tourApi.updateSession(id, { status: 'opening' }, token)
-      .then(function (res) {
-        self.setData({ entering: false })
-        if (!res.ok) {
-          console.warn('[persona-reveal] updateSession failed:', res.status, res.data)
-        }
-        _navigate()
-      })
       .catch(function (err) {
-        self.setData({ entering: false })
-        console.warn('[persona-reveal] updateSession error:', err)
-        _navigate()
+        console.warn('[persona-reveal] updateSession error (background):', err)
       })
+    _navigate()
   },
 })

@@ -18,14 +18,14 @@ Page({
     ragSteps:         [],    // RAG pipeline progress (from onEvent)
     inputText:        '',
     sessionId:        null,
-    scrollTarget:     'msg-bottom-a',
+    scrollTarget:     '',    // intentionally empty; set by _scrollToBottom() on first send
     loadingHint:      '',    // progressive hint text while waiting for first chunk
     currentExhibit:   null,  // set by exhibit-detail goDeeper; null = general tour mode
     guideSuggestions: [],   // array of { id, type, icon, title, actionType, payload }
     showSuggestions:  false,
   },
 
-  // ── Instance vars (non-reactive) ────────────────────────────────────────── 
+  // ── Instance vars (non-reactive) ──────────────────────────────────────────
   _streamTask:    null,   // active RequestTask — call .abort() to cancel
   _scrollPending: false,  // debounce flag for _scrollToBottom
   _perf:          null,   // { sendAt, streamStartAt, firstChunkAt, doneAt }
@@ -33,10 +33,12 @@ Page({
   _hintTimer8:    null,   // upgrades loadingHint text at 8 s
   _chunkBuffer:   '',     // chunk text accumulator pending the next 80 ms flush
   _flushTimer:    null,   // timer ID for scheduled _chunkBuffer flush
+  _loadedAt:      0,      // timestamp (ms) of last onLoad/onShow — ghost-tap guard
 
   // ── Lifecycle ─────────────────────────────────────────────────────────────
 
   onLoad: function (options) {
+    this._loadedAt = Date.now()
     var state   = tourStore.getTourState()
     var exhibit = state.currentExhibit || null
     // Only reset chat on a fresh tour entry (hall page → tour).
@@ -46,10 +48,13 @@ Page({
       chatStore.resetChat()
     }
 
-    if (options.hall) {
-      var hallName = decodeURIComponent(options.hall)
+    // URL param takes priority; fallback to saved hall (handles resumeTour + goDeeper cases)
+    var hallName = options.hall
+      ? decodeURIComponent(options.hall)
+      : (tourStore.getSavedCurrentHall() || null)
+
+    if (hallName) {
       wx.setNavigationBarTitle({ title: hallName })
-      // Persist into tourStore so buildStyledPrompt can inject hall context
       tourStore.updateTourState({ currentHall: hallName })
       this.setData({ hallName: hallName, sessionId: state.sessionId || null, currentExhibit: exhibit })
     } else {
@@ -59,6 +64,7 @@ Page({
 
   // Refresh exhibit context when navigating back to this page (also after goDeeper)
   onShow: function () {
+    this._loadedAt = Date.now()
     var state = tourStore.getTourState()
     this.setData({ currentExhibit: state.currentExhibit || null, sessionId: state.sessionId || null })
     this._loadSuggestions()
@@ -238,6 +244,8 @@ Page({
           isStreaming:      false,
           ragSteps:         [],
           loadingHint:      '',
+          // Re-show suggestion chips after each response so user can tap again
+          showSuggestions:  self.data.guideSuggestions.length > 0,
         })
         self._scrollToBottom()
       },
@@ -268,6 +276,7 @@ Page({
           isStreaming:      false,
           ragSteps:         [],
           loadingHint:      '',
+          showSuggestions:  self.data.guideSuggestions.length > 0,
         })
         self._scrollToBottom()
       },
@@ -387,7 +396,11 @@ Page({
       case 'ask': {
         var prompt = payload.prompt || suggestion.title
         this.setData({ inputText: prompt, showSuggestions: false })
-        this.sendMessage()
+        // Ghost-tap guard: WeChat navigation taps can bleed through to the new page
+        // within ~300 ms of the page becoming visible. Only auto-send after 500 ms.
+        if (Date.now() - this._loadedAt >= 500) {
+          this.sendMessage()
+        }
         break
       }
 
@@ -538,7 +551,8 @@ Page({
     self._scrollPending = true
     setTimeout(function () {
       self._scrollPending = false
-      var next = self.data.scrollTarget === 'msg-bottom-a' ? 'msg-bottom-b' : 'msg-bottom-a'
+      var cur  = self.data.scrollTarget
+      var next = (cur === '' || cur === 'msg-bottom-a') ? 'msg-bottom-b' : 'msg-bottom-a'
       self.setData({ scrollTarget: next })
     }, 80)
   },
@@ -585,6 +599,7 @@ Page({
   },
 
   goRoute: function () {
-    wx.navigateTo({ url: '/pages/route/route' })
+    // redirectTo replaces tour page — prevents page-stack overflow on repeated hall visits
+    wx.redirectTo({ url: '/pages/route/route' })
   },
 })

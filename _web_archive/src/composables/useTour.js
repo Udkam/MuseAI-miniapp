@@ -3,6 +3,7 @@ import { api } from '../api/index.js'
 import { useAuth } from './useAuth.js'
 import { useTTSPlayer } from './useTTSPlayer.js'
 import { useTourWorkbench } from './useTourWorkbench.js'
+import { fixOrderedListNumbers } from '../utils/textProcessing.js'
 
 const tourSession = ref(null)
 const sessionToken = ref(null)
@@ -181,9 +182,9 @@ export function useTour() {
         },
       )) {
         if (event.event === 'chunk' && event.data?.content) {
-          streamingContent.value += event.data.content
+          streamingContent.value = fixOrderedListNumbers(streamingContent.value + event.data.content)
         } else if (event.event === 'done') {
-          chatMessages.value.push({ role: 'assistant', content: streamingContent.value })
+          chatMessages.value.push({ role: 'assistant', content: fixOrderedListNumbers(streamingContent.value) })
           streamingContent.value = ''
           if (event.is_ceramic_question !== undefined || event.suggested_actions) {
             suggestedActions.value = event.suggested_actions || {}

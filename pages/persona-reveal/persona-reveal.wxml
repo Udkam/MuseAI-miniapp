@@ -45,7 +45,7 @@
   </view>
 
   <view class="bottom-action">
-    <button class="btn-primary" loading="{{entering}}" bindtap="goHall">进入展厅 →</button>
+    <button class="btn-primary" bindtap="goHall">进入展厅 →</button>
   </view>
 
 </view>

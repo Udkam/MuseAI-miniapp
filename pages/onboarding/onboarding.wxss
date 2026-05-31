@@ -2,6 +2,14 @@
   min-height: 100vh;
   display: flex;
   flex-direction: column;
+  background: #FAF7F2;
+  position: relative;
+  overflow-x: hidden;
+}
+
+.onboarding.is-busy {
+  height: 100vh;
+  overflow: hidden;
 }
 
 /* ── Header ─────────────────────────────────────────────────────────────────── */
@@ -224,4 +232,70 @@
   color: #B08060;
   text-align: right;
   display: block;
+}
+
+.skip-link.disabled {
+  opacity: 0.45;
+}
+
+.btn-primary[disabled] {
+  background: #3D2B1A;
+  color: #F5F0E8;
+  opacity: 0.88;
+}
+
+.creating-mask {
+  position: fixed;
+  left: 0;
+  right: 0;
+  top: 0;
+  bottom: 0;
+  z-index: 99;
+  background: rgba(250, 247, 242, 0.96);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 48rpx;
+  box-sizing: border-box;
+}
+
+.creating-panel {
+  width: 360rpx;
+  min-height: 240rpx;
+  background: #3D2B1A;
+  color: #F5F0E8;
+  border-radius: 20rpx;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 18rpx 50rpx rgba(61, 43, 26, 0.22);
+}
+
+.creating-spinner {
+  width: 44rpx;
+  height: 44rpx;
+  border-radius: 50%;
+  border: 5rpx solid rgba(245, 240, 232, 0.28);
+  border-top-color: #F5F0E8;
+  animation: creating-spin 0.8s linear infinite;
+  margin-bottom: 22rpx;
+}
+
+.creating-title {
+  font-size: 30rpx;
+  font-weight: 700;
+  line-height: 1.4;
+}
+
+.creating-subtitle {
+  font-size: 23rpx;
+  color: rgba(245, 240, 232, 0.72);
+  line-height: 1.4;
+  margin-top: 8rpx;
+}
+
+@keyframes creating-spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
 }

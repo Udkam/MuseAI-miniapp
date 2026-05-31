@@ -6,6 +6,7 @@ import { api } from '../../api/index.js'
 import MessageItem from './MessageItem.vue'
 import SourceCard from './SourceCard.vue'
 import { error as logError } from '../../utils/logger.js'
+import { fixOrderedListNumbers } from '../../utils/textProcessing.js'
 
 const {
   sessions,
@@ -140,12 +141,12 @@ async function handleSendMessage() {
         }
 
         fullContent += event.content
-        streamingContent.value = fullContent
+        streamingContent.value = fixOrderedListNumbers(fullContent)
         scrollToBottom()
       } else if (event.type === 'done') {
         messages.value.push({
           role: 'assistant',
-          content: fullContent,
+          content: fixOrderedListNumbers(fullContent),
           trace_id: event.trace_id,
           sources: event.sources,
           created_at: new Date().toISOString(),

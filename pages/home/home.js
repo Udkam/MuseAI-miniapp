@@ -58,6 +58,9 @@ Page({
   },
 
   resumeTour: function () {
-    wx.navigateTo({ url: '/pages/tour/tour' })
+    var hallName = tourStore.getSavedCurrentHall()
+    var url      = '/pages/tour/tour'
+    if (hallName) url += '?hall=' + encodeURIComponent(hallName)
+    wx.navigateTo({ url: url })
   },
 })

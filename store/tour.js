@@ -183,6 +183,19 @@ function updateTourState(patch) {
   if (patch.sessionId !== undefined || patch.sessionToken !== undefined) {
     storage.setTourSession({ sessionId: _tour.sessionId, sessionToken: _tour.sessionToken })
   }
+  if (patch.currentHall !== undefined) {
+    storage.set(STORAGE_KEYS.TOUR_CURRENT_HALL, _tour.currentHall || '')
+  }
+}
+
+/**
+ * Return the current hall name from runtime state, falling back to storage.
+ * Handles the case where the app was restarted and _tour.currentHall is null.
+ * @returns {string|null}
+ */
+function getSavedCurrentHall() {
+  if (_tour.currentHall) return _tour.currentHall
+  return storage.get(STORAGE_KEYS.TOUR_CURRENT_HALL, null) || null
 }
 
 /** @returns {object} shallow copy of current tour state */
@@ -293,69 +306,80 @@ function getTourHeader() {
 
 // Hall suggestion templates keyed by Chinese hall name → persona ID → array of templates.
 // Each template: { type, icon, title, prompt }
+// ── Suggestion template design rules ───────────────────────────────────────
+// Hall-mode prompts must be answerable without a selected exhibit. Avoid
+// referential wording such as "这件/它/这个展品" here; those belong in exhibit mode
+// where buildStyledPrompt can inject the exact exhibit context.
+// Keep prompts tied to the current hall's topic so a tap does not pull the user
+// into an unrelated artifact.
 var _HALL_SUGGEST_TEMPLATES = {
+  // Verified-clean pool: 文物类型概览 / 石器骨器用途 / 出土文物反映的生活
   '出土文物陈列区': {
+    default: [
+      { type: 'hall_intro',      icon: '🏺', title: '本厅展品', prompt: '这个展厅主要展示哪些类型的文物？' },
+      { type: 'observation_task',icon: '🛠', title: '石器骨器', prompt: '半坡的石器和骨器是做什么用的？' },
+    ],
     A: [
-      { type: 'hall_intro',      icon: '🔍', title: '分析器物形制', prompt: '这个展厅的陶器有哪些典型形制？它们是怎么被发掘出来的？' },
-      { type: 'observation_task',icon: '📍', title: '了解出土规律', prompt: '这些文物的出土位置有什么规律或特殊之处？' },
+      { type: 'hall_intro',      icon: '🔍', title: '文物类型', prompt: '这个展厅主要展示哪些类型的文物？' },
+      { type: 'observation_task',icon: '📍', title: '工具用途', prompt: '半坡的石器和骨器是做什么用的？' },
     ],
     B: [
-      { type: 'hall_intro',      icon: '🏺', title: '感受先民用具', prompt: '这些器物在我们日常生活里是怎么用的？' },
-      { type: 'observation_task',icon: '✨', title: '了解制作故事', prompt: '这些陶器是怎么做出来的？' },
+      { type: 'hall_intro',      icon: '🏺', title: '先民用具', prompt: '半坡的石器和骨器是做什么用的？' },
+      { type: 'observation_task',icon: '🌿', title: '先民生活', prompt: '这些出土文物反映了半坡先民怎样的生活？' },
     ],
     C: [
-      { type: 'hall_intro',      icon: '💡', title: '器物的学术价值', prompt: '这些器物对研究半坡文化有什么学术价值？' },
-      { type: 'observation_task',icon: '🔎', title: '比较不同文化',   prompt: '半坡彩陶和其他新石器时代文化的陶器有什么不同？' },
+      { type: 'hall_intro',      icon: '💡', title: '文物种类', prompt: '这个展厅主要展示哪些类型的文物？' },
+      { type: 'observation_task',icon: '🔎', title: '透物见人', prompt: '这些出土文物反映了半坡先民怎样的生活？' },
     ],
     artisan: [
-      { type: 'hall_intro',      icon: '🛠', title: '制陶工艺',     prompt: '这些陶器用什么材料和工艺制作的？' },
-      { type: 'observation_task',icon: '🏺', title: '器型设计巧思', prompt: '这些器物的造型有哪些工艺上的巧思？' },
-    ],
-    default: [
-      { type: 'hall_intro',      icon: '✨', title: '本厅精华展品', prompt: '这个展厅里有哪些最值得看的展品？' },
-      { type: 'observation_task',icon: '🏺', title: '镇馆之宝',     prompt: '人面鱼纹彩陶盆为什么是半坡博物馆的镇馆之宝？' },
+      { type: 'hall_intro',      icon: '🛠', title: '工具用途', prompt: '半坡的石器和骨器是做什么用的？' },
+      { type: 'observation_task',icon: '🏺', title: '器物种类', prompt: '这个展厅主要展示哪些类型的文物？' },
     ],
   },
+  // Verified-clean pool: ALL 8 candidates passed — this hall's RAG is richest.
   '半坡聚落复原区': {
+    default: [
+      { type: 'hall_intro',      icon: '🏠', title: '聚落生活', prompt: '六千年前半坡人的日常生活是怎样的？' },
+      { type: 'observation_task',icon: '🏗', title: '半穴居',   prompt: '半坡先民居住的房子是什么样的？' },
+    ],
     A: [
-      { type: 'hall_intro',      icon: '🔍', title: '考古发掘证据', prompt: '半坡聚落是怎么被发现和发掘的？有哪些关键考古证据？' },
-      { type: 'observation_task',icon: '📐', title: '分析聚落布局', prompt: '半坡聚落的空间布局说明了什么？' },
+      { type: 'hall_intro',      icon: '🔍', title: '聚落布局', prompt: '半坡聚落的整体布局是怎样的？' },
+      { type: 'observation_task',icon: '📐', title: '壕沟作用', prompt: '半坡聚落周围的壕沟有什么作用？' },
     ],
     B: [
-      { type: 'hall_intro',      icon: '🏠', title: '想象生活场景',   prompt: '六千年前这里的人们每天生活是什么样的？' },
-      { type: 'observation_task',icon: '🌿', title: '房屋是怎么建的', prompt: '半坡先民的房子是怎么建的？住起来什么感觉？' },
+      { type: 'hall_intro',      icon: '🌿', title: '先民的一天', prompt: '六千年前半坡人的日常生活是怎样的？' },
+      { type: 'observation_task',icon: '🏠', title: '房屋建造', prompt: '半坡先民的房屋是怎么建造的？' },
     ],
     C: [
-      { type: 'hall_intro',      icon: '💡', title: '聚落的历史意义', prompt: '半坡聚落的发现对中国史前史研究有什么意义？' },
-      { type: 'observation_task',icon: '❓', title: '为什么选在这里', prompt: '半坡先民选在这里定居，背后有哪些原因？' },
+      { type: 'hall_intro',      icon: '💡', title: '聚落布局', prompt: '半坡聚落的整体布局是怎样的？' },
+      { type: 'observation_task',icon: '🍚', title: '食物来源', prompt: '半坡先民主要靠什么获取食物？' },
     ],
     artisan: [
-      { type: 'hall_intro',      icon: '🛠', title: '建筑工艺', prompt: '半坡先民是如何建造房屋的？用了哪些材料和工艺？' },
-    ],
-    default: [
-      { type: 'hall_intro',      icon: '🏘', title: '了解聚落复原', prompt: '这个展厅展示的半坡聚落是什么样的？' },
-      { type: 'observation_task',icon: '📏', title: '聚落规模',     prompt: '半坡遗址有多大？当时大约住了多少人？' },
+      { type: 'hall_intro',      icon: '🛠', title: '房屋建造', prompt: '半坡先民的房屋是怎么建造的？' },
+      { type: 'observation_task',icon: '🏠', title: '居所样貌', prompt: '半坡先民居住的房子是什么样的？' },
     ],
   },
+  // Hall-level culture prompts: no single-object wording unless an exhibit is selected.
   '专题文化展区': {
+    default: [
+      { type: 'hall_intro',      icon: '🏛', title: '考古发现', prompt: '半坡遗址的考古发现说明了什么？' },
+      { type: 'observation_task',icon: '🎨', title: '艺术审美', prompt: '半坡人有自己的艺术或审美吗？' },
+    ],
     A: [
-      { type: 'hall_intro',      icon: '🔍', title: '文化时间线',   prompt: '半坡文化处于史前哪个阶段？和周边文化有什么关系？' },
-      { type: 'observation_task',icon: '🧩', title: '精神遗存证据', prompt: '考古发现中有哪些关于半坡先民精神世界的证据？' },
+      { type: 'hall_intro',      icon: '🔍', title: '考古发现', prompt: '半坡遗址的考古发现说明了什么？' },
+      { type: 'observation_task',icon: '🏆', title: '遗址价值', prompt: '半坡遗址为什么这么重要？' },
     ],
     B: [
-      { type: 'hall_intro',      icon: '🌟', title: '信仰与仪式', prompt: '半坡先民有哪些信仰和仪式？' },
-      { type: 'observation_task',icon: '✨', title: '文化传承',   prompt: '半坡文化最重要的精神遗产是什么？' },
+      { type: 'hall_intro',      icon: '🎨', title: '先民审美', prompt: '半坡人有自己的艺术或审美吗？' },
+      { type: 'observation_task',icon: '✨', title: '遗址价值', prompt: '半坡遗址为什么这么重要？' },
     ],
     C: [
-      { type: 'hall_intro',      icon: '💡', title: '文明独特特征',   prompt: '半坡文明最独特的文化特征是什么？' },
-      { type: 'observation_task',icon: '🔎', title: '与其他文化比较', prompt: '半坡文化和同期其他史前文化相比有哪些异同？' },
+      { type: 'hall_intro',      icon: '🏆', title: '遗址价值', prompt: '半坡遗址为什么这么重要？' },
+      { type: 'observation_task',icon: '🔎', title: '先民审美', prompt: '半坡人有自己的艺术或审美吗？' },
     ],
     artisan: [
-      { type: 'hall_intro',      icon: '🛠', title: '制陶工艺史', prompt: '半坡先民的制陶技术在历史上处于什么水平？' },
-    ],
-    default: [
-      { type: 'hall_intro',      icon: '🏛', title: '了解半坡文化', prompt: '半坡文化是什么？有什么特点？' },
-      { type: 'observation_task',icon: '🌟', title: '文明亮点',     prompt: '这个展厅展示了半坡文明哪些重要成就？' },
+      { type: 'hall_intro',      icon: '🎨', title: '艺术审美', prompt: '半坡人有自己的艺术或审美吗？' },
+      { type: 'observation_task',icon: '🏛', title: '考古发现', prompt: '半坡遗址的考古发现说明了什么？' },
     ],
   },
 }
@@ -748,4 +772,7 @@ module.exports = {
 
   // Guide suggestions
   generateGuideSuggestions,
+
+  // Hall persistence
+  getSavedCurrentHall,
 }

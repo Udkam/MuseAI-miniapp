@@ -1,4 +1,7 @@
 {
+  "scripts": {
+    "test:suggestions": "node scripts/test-guide-suggestions.js"
+  },
   "dependencies": {
     "tdesign-miniprogram": "^1.15.0"
   }

@@ -202,6 +202,8 @@ Page({
   },
 
   startTour: function () {
-    wx.navigateTo({ url: '/pages/hall/hall' })
+    // Replace route page rather than pushing — prevents page-stack overflow
+    // on repeated hall visits (WeChat limit: 10 pages).
+    wx.redirectTo({ url: '/pages/hall/hall' })
   },
 })
