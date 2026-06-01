@@ -31,7 +31,7 @@
             wx:for-item="listItem"
             class="md-li"
           >
-            <text class="md-bullet">{{blk.ordered ? (li+1)+'.' : '•'}}</text>
+            <text class="md-bullet">{{blk.ordered ? ((blk.start || 1) + li)+'.' : '•'}}</text>
             <view class="md-li-body">
               <text
                 wx:for="{{listItem}}"
@@ -49,6 +49,8 @@
 
     <!-- Fallback: no blocks (empty content or user msg edge case) -->
     <text wx:else class="bubble-text">{{content}}</text>
+
+    <view wx:if="{{role === 'assistant' && isStreaming}}" class="typing-cursor"></view>
 
   </view>
 </view>

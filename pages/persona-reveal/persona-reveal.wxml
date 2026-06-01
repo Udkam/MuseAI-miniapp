@@ -26,6 +26,19 @@
     </view>
   </view>
 
+  <!-- Onboarding profile preview -->
+  <view wx:if="{{hasEntryProfile}}" class="entry-profile-block">
+    <text class="entry-profile-label">你的导览档案</text>
+    <view class="entry-profile-row" wx:if="{{focusTitle}}">
+      <text class="entry-profile-key">追问方向</text>
+      <text class="entry-profile-value">{{focusTitle}}</text>
+    </view>
+    <view class="entry-profile-row" wx:if="{{guideModeTitle}}">
+      <text class="entry-profile-key">导览节奏</text>
+      <text class="entry-profile-value">{{guideModeTitle}}</text>
+    </view>
+  </view>
+
   <!-- Assumption challenge preview -->
   <view wx:if="{{assumptionHint}}" class="challenge-preview">
     <text class="challenge-icon">💡</text>

@@ -148,3 +148,20 @@
   flex: 1;
   line-height: 1.8;
 }
+
+/* ── Streaming cursor ───────────────────────────────────────────────────── */
+
+.typing-cursor {
+  display: inline-block;
+  width: 4rpx;
+  height: 28rpx;
+  background: #C4845A;
+  border-radius: 2rpx;
+  margin-top: 4rpx;
+  animation: cursor-blink 0.8s step-end infinite;
+}
+
+@keyframes cursor-blink {
+  0%, 100% { opacity: 1; }
+  50%      { opacity: 0; }
+}

@@ -120,8 +120,8 @@ Page({
       // No session — create a quick-start one so tour doesn't show "请先完成问卷"
       var guestId = 'miniapp_guest_' + Date.now()
       tourStore.setStylePrefs({ answerLength: 'balanced', depth: 'standard', terminology: 'plain' })
-      tourStore.createLocalTourState({ interestType: 'B', persona: 'B', assumption: 'B', personaId: 'default' })
-      api.tourApi.createSession({ interest_type: 'B', persona: 'B', assumption: 'B', guest_id: guestId })
+      tourStore.createLocalTourState({ interestType: 'B', persona: 'B', assumption: 'D', personaId: 'student' })
+      api.tourApi.createSession({ interest_type: 'B', persona: 'B', assumption: 'D', guest_id: guestId })
         .then(function (res) {
           var newId = null
           if (res.ok) {

@@ -40,6 +40,20 @@
   display: block;
 }
 
+.plan-summary {
+  margin-top: 22rpx;
+  padding: 20rpx 24rpx;
+  background: #F9F6F1;
+  border-left: 6rpx solid #C4845A;
+  border-radius: 0 12rpx 12rpx 0;
+}
+
+.plan-summary-text {
+  font-size: 24rpx;
+  line-height: 1.65;
+  color: #5A3E2B;
+}
+
 /* ── Stats row ──────────────────────────────────────────────────────────────── */
 
 .stats-row {

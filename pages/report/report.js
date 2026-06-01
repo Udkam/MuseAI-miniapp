@@ -1,5 +1,6 @@
 const api       = require('../../api/index')
 const tourStore = require('../../store/tour')
+const banpoHalls = require('../../constants/banpo-halls')
 
 // ── Radar score display labels (backend keys → Chinese) ───────────────────────
 // Backend: civilization_resonance / imagination_breadth / history_collection /
@@ -21,10 +22,6 @@ var FALLBACK_RADAR = [
   { label: '陶瓷美学', value: 2, barWidth: 67 },
 ]
 
-// ── Persona display maps ──────────────────────────────────────────────────────
-var PERSONA_LABELS = { A: '考古队长', B: '半坡原住民', C: '历史老师' }
-var PERSONA_TITLES = { A: '你的半坡考古报告', B: '半坡一日穿越体验', C: '半坡游学荣誉证书' }
-
 Page({
   data: {
     // Loading / error states
@@ -40,7 +37,7 @@ Page({
     // Gold quote shown at the top of the report
     oneLiner:     '',
 
-    // Identity chip tags  e.g. ['考古队长', '文化追寻者']
+    // Identity chip tags  e.g. ['考古研究员', '文化追寻者']
     identityTags: [],
 
     // Stats row
@@ -63,12 +60,11 @@ Page({
   onLoad: function () {
     var self  = this
     var state = tourStore.getTourState()
-    var p     = state.persona || 'A'
 
     // Set persona labels immediately from local state (no network needed)
     self.setData({
-      persona:     PERSONA_LABELS[p]  || PERSONA_LABELS.A,
-      reportTitle: PERSONA_TITLES[p]  || PERSONA_TITLES.A,
+      persona:     tourStore.getPersonaLabel() || '研学记录员',
+      reportTitle: tourStore.getReportThemeTitle() || '半坡导览报告',
       isLoading:   true,
       isReady:     false,
     })
@@ -167,6 +163,16 @@ Page({
     var dur = data.total_duration_minutes != null
       ? Math.round(data.total_duration_minutes) + ' 分钟'
       : '-'
+    var hallsVisited = data.halls_visited
+    var hallsCount = '-'
+    if (Array.isArray(hallsVisited)) {
+      hallsCount = String(hallsVisited.length)
+    } else if (hallsVisited != null) {
+      hallsCount = String(hallsVisited)
+    }
+    var hallNames = Array.isArray(hallsVisited)
+      ? hallsVisited.map(function (hall) { return banpoHalls.getHallDisplayName(hall) })
+      : []
 
     this.setData({
       isLoading:    false,
@@ -176,13 +182,15 @@ Page({
       oneLiner:     data.one_liner      || '',
       identityTags: Array.isArray(data.identity_tags) ? data.identity_tags : [],
       stats: {
-        halls:    data.halls_visited         != null ? String(data.halls_visited)         : '-',
+        halls:    hallsCount,
         exhibits: data.total_exhibits_viewed != null ? String(data.total_exhibits_viewed) : '-',
         messages: data.total_questions       != null ? String(data.total_questions)       : '-',
         duration: dur,
       },
       radarBars:  radarBars,
-      highlights: Array.isArray(data.highlights) ? data.highlights : [],
+      highlights: Array.isArray(data.highlights) && data.highlights.length
+        ? data.highlights
+        : (hallNames.length ? ['已到访：' + hallNames.join('、')] : []),
     })
   },
 

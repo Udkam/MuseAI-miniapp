@@ -9,6 +9,7 @@
 const req    = require('../utils/request')
 const stream = require('./stream')
 const storage = require('../utils/storage')
+const banpoHalls = require('../constants/banpo-halls')
 
 const SERVER_ROOT = 'http://122.152.232.190:3000'
 
@@ -177,6 +178,7 @@ const tourApi = {
    * @param {string}   [opts.token]      X-Session-Token (falls back to storage)
    * @param {string}   [opts.exhibitId]  Current exhibit ID
    * @param {object}   [opts.style]      Style preferences object
+   * @param {string}   [opts.clientContext] Compact frontend context that should not affect retrieval
    * @param {object}   [opts.ttsOptions] TTS options object
    * @param {Function} [opts.onChunk]    (text) => void — content delta
    * @param {Function} [opts.onEvent]    (event) => void — rag_step / thinking
@@ -193,10 +195,12 @@ const tourApi = {
     // message: str  (required)
     // exhibit_id: str | None  (omit when falsy — backend default None)
     // style: TourChatStyle | None  (omit when falsy)
+    // client_context: str | None  (answer guidance; backend keeps retrieval query as message)
     // tts: bool  (MUST be bool, not null — backend default False)
     var body = { message: opts.message || '' }
     if (opts.exhibitId) body.exhibit_id = opts.exhibitId
     if (opts.style)     body.style      = opts.style
+    if (opts.clientContext) body.client_context = opts.clientContext
     // ttsOptions is an object {enabled, voice, autoPlay}; map to bool for backend
     body.tts = !!(opts.ttsOptions && opts.ttsOptions.enabled)
 
@@ -226,9 +230,18 @@ const tourApi = {
 // HALL_SLUG_NAMES maps backend slug → frontend display name (matching hall.js).
 
 var HALL_SLUG_NAMES = {
-  'pottery-spirit-hall':     '出土文物陈列区',  // 陶器灵肉展厅  (artifacts, confirmed live)
-  'site-archaeology-hall':   '半坡聚落复原区',  // 遗址考古展厅  (settlement/site)
-  'civilization-spark-hall': '专题文化展区',    // 文明曙光展厅  (culture/civilization)
+  'basic-exhibition-hall': '基本陈列展厅',
+  'site-protection-hall':  '遗址保护大厅',
+  'temporary-hall-1':      '临展厅一',
+  'temporary-hall-2':      '临展厅二',
+  'banpo-girl-sculpture':  '半坡姑娘雕塑',
+  'prehistoric-workshop':  '史前工坊',
+  'education-center':      '教研中心',
+  'peony-garden':          '牡丹园',
+  'kiln-hall':             '陶窑展厅',
+  'pottery-spirit-hall':     '基本陈列展厅',    // legacy imported pottery/craft exhibits
+  'civilization-spark-hall': '基本陈列展厅',    // legacy imported civilization/daily-life exhibits
+  'site-archaeology-hall':   '遗址保护大厅',    // legacy imported site/archaeology exhibits
 }
 
 // Build reverse map: Chinese name → slug
@@ -236,15 +249,27 @@ var HALL_NAME_SLUGS = {}
 Object.keys(HALL_SLUG_NAMES).forEach(function (slug) {
   HALL_NAME_SLUGS[HALL_SLUG_NAMES[slug]] = slug
 })
+// New visitor-facing points from 展厅信息.docx. Several spaces do not have
+// exhibit-level DB data yet, so they either reuse the closest legacy slug or
+// intentionally return null and load all/none depending on the page.
+HALL_NAME_SLUGS['基本陈列展厅'] = HALL_NAME_SLUGS['基本陈列展厅'] || 'basic-exhibition-hall'
+HALL_NAME_SLUGS['遗址保护大厅'] = HALL_NAME_SLUGS['遗址保护大厅'] || 'site-protection-hall'
+HALL_NAME_SLUGS['陶窑展厅'] = HALL_NAME_SLUGS['陶窑展厅'] || 'kiln-hall'
+HALL_NAME_SLUGS['出土文物陈列区'] = 'pottery-spirit-hall'
+HALL_NAME_SLUGS['半坡聚落复原区'] = 'site-archaeology-hall'
+HALL_NAME_SLUGS['专题文化展区'] = 'civilization-spark-hall'
+
+HALL_SLUG_NAMES = Object.assign({}, banpoHalls.HALL_SLUG_NAMES)
+HALL_NAME_SLUGS = Object.assign({}, banpoHalls.HALL_NAME_SLUGS)
 
 /** Convert a backend hall slug to a user-visible Chinese name. */
 function hallSlugToName(slug) {
-  return HALL_SLUG_NAMES[slug] || slug
+  return banpoHalls.getHallDisplayName(slug)
 }
 
 /** Convert a frontend Chinese hall name to a backend slug.  Returns null if unknown. */
 function hallNameToSlug(name) {
-  return HALL_NAME_SLUGS[name] || null
+  return banpoHalls.normalizeHallToSlug(name)
 }
 
 // ── Exhibit alias map ──────────────────────────────────────────────────────
@@ -336,9 +361,59 @@ const ttsApi = {
 // POST /curator/plan-tour    { available_time, interests }
 // POST /curator/narrative    { exhibit_id }
 // POST /curator/reflection   { exhibit_id }
+function _pushInterest(list, key, value) {
+  if (value === null || value === undefined || value === '') return
+  list.push(key + ':' + String(value))
+}
+
+function _normalizeHallList(values) {
+  if (!Array.isArray(values)) return []
+  var result = []
+  values.forEach(function (item) {
+    var slug = hallNameToSlug(item)
+    if (slug && result.indexOf(slug) === -1) result.push(slug)
+  })
+  return result
+}
+
+function _buildPlanTourPayload(availableTime, interests) {
+  if (!availableTime || typeof availableTime !== 'object') {
+    return { available_time: availableTime, interests: interests || [] }
+  }
+
+  var input = availableTime
+  var nextInterests = Array.isArray(input.interests) ? input.interests.slice() : []
+  var currentHallSlug = input.currentHall ? hallNameToSlug(input.currentHall) : null
+  var preferredHallSlugs = _normalizeHallList(input.preferredHallOrder)
+  var persona = input.persona || input.backendPersona || ''
+
+  _pushInterest(nextInterests, 'persona', persona)
+  _pushInterest(nextInterests, 'personaId', input.personaId)
+  _pushInterest(nextInterests, '身份', input.personaLabel)
+  _pushInterest(nextInterests, '时间预算', input.timeBudget)
+  _pushInterest(nextInterests, '关注点', input.focusTitle)
+  _pushInterest(nextInterests, '关注提示', input.focusPrompt)
+  _pushInterest(nextInterests, '初始假设', input.assumptionText)
+  _pushInterest(nextInterests, '导览节奏', input.guideModeTitle)
+  _pushInterest(nextInterests, '导览提示', input.guideModePrompt)
+  _pushInterest(nextInterests, '自写问题', input.intentText)
+  _pushInterest(nextInterests, '当前展厅', currentHallSlug)
+  if (preferredHallSlugs.length) {
+    _pushInterest(nextInterests, '优先展厅', preferredHallSlugs.join(','))
+  }
+
+  return {
+    available_time: input.available_time || input.availableTime || 60,
+    interests: nextInterests,
+  }
+}
+
 const curatorApi = {
   planTour: function(availableTime, interests) {
-    return req.post('/curator/plan-tour', { available_time: availableTime, interests: interests })
+    return req.post('/curator/plan-tour', _buildPlanTourPayload(availableTime, interests), {
+      timeout: 5000,
+      retries: 0,
+    })
   },
 
   generateNarrative: function(exhibitId) {

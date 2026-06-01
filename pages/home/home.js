@@ -24,11 +24,18 @@ Page({
     self.setData({ starting: true })
 
     tourStore.setStylePrefs({ answerLength: 'balanced', depth: 'standard', terminology: 'plain' })
-    tourStore.createLocalTourState({ interestType: 'B', persona: 'B', assumption: 'B', personaId: 'default' })
+    tourStore.createLocalTourState({ interestType: 'B', persona: 'B', assumption: 'D', personaId: 'student' })
     tourStore.setOnboardingExtras({
       intentText:         '',
-      preferredHallOrder: ['settlement', 'artifacts', 'culture'],
+      preferredHallOrder: ['site', 'basic', 'education'],
       timeBudget:         null,
+      focusId:            'study',
+      focusTitle:         '带着任务研学',
+      focusPrompt:        '请优先给出观察任务、记录要点和适合研学汇报的清晰小结。',
+      assumptionText:     '先不下判断，跟证据走',
+      guideModeId:        'notebook',
+      guideModeTitle:     '研学记录模式',
+      guideModePrompt:    '用户正在做研学记录，请在回答中给出清晰观察任务和可整理成笔记的小结。',
     })
 
     var guestId = 'miniapp_guest_' + Date.now()
@@ -36,7 +43,7 @@ Page({
     api.tourApi.createSession({
       interest_type: 'B',
       persona:       'B',
-      assumption:    'B',
+      assumption:    'D',
       guest_id:      guestId,
     }).then(function (res) {
       self.setData({ starting: false })
@@ -58,9 +65,6 @@ Page({
   },
 
   resumeTour: function () {
-    var hallName = tourStore.getSavedCurrentHall()
-    var url      = '/pages/tour/tour'
-    if (hallName) url += '?hall=' + encodeURIComponent(hallName)
-    wx.navigateTo({ url: url })
+    wx.navigateTo({ url: '/pages/hall/hall' })
   },
 })

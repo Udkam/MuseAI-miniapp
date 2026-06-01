@@ -3,10 +3,13 @@
   <!-- ── Header ─────────────────────────────────────────────────────────────── -->
   <view class="route-header">
     <view class="ai-badge">
-      <text class="ai-badge-text">AI 推荐路线</text>
+      <text class="ai-badge-text">{{routeSourceLabel}}</text>
     </view>
     <text class="route-title">为你规划的参观路线</text>
     <text class="route-tagline">{{tagline}}</text>
+    <view class="plan-summary" wx:if="{{planSummary}}">
+      <text class="plan-summary-text">{{planning ? '正在请求 AI 路线，当前先显示本地推荐。' : planSummary}}</text>
+    </view>
   </view>
 
   <!-- ── Stats row ──────────────────────────────────────────────────────────── -->
@@ -27,7 +30,7 @@
     <text class="section-label">展厅平面示意</text>
     <view class="floor-map">
 
-      <!-- Hall 1: settlement -->
+      <!-- Hall 1 -->
       <view class="floor-hall floor-hall-{{floorItems[0].status}}">
         <text class="floor-hall-short">{{floorItems[0].short}}</text>
         <view wx:if="{{floorItems[0].status === 'visited'}}" class="floor-visited-mark"></view>
@@ -37,7 +40,7 @@
       <!-- Connector -->
       <view class="floor-conn"><view class="floor-conn-line"></view></view>
 
-      <!-- Hall 2: artifacts -->
+      <!-- Hall 2 -->
       <view class="floor-hall floor-hall-{{floorItems[1].status}}">
         <text class="floor-hall-short">{{floorItems[1].short}}</text>
         <view wx:if="{{floorItems[1].status === 'visited'}}" class="floor-visited-mark"></view>
@@ -47,7 +50,7 @@
       <!-- Connector -->
       <view class="floor-conn"><view class="floor-conn-line"></view></view>
 
-      <!-- Hall 3: culture -->
+      <!-- Hall 3 -->
       <view class="floor-hall floor-hall-{{floorItems[2].status}}">
         <text class="floor-hall-short">{{floorItems[2].short}}</text>
         <view wx:if="{{floorItems[2].status === 'visited'}}" class="floor-visited-mark"></view>

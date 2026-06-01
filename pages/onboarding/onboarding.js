@@ -1,106 +1,165 @@
 var tourStore = require('../../store/tour')
 var api       = require('../../api/index')
 
-var PERSONA_NAMES = { A: '考古队长', B: '半坡原住民', C: '历史老师' }
-
-var INTENT_CARDS = [
-  {
-    id:                 'immerse',
-    icon:               '🏺',
-    title:              '穿越到六千年前',
-    desc:               '用想象力感受那时人们的日常',
-    persona:            'B',
-    personaId:          'B',       // 半坡原住民 — backend handles system prompt
-    assumption:         'B',
-    answerLength:       'balanced',
-    depth:              'standard',
-    preferredHallOrder: ['settlement', 'artifacts', 'culture'],
-  },
-  {
-    id:                 'evidence',
-    icon:               '🔬',
-    title:              '跟着考古证据走',
-    desc:               '细看文物，还原有据可查的历史',
-    persona:            'A',
-    personaId:          'A',       // 考古队长 — backend handles system prompt
-    assumption:         'C',
-    answerLength:       'balanced',
-    depth:              'deep',
-    preferredHallOrder: ['artifacts', 'settlement', 'culture'],
-  },
-  {
-    id:                 'reflect',
-    icon:               '💡',
-    title:              '提问，找新启发',
-    desc:               '用现代眼光反思古人留下了什么',
-    persona:            'C',
-    personaId:          'C',       // 历史老师 — backend handles system prompt
-    assumption:         'A',
-    answerLength:       'balanced',
-    depth:              'deep',
-    preferredHallOrder: ['culture', 'artifacts', 'settlement'],
-  },
-  {
-    id:                 'artisan',
-    icon:               '🏛️',
-    title:              '以陶器工匠视角看',
-    desc:               '从制作工艺和匠人视角感受文物',
-    persona:            'B',
-    personaId:          'artisan', // 前端 prompt prefix 注入，backend 用 B 作基础
-    assumption:         'B',
-    answerLength:       'balanced',
-    depth:              'standard',
-    preferredHallOrder: ['artifacts', 'culture', 'settlement'],
-  },
-]
-
-var TIME_OPTIONS = [
-  { id: '30min',     icon: '⏱',  title: '30 分钟', desc: '精华优先，重点展品',     answerLength: 'brief',    overrideDepth: 'introductory' },
-  { id: '1hour',     icon: '⏰',  title: '1 小时',  desc: '正常节奏，有故事有细节', answerLength: 'balanced', overrideDepth: null          },
-  { id: 'unlimited', icon: '🕐',  title: '随便逛',  desc: '不限时，越详细越好',     answerLength: 'detailed', overrideDepth: 'deep'         },
-]
-
-var DEFAULT_CARD = {
-  persona:            'B',
-  personaId:          'default',
-  assumption:         'B',
-  answerLength:       'balanced',
-  depth:              'standard',
-  preferredHallOrder: ['settlement', 'artifacts', 'culture'],
+var PERSONA_NAMES = {
+  student: '研学记录员',
+  A: '考古研究员',
+  historian: '历史追问者',
+  artifact: '器物研究员',
 }
+
+var FOCUS_OPTIONS = [
+  {
+    id: 'study',
+    icon: '📝',
+    title: '带着任务研学',
+    desc: '边看边记，把展厅整理成可复盘的笔记',
+    persona: 'B',
+    personaId: 'student',
+    prompt: '请优先给出观察任务、记录要点和适合研学汇报的清晰小结。',
+    preferredHallOrder: ['site', 'basic', 'education'],
+  },
+  {
+    id: 'research',
+    icon: '🔎',
+    title: '证据怎样成史',
+    desc: '像研究者一样，看证据、推理和不确定性',
+    persona: 'A',
+    personaId: 'A',
+    prompt: '请优先说明证据来源、推理过程和目前仍不确定的地方。',
+    preferredHallOrder: ['basic', 'site', 'kiln'],
+  },
+  {
+    id: 'history',
+    icon: '🧭',
+    title: '历史问题追问',
+    desc: '把半坡放进更大的史前中国和今天来理解',
+    persona: 'C',
+    personaId: 'historian',
+    prompt: '请优先围绕文明起源、社会变化、公共生活和今天的关系展开追问。',
+    preferredHallOrder: ['basic', 'site', 'education'],
+  },
+  {
+    id: 'artifact',
+    icon: '🏺',
+    title: '器物细节观察',
+    desc: '从材料、器形、纹饰和工艺读懂文物',
+    persona: 'D',
+    personaId: 'artifact',
+    prompt: '请优先从材料、器形、纹饰、制作工艺和使用痕迹解释问题。',
+    preferredHallOrder: ['basic', 'kiln', 'workshop'],
+  },
+]
+
+var ASSUMPTION_OPTIONS = [
+  {
+    id: 'A',
+    title: '更像平等互助的共同体',
+    desc: '我想看看公共空间、协作和共享生活的证据',
+  },
+  {
+    id: 'B',
+    title: '艰难但有烟火气的生活',
+    desc: '我更关心他们怎样吃饭、居住、制作工具',
+  },
+  {
+    id: 'C',
+    title: '已经出现分工和规则',
+    desc: '我想知道组织、仪式或差异有没有线索',
+  },
+  {
+    id: 'D',
+    title: '先不下判断，跟证据走',
+    desc: '我想先收集材料，再形成自己的观点',
+  },
+]
+
+var RHYTHM_OPTIONS = [
+  {
+    id: 'notebook',
+    icon: '📝',
+    title: '研学记录模式',
+    desc: '每段给观察任务和可写进笔记的要点',
+    answerLength: 'balanced',
+    depth: 'standard',
+    terminology: 'plain',
+    prompt: '用户正在做研学记录，请在回答中给出清晰观察任务和可整理成笔记的小结。',
+  },
+  {
+    id: 'quick',
+    icon: '⏱',
+    title: '30 分钟抓重点',
+    desc: '少铺垫，直接讲关键展品和结论',
+    answerLength: 'brief',
+    depth: 'introductory',
+    terminology: 'plain',
+    prompt: '用户时间有限，请优先给清晰结论和少量观察任务。',
+  },
+  {
+    id: 'dialogue',
+    icon: '💬',
+    title: '1 小时边看边问',
+    desc: '正常节奏，讲清楚也留一点追问空间',
+    answerLength: 'balanced',
+    depth: 'standard',
+    terminology: 'plain',
+    prompt: '用户希望边看边问，请在回答末尾自然给一个可继续观察的问题。',
+  },
+  {
+    id: 'research',
+    icon: '📚',
+    title: '研究深挖模式',
+    desc: '多给证据比较、术语解释和延伸问题',
+    answerLength: 'detailed',
+    depth: 'deep',
+    terminology: 'professional',
+    prompt: '用户愿意深入研究，请适当加入证据比较、术语解释和进一步追问。',
+  },
+]
+
+var DEFAULT_FOCUS = FOCUS_OPTIONS[0]
+var DEFAULT_ASSUMPTION = ASSUMPTION_OPTIONS[3]
+var DEFAULT_RHYTHM = RHYTHM_OPTIONS[0]
 
 Page({
   data: {
-    step:                    1,
-    intentCards:             INTENT_CARDS,
-    timeOptions:             TIME_OPTIONS,
-    selectedCardId:          null,
-    selectedCardPersonaName: '',
-    intentText:              '',
-    selectedTimeId:          null,
-    loading:                 false,
+    step: 1,
+    focusOptions: FOCUS_OPTIONS,
+    assumptionOptions: ASSUMPTION_OPTIONS,
+    rhythmOptions: RHYTHM_OPTIONS,
+    selectedFocusId: DEFAULT_FOCUS.id,
+    selectedAssumptionId: DEFAULT_ASSUMPTION.id,
+    selectedRhythmId: DEFAULT_RHYTHM.id,
+    selectedPersonaName: PERSONA_NAMES[DEFAULT_FOCUS.personaId],
+    intentText: '',
+    loading: false,
   },
 
-  // Non-reactive re-entry guard. Reactive `loading` only drives the button spinner;
-  // navigation gating uses this flag so it can be reset without a render.
   _navigating: false,
 
-  // Reset spinner + guard whenever the page becomes visible again (e.g. user taps
-  // back from persona-reveal). Without this the spinner stays stuck and the
-  // `loading` guard permanently blocks re-submission.
   onShow: function () {
     this._navigating = false
     if (this.data.loading) this.setData({ loading: false })
   },
 
-  selectCard: function (e) {
+  selectFocus: function (e) {
     if (this.data.loading) return
-    var id   = e.currentTarget.dataset.id
-    var card = this._findCard(id)
+    var id = e.currentTarget.dataset.id
+    var item = this._findFocus(id)
     this.setData({
-      selectedCardId:          id,
-      selectedCardPersonaName: card ? PERSONA_NAMES[card.persona] : '',
+      selectedFocusId: id,
+      selectedPersonaName: item ? PERSONA_NAMES[item.personaId] : '',
     })
+  },
+
+  selectAssumption: function (e) {
+    if (this.data.loading) return
+    this.setData({ selectedAssumptionId: e.currentTarget.dataset.id })
+  },
+
+  selectRhythm: function (e) {
+    if (this.data.loading) return
+    this.setData({ selectedRhythmId: e.currentTarget.dataset.id })
   },
 
   onIntentInput: function (e) {
@@ -108,41 +167,55 @@ Page({
     this.setData({ intentText: e.detail.value || '' })
   },
 
-  goToStep2: function () {
+  goNext: function () {
     if (this.data.loading) return
-    this.setData({ step: 2 })
+    if (this.data.step < 3) {
+      this.setData({ step: this.data.step + 1 })
+    } else {
+      var self = this
+      if (wx.nextTick) {
+        wx.nextTick(function () { self._finish() })
+      } else {
+        setTimeout(function () { self._finish() }, 0)
+      }
+    }
   },
 
-  selectTime: function (e) {
+  goBack: function () {
     if (this.data.loading) return
-    this.setData({ selectedTimeId: e.currentTarget.dataset.id })
+    if (this.data.step > 1) this.setData({ step: this.data.step - 1 })
   },
 
-  confirmTime: function () {
+  skipProfile: function () {
     if (this.data.loading) return
-    this._finish()
-  },
-
-  skipTime: function () {
-    if (this.data.loading) return
-    this.setData({ selectedTimeId: null })
+    this.setData({
+      selectedFocusId: null,
+      selectedAssumptionId: null,
+      selectedRhythmId: null,
+      intentText: '',
+    })
     this._finish()
   },
 
   noop: function () {},
 
-  // ─── Helpers ────────────────────────────────────────────────────────────────
-
-  _findCard: function (id) {
-    for (var i = 0; i < INTENT_CARDS.length; i++) {
-      if (INTENT_CARDS[i].id === id) return INTENT_CARDS[i]
+  _findFocus: function (id) {
+    for (var i = 0; i < FOCUS_OPTIONS.length; i++) {
+      if (FOCUS_OPTIONS[i].id === id) return FOCUS_OPTIONS[i]
     }
     return null
   },
 
-  _findTime: function (id) {
-    for (var i = 0; i < TIME_OPTIONS.length; i++) {
-      if (TIME_OPTIONS[i].id === id) return TIME_OPTIONS[i]
+  _findAssumption: function (id) {
+    for (var i = 0; i < ASSUMPTION_OPTIONS.length; i++) {
+      if (ASSUMPTION_OPTIONS[i].id === id) return ASSUMPTION_OPTIONS[i]
+    }
+    return null
+  },
+
+  _findRhythm: function (id) {
+    for (var i = 0; i < RHYTHM_OPTIONS.length; i++) {
+      if (RHYTHM_OPTIONS[i].id === id) return RHYTHM_OPTIONS[i]
     }
     return null
   },
@@ -150,40 +223,46 @@ Page({
   _finish: function () {
     if (this._navigating) return
     this._navigating = true
-    var self    = this
-    var card    = this._findCard(this.data.selectedCardId) || DEFAULT_CARD
-    var timeSel = this._findTime(this.data.selectedTimeId)
 
-    var persona            = card.persona
-    var personaId          = card.personaId || card.persona
-    var assumption         = card.assumption
-    var preferredHallOrder = card.preferredHallOrder
-    var intentText         = this.data.intentText.trim()
+    var self = this
+    var focus = this._findFocus(this.data.selectedFocusId) || DEFAULT_FOCUS
+    var assumption = this._findAssumption(this.data.selectedAssumptionId) || DEFAULT_ASSUMPTION
+    var rhythm = this._findRhythm(this.data.selectedRhythmId) || DEFAULT_RHYTHM
+    var intentText = (this.data.intentText || '').trim()
 
-    // Time selection overrides answerLength; overrideDepth replaces card depth when set
-    var answerLength = timeSel ? timeSel.answerLength : card.answerLength
-    var depth        = (timeSel && timeSel.overrideDepth) ? timeSel.overrideDepth : card.depth
+    var persona = focus.persona
+    var personaId = focus.personaId || focus.persona
+    var backendPersona = ['A', 'B', 'C', 'D'].indexOf(persona) >= 0 ? persona : 'B'
 
-    tourStore.setStylePrefs({ answerLength: answerLength, depth: depth, terminology: 'plain' })
-    tourStore.createLocalTourState({ interestType: persona, persona: persona, assumption: assumption, personaId: personaId })
+    tourStore.setStylePrefs({
+      answerLength: rhythm.answerLength,
+      depth: rhythm.depth,
+      terminology: rhythm.terminology || 'plain',
+    })
+    tourStore.createLocalTourState({
+      interestType: persona,
+      persona: persona,
+      assumption: assumption.id,
+      personaId: personaId,
+    })
     tourStore.setOnboardingExtras({
-      intentText:         intentText,
-      preferredHallOrder: preferredHallOrder,
-      timeBudget:         timeSel ? timeSel.id : null,
+      intentText: intentText,
+      preferredHallOrder: focus.preferredHallOrder,
+      timeBudget: rhythm.id,
+      focusId: focus.id,
+      focusTitle: focus.title,
+      focusPrompt: focus.prompt,
+      assumptionText: assumption.title,
+      guideModeId: rhythm.id,
+      guideModeTitle: rhythm.title,
+      guideModePrompt: rhythm.prompt,
     })
 
     self.setData({ loading: true })
 
-    var guestId = 'miniapp_guest_' + Date.now()
-    // For artisan persona, use 'B' as backend persona (backend only knows A/B/C)
-    var backendPersona = (persona === 'artisan') ? 'B' : persona
-
-    // onboarding → persona-reveal is a one-way flow. redirectTo destroys this page,
-    // so there's no stuck spinner / flicker when the user later taps back, and the
-    // page stack stays shallow (matches the route/tour redirectTo pattern).
     var go = function () {
       wx.redirectTo({
-        url: '/pages/persona-reveal/persona-reveal?persona=' + persona + '&assumption=' + assumption,
+        url: '/pages/persona-reveal/persona-reveal?persona=' + personaId + '&assumption=' + assumption.id,
         fail: function () {
           self._navigating = false
           self.setData({ loading: false })
@@ -191,27 +270,40 @@ Page({
       })
     }
 
-    api.tourApi.createSession({
-      interest_type: backendPersona,
-      persona:       backendPersona,
-      assumption:    assumption,
-      guest_id:      guestId,
-    }).then(function (res) {
-      if (res.ok) {
-        var d = res.data || {}
-        tourStore.setTourSession({
-          sessionId:    d.id || d.session_id || null,
-          sessionToken: d.session_token      || null,
-        })
-        tourStore.updateTourState({ interestType: persona, persona: persona, assumption: assumption, personaId: personaId })
-      } else {
-        var msg = (res.data && res.data.detail) || ('创建会话失败 (' + res.status + ')')
-        wx.showToast({ title: msg, icon: 'none', duration: 2500 })
-      }
-      go()
-    }).catch(function (err) {
-      wx.showToast({ title: '网络错误，进入演示模式', icon: 'none', duration: 2000 })
-      go()
-    })
+    var startSession = function () {
+      api.tourApi.createSession({
+        interest_type: backendPersona,
+        persona: backendPersona,
+        assumption: assumption.id,
+        guest_id: 'miniapp_guest_' + Date.now(),
+      }).then(function (res) {
+        if (res.ok) {
+          var d = res.data || {}
+          tourStore.setTourSession({
+            sessionId: d.id || d.session_id || null,
+            sessionToken: d.session_token || null,
+          })
+          tourStore.updateTourState({
+            interestType: persona,
+            persona: persona,
+            assumption: assumption.id,
+            personaId: personaId,
+          })
+        } else {
+          var msg = (res.data && res.data.detail) || ('创建会话失败 (' + res.status + ')')
+          wx.showToast({ title: msg, icon: 'none', duration: 2500 })
+        }
+        go()
+      }).catch(function () {
+        wx.showToast({ title: '网络异常，进入演示模式', icon: 'none', duration: 2000 })
+        go()
+      })
+    }
+
+    if (wx.nextTick) {
+      wx.nextTick(startSession)
+    } else {
+      setTimeout(startSession, 0)
+    }
   },
 })

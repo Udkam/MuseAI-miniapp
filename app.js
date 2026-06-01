@@ -1,7 +1,9 @@
 const authStore = require('./store/auth')
+const storage   = require('./utils/storage')
 
 App({
   onLaunch: function () {
+    storage.ensureTourCacheSchema()
     this.globalData.authState = authStore.getAuthState()
   },
 

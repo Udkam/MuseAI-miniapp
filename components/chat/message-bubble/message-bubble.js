@@ -2,9 +2,10 @@ var parseMarkdown = require('../../../utils/markdown').parseMarkdown
 
 Component({
   properties: {
-    role:    { type: String,  value: 'user'  },
-    content: { type: String,  value: ''      },
-    isError: { type: Boolean, value: false   },
+    role:        { type: String,  value: 'user'  },
+    content:     { type: String,  value: ''      },
+    isError:     { type: Boolean, value: false   },
+    isStreaming: { type: Boolean, value: false   },
   },
 
   data: {

@@ -1,58 +1,66 @@
 const tourStore = require('../../store/tour')
 const api       = require('../../api/index')
+const banpoHalls = require('../../constants/banpo-halls')
 
 var PERSONA_MAP = {
   A: {
     key:    'A',
-    label:  '考古队长',
-    icon:   '🏺',
-    title:  '你是 考古队长',
-    desc:   '目光锐利，善于从细节中读出历史的密码。你会带着探索精神深挖每一件器物背后的故事，让半坡遗址在你眼中变成一部立体的考古报告。',
-    aiDesc: '我会用证据和数据带你还原历史，遇到学界争议会直说"目前尚无定论"，不会给你模糊的答案。',
+    label:  '考古研究员',
+    icon:   '🔎',
+    title:  '你是 考古研究员',
+    desc:   '你习惯先看证据，再提出解释。器物、遗迹、展签和空间关系，都是你建立判断的材料。',
+    aiDesc: '我会优先说明证据来源、推理过程和不确定性，帮助你把观察整理成可靠的研究线索。',
     color:  '#C4845A',
   },
-  B: {
-    key:    'B',
-    label:  '半坡原住民',
-    icon:   '🌾',
-    title:  '你是 半坡原住民',
-    desc:   '天生共情，能把自己代入六千年前的日常生活。炊烟、陶罐、窖穴——这些对你来说不是文物，而是邻居家的故事。',
-    aiDesc: '我会以第一人称带你穿越，用阿妈、部落、围火这些词讲述我们先民的生活，让你感受而非背诵。',
+  student: {
+    key:    'student',
+    label:  '研学记录员',
+    icon:   '📝',
+    title:  '你是 研学记录员',
+    desc:   '你希望参观结束后能说清楚自己看到了什么、为什么重要，以及还想继续追问什么。',
+    aiDesc: '我会把展厅内容拆成观察任务、笔记要点和简短小结，方便你复盘、讨论或写研学报告。',
     color:  '#7A9B6E',
   },
-  C: {
-    key:    'C',
-    label:  '历史老师',
-    icon:   '📜',
-    title:  '你是 历史老师',
-    desc:   '系统思维，善于将碎片化信息编织成完整的历史图景。你的参观将成为一堂生动的历史课，每个展品都是一个知识节点。',
-    aiDesc: '我会在每个知识点后抛出一个问题，引导你自己思考，而不是直接给结论——苏格拉底式对话。',
+  historian: {
+    key:    'historian',
+    label:  '历史追问者',
+    icon:   '🧭',
+    title:  '你是 历史追问者',
+    desc:   '你关心半坡为什么重要，也关心史前生活如何影响我们理解文明、共同体和今天的公共生活。',
+    aiDesc: '我会把半坡放进更大的历史脉络里，用问题带你比较证据、形成自己的解释，而不是只给标准答案。',
     color:  '#6B8CAE',
   },
+  artifact: {
+    key:    'artifact',
+    label:  '器物研究员',
+    icon:   '🏺',
+    title:  '你是 器物研究员',
+    desc:   '你会先看材料、器形、纹饰、制作痕迹和使用痕迹，从细节里理解技术和审美选择。',
+    aiDesc: '我会聚焦器物细读，把“好看”“有用”“难做”拆成可以观察和验证的证据。',
+    color:  '#C9865B',
+  },
 }
+PERSONA_MAP.B = PERSONA_MAP.student
+PERSONA_MAP.C = PERSONA_MAP.historian
+PERSONA_MAP.D = PERSONA_MAP.artifact
+PERSONA_MAP.resident = PERSONA_MAP.student
+PERSONA_MAP.community = PERSONA_MAP.historian
+PERSONA_MAP.artisan = PERSONA_MAP.artifact
 
 var ASSUMPTION_HINTS = {
-  A: '你认为原始社会平等和谐——游览中 AI 会在某个时刻带你看看半坡社会结构的另一面',
-  B: '你觉得原始社会艰苦不堪——AI 也许会发现一些出人意料的"小确幸"证据',
-  C: '你认为强弱之分自古皆然——AI 会带你探索半坡合作与分工的真实图景',
-}
-
-var HALL_NAMES = {
-  settlement: '半坡聚落复原区',
-  artifacts:  '出土文物陈列区',
-  culture:    '专题文化展区',
-}
-
-var HALL_DESCS = {
-  settlement: '那里能最直接感受到先民的居住痕迹',
-  artifacts:  '珍贵文物集中，人面鱼纹盆是重点',
-  culture:    '建立历史框架，理解半坡文化全貌',
+  A: '你倾向于把半坡看作平等互助的共同体——游览中 AI 会带你检验支持和限制这个判断的证据',
+  B: '你觉得史前生活压力很大——AI 会帮你同时观察困难、技术和秩序',
+  C: '你怀疑已经出现分工和差异——AI 会带你比较空间、器物和墓葬中的线索',
+  D: '你选择先不下判断——AI 会先整理证据，再和你一起形成解释',
 }
 
 Page({
   data: {
     persona:        null,
     assumptionHint: '',
+    hasEntryProfile: false,
+    focusTitle:     '',
+    guideModeTitle: '',
     preferredHall:     '',
     preferredHallDesc: '',
     entering:       false,
@@ -63,17 +71,25 @@ Page({
 
   onLoad: function (options) {
     var state = tourStore.getTourState()
-    var p     = options.persona    || state.persona    || 'A'
+    var p     = options.persona    || state.personaId || state.persona || 'student'
     var aKey  = options.assumption || state.assumption || 'A'
-    var order = state.preferredHallOrder || ['settlement', 'artifacts', 'culture']
+    var order = state.preferredHallOrder || banpoHalls.DEFAULT_ORDER
 
-    var info          = PERSONA_MAP[p] || PERSONA_MAP.A
+    var info          = PERSONA_MAP[p] || PERSONA_MAP.student
     var hint          = ASSUMPTION_HINTS[aKey] || ASSUMPTION_HINTS.A
-    var firstHallId   = order[0] || 'artifacts'
-    var preferredHall     = HALL_NAMES[firstHallId] || ''
-    var preferredHallDesc = HALL_DESCS[firstHallId]  || ''
+    var firstHallId   = order[0] || 'basic'
+    var preferredHall     = banpoHalls.getHallName(firstHallId)
+    var preferredHallDesc = banpoHalls.getHallDesc(firstHallId)
 
-    this.setData({ persona: info, assumptionHint: hint, preferredHall: preferredHall, preferredHallDesc: preferredHallDesc })
+    this.setData({
+      persona: info,
+      assumptionHint: hint,
+      hasEntryProfile: !!(state.focusTitle || state.guideModeTitle),
+      focusTitle: state.focusTitle || '',
+      guideModeTitle: state.guideModeTitle || '',
+      preferredHall: preferredHall,
+      preferredHallDesc: preferredHallDesc,
+    })
   },
 
   goHall: function () {

@@ -10,9 +10,10 @@ const RAG_STEP_CONFIG = {
 
 // Tour persona definitions
 const PERSONA = {
-  A: { key: 'archaeologist', label: '考古队长',   reportTitle: '你的半坡考古报告' },
-  B: { key: 'indigenous',    label: '半坡原住民', reportTitle: '半坡一日穿越体验' },
-  C: { key: 'teacher',       label: '历史老师',   reportTitle: '半坡游学荣誉证书' },
+  A: { key: 'archaeology',     label: '考古研究员', reportTitle: '半坡考古研究报告' },
+  B: { key: 'field_study',     label: '研学记录员', reportTitle: '半坡研学记录报告' },
+  C: { key: 'history_inquiry', label: '历史追问者', reportTitle: '半坡历史追问报告' },
+  D: { key: 'artifact_study',  label: '器物研究员', reportTitle: '半坡器物观察报告' },
 }
 
 // Tour lifecycle status values (match backend)
@@ -30,6 +31,9 @@ const STORAGE_KEYS = {
   USER_ROLE:             'user_role',
   TOUR_SESSION_ID:       'tour_session_id',
   TOUR_SESSION_TOKEN:    'tour_session_token',
+  TOUR_SESSION_CREATED_AT: 'tour_session_created_at',
+  TOUR_SESSION_SCHEMA_VERSION: 'tour_session_schema_version',
+  TOUR_CACHE_SCHEMA_VERSION: 'tour_cache_schema_version',
   TOUR_PENDING_EVENTS:   'tour_pending_events',
   TOUR_CURRENT_HALL:     'tour_current_hall',
   TOUR_UI_PREFS:         'tour_workbench_ui_prefs',

@@ -67,12 +67,12 @@
       </view>
 
       <!-- ── Live streaming assistant bubble ── -->
-      <view wx:if="{{isStreaming}}" class="stream-bubble">
-        <view class="stream-bubble-inner">
-          <text class="stream-text" selectable>{{streamingContent}}</text>
-          <view class="typing-cursor"></view>
-        </view>
-      </view>
+      <message-bubble
+        wx:if="{{isStreaming}}"
+        role="assistant"
+        content="{{streamingContent}}"
+        is-streaming="{{true}}"
+      />
 
       <!-- Scroll anchors (toggle between a/b so scroll-into-view always fires) -->
       <view id="msg-bottom-a" style="height:1rpx;"></view>
@@ -102,7 +102,10 @@
 
   <!-- Input bar -->
   <view class="input-bar">
-    <text class="input-icon" bindtap="goScan">📷</text>
+    <view class="exhibit-search-btn" bindtap="goScan" aria-label="搜索展品">
+      <text class="exhibit-search-icon">🔎</text>
+      <text class="exhibit-search-text">搜展品</text>
+    </view>
     <input
       class="input-field"
       value="{{inputText}}"

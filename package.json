@@ -1,5 +1,6 @@
 {
   "scripts": {
+    "test:markdown": "node scripts/test-markdown.js",
     "test:suggestions": "node scripts/test-guide-suggestions.js"
   },
   "dependencies": {

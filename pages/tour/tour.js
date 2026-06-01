@@ -1,6 +1,7 @@
 const api       = require('../../api/index')
 const chatStore = require('../../store/chat')
 const tourStore = require('../../store/tour')
+const banpoHalls = require('../../constants/banpo-halls')
 
 Page({
   data: {
@@ -34,6 +35,7 @@ Page({
   _chunkBuffer:   '',     // chunk text accumulator pending the next 80 ms flush
   _flushTimer:    null,   // timer ID for scheduled _chunkBuffer flush
   _loadedAt:      0,      // timestamp (ms) of last onLoad/onShow — ghost-tap guard
+  _suggestionSeq: 0,      // prevents stale Phase-2 suggestions from overwriting the next hall/exhibit
 
   // ── Lifecycle ─────────────────────────────────────────────────────────────
 
@@ -48,14 +50,17 @@ Page({
       chatStore.resetChat()
     }
 
-    // URL param takes priority; fallback to saved hall (handles resumeTour + goDeeper cases)
-    var hallName = options.hall
-      ? decodeURIComponent(options.hall)
-      : (tourStore.getSavedCurrentHall() || null)
+    // URL param takes priority; fallback to saved canonical hall slug.
+    var hallFromId = options.hallId ? banpoHalls.getHall(options.hallId) : null
+    var rawHall = hallFromId
+      ? hallFromId.backendSlug
+      : (options.hall ? decodeURIComponent(options.hall) : (tourStore.getSavedCurrentHall() || null))
+    var hallSlug = rawHall ? banpoHalls.normalizeHallToSlug(rawHall) : null
+    var hallName = hallSlug ? banpoHalls.getHallDisplayName(hallSlug) : null
 
     if (hallName) {
       wx.setNavigationBarTitle({ title: hallName })
-      tourStore.updateTourState({ currentHall: hallName })
+      tourStore.updateTourState({ currentHall: hallSlug })
       this.setData({ hallName: hallName, sessionId: state.sessionId || null, currentExhibit: exhibit })
     } else {
       this.setData({ sessionId: state.sessionId || null, currentExhibit: exhibit })
@@ -66,7 +71,8 @@ Page({
   onShow: function () {
     this._loadedAt = Date.now()
     var state = tourStore.getTourState()
-    this.setData({ currentExhibit: state.currentExhibit || null, sessionId: state.sessionId || null })
+    var hallName = state.currentHall ? banpoHalls.getHallDisplayName(state.currentHall) : this.data.hallName
+    this.setData({ currentExhibit: state.currentExhibit || null, sessionId: state.sessionId || null, hallName: hallName })
     this._loadSuggestions()
   },
 
@@ -140,7 +146,7 @@ Page({
     // ── Record exhibit_question event ──────────────────────────────────────
     tourStore.addTourEvent({
       eventType: 'exhibit_question',
-      hall:      self.data.hallName || '',
+      hall:      state.currentHall || banpoHalls.normalizeHallToSlug(self.data.hallName) || '',
       metadata:  { message: text.slice(0, 200) },
     })
 
@@ -155,10 +161,10 @@ Page({
     var isCtxQ         = tourStore.isContextQuestion(text)
     var recentMsgs     = isCtxQ ? chatStore.getRecentMessages(6) : []
 
-    // buildStyledPrompt injects exhibit disambiguation + optional history + style/tone/format.
-    // For context questions, pass the array even when empty so buildStyledPrompt can
-    // inject the "no history yet" hint (scenario C: 无历史时问"我们在讨论什么").
-    var builtMessage  = tourStore.buildStyledPrompt(text, {
+    // Keep the retrieval query clean: send the user's original question as message.
+    // Context and onboarding preferences are sent separately so they guide the answer
+    // without polluting vector retrieval or forcing a fixed response template.
+    var clientContext = tourStore.buildClientContext(text, {
       recentMessages: isCtxQ ? recentMsgs : null,
     })
     var _DEBUG_PROMPT = false   // set true locally to dump full prompt text
@@ -167,14 +173,15 @@ Page({
       exhibitName: currentExhibit ? currentExhibit.name : '(none)',
       isCtxQ:      isCtxQ,
       recentCount: recentMsgs.length,
-      msgLen:      builtMessage.length,
+      contextLen:  clientContext.length,
     })
-    if (_DEBUG_PROMPT) { console.log('[tour] full prompt', builtMessage) }
+    if (_DEBUG_PROMPT) { console.log('[tour] client context', clientContext) }
 
     self._streamTask = api.tourApi.chatStream(id, {
-      message:   builtMessage,
+      message:   text,
       token:     token,
       style:     style,
+      clientContext: clientContext,
       exhibitId: currentExhibit ? currentExhibit.id : undefined,
 
       onChunk: function (chunk) {
@@ -334,8 +341,10 @@ Page({
    */
   _loadSuggestions: function () {
     var self    = this
+    var seq     = ++this._suggestionSeq
     var exhibit = this.data.currentExhibit || null
-    var hall    = this.data.hallName       || tourStore.getTourState().currentHall || null
+    var state   = tourStore.getTourState()
+    var hall    = this.data.hallName || banpoHalls.getHallDisplayName(state.currentHall) || null
 
     // Phase 1 — instant rule-based suggestions
     var initial = tourStore.generateGuideSuggestions({
@@ -349,17 +358,18 @@ Page({
     // exhibit.hall is already a backend slug; otherwise convert hall display name to slug.
     var hallSlug = exhibit
       ? (exhibit.hall || null)
-      : (hall ? api.hallNameToSlug(hall) : null)
+      : (state.currentHall ? banpoHalls.normalizeHallToSlug(state.currentHall) : (hall ? api.hallNameToSlug(hall) : null))
     if (!hallSlug) return
 
     api.exhibitsApi.listByHall(hallSlug)
       .then(function (res) {
+        if (seq !== self._suggestionSeq) return
         if (!res.ok || !res.data) return
         var rawList    = res.data.exhibits || res.data.items || (Array.isArray(res.data) ? res.data : [])
         var normalized = rawList.map(function (e) { return api.normalizeExhibit(e) })
         var enhanced   = tourStore.generateGuideSuggestions({
           currentExhibit: self.data.currentExhibit || null,
-          currentHall:    self.data.hallName        || null,
+          currentHall:    self.data.hallName || banpoHalls.getHallDisplayName(tourStore.getTourState().currentHall) || null,
           exhibits:       normalized,
         })
         if (enhanced.length > 0) {

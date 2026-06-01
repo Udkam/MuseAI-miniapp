@@ -178,3 +178,41 @@
   margin-top: auto;
   padding-bottom: 60rpx;
 }
+
+.entry-profile-block {
+  width: 100%;
+  background: #FFFBF5;
+  border: 2rpx solid #EAD9C2;
+  border-radius: 16rpx;
+  padding: 22rpx 28rpx;
+  margin-bottom: 24rpx;
+  box-sizing: border-box;
+}
+
+.entry-profile-label {
+  display: block;
+  font-size: 22rpx;
+  color: #B08060;
+  margin-bottom: 14rpx;
+}
+
+.entry-profile-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 24rpx;
+  margin-top: 10rpx;
+}
+
+.entry-profile-key {
+  color: #8A6E55;
+  font-size: 24rpx;
+  flex-shrink: 0;
+}
+
+.entry-profile-value {
+  color: #3D2B1A;
+  font-size: 24rpx;
+  font-weight: 600;
+  text-align: right;
+  word-break: break-all;
+}

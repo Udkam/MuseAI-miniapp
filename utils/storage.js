@@ -4,11 +4,18 @@ const KEYS = {
   USER_ROLE:             'user_role',
   TOUR_SESSION_ID:       'tour_session_id',
   TOUR_SESSION_TOKEN:    'tour_session_token',
+  TOUR_SESSION_CREATED_AT: 'tour_session_created_at',
+  TOUR_SESSION_SCHEMA_VERSION: 'tour_session_schema_version',
+  TOUR_CACHE_SCHEMA_VERSION: 'tour_cache_schema_version',
+  TOUR_CURRENT_HALL:     'tour_current_hall',
   TOUR_PENDING_EVENTS:   'tour_pending_events',
   TOUR_UI_PREFS:         'tour_workbench_ui_prefs',
   TOUR_STYLE_PREFS:      'tour_workbench_style_prefs',
   TOUR_TTS_PREFS:        'tour_workbench_tts_prefs',
 }
+
+const TOUR_SESSION_SCHEMA_VERSION = 'tour-session-v3'
+const TOUR_CACHE_SCHEMA_VERSION = 'tour-cache-v3'
 
 function get(key, defaultValue) {
   try {
@@ -35,6 +42,14 @@ function remove(key) {
   }
 }
 
+function clearTourPrefs() {
+  [
+    KEYS.TOUR_UI_PREFS,
+    KEYS.TOUR_STYLE_PREFS,
+    KEYS.TOUR_TTS_PREFS,
+  ].forEach(remove)
+}
+
 function getToken() {
   return get(KEYS.AUTH_TOKEN, null)
 }
@@ -51,14 +66,22 @@ function getTourSession() {
   return {
     sessionId:    get(KEYS.TOUR_SESSION_ID, null),
     sessionToken: get(KEYS.TOUR_SESSION_TOKEN, null),
+    createdAt:    Number(get(KEYS.TOUR_SESSION_CREATED_AT, 0)) || 0,
+    schemaVersion: get(KEYS.TOUR_SESSION_SCHEMA_VERSION, null),
   }
 }
 
 function setTourSession({ sessionId, sessionToken }) {
   if (sessionId) {
     set(KEYS.TOUR_SESSION_ID, sessionId)
+    set(KEYS.TOUR_SESSION_CREATED_AT, Date.now())
+    set(KEYS.TOUR_SESSION_SCHEMA_VERSION, TOUR_SESSION_SCHEMA_VERSION)
   } else {
     remove(KEYS.TOUR_SESSION_ID)
+    remove(KEYS.TOUR_SESSION_CREATED_AT)
+    remove(KEYS.TOUR_SESSION_SCHEMA_VERSION)
+    remove(KEYS.TOUR_SESSION_TOKEN)
+    return
   }
   // sessionToken may be empty string — store as-is so key exists
   set(KEYS.TOUR_SESSION_TOKEN, sessionToken || '')
@@ -72,6 +95,10 @@ function clearAuth() {
     KEYS.USER_ROLE,
     KEYS.TOUR_SESSION_ID,
     KEYS.TOUR_SESSION_TOKEN,
+    KEYS.TOUR_SESSION_CREATED_AT,
+    KEYS.TOUR_SESSION_SCHEMA_VERSION,
+    KEYS.TOUR_CACHE_SCHEMA_VERSION,
+    KEYS.TOUR_CURRENT_HALL,
     KEYS.TOUR_PENDING_EVENTS,
   ].forEach(remove)
 }
@@ -81,12 +108,27 @@ function clearTour() {
   [
     KEYS.TOUR_SESSION_ID,
     KEYS.TOUR_SESSION_TOKEN,
+    KEYS.TOUR_SESSION_CREATED_AT,
+    KEYS.TOUR_SESSION_SCHEMA_VERSION,
+    KEYS.TOUR_CURRENT_HALL,
     KEYS.TOUR_PENDING_EVENTS,
   ].forEach(remove)
 }
 
+function ensureTourCacheSchema() {
+  if (get(KEYS.TOUR_CACHE_SCHEMA_VERSION, null) === TOUR_CACHE_SCHEMA_VERSION) {
+    return false
+  }
+  clearTour()
+  clearTourPrefs()
+  set(KEYS.TOUR_CACHE_SCHEMA_VERSION, TOUR_CACHE_SCHEMA_VERSION)
+  return true
+}
+
 module.exports = {
   KEYS,
+  TOUR_SESSION_SCHEMA_VERSION,
+  TOUR_CACHE_SCHEMA_VERSION,
   get,
   set,
   remove,
@@ -96,4 +138,6 @@ module.exports = {
   setTourSession,
   clearAuth,
   clearTour,
+  clearTourPrefs,
+  ensureTourCacheSchema,
 }

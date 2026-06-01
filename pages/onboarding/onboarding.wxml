@@ -1,93 +1,109 @@
 <view class="page-wrap onboarding {{loading ? 'is-busy' : ''}}">
 
-  <!-- ═══ STEP 1: Intent cards ═══════════════════════════════════════════════ -->
-  <view hidden="{{step !== 1}}">
+  <view class="progress-row">
+    <view class="progress-dot {{step === 1 ? 'active' : ''}}"></view>
+    <view class="progress-dot {{step === 2 ? 'active' : ''}}"></view>
+    <view class="progress-dot {{step === 3 ? 'active' : ''}}"></view>
+  </view>
 
+  <view hidden="{{step !== 1}}" class="step-panel">
     <view class="ob-header">
-      <text class="ob-title">今天来半坡，</text>
-      <text class="ob-title">你最想——</text>
+      <text class="ob-kicker">入场档案 1/3</text>
+      <text class="ob-title">今天你最希望？</text>
+      <text class="ob-hint">MuseAI 会据此安排路线和回答角度。</text>
     </view>
 
-    <!-- 2×2 intent card grid -->
-    <view class="card-grid">
+    <view class="option-grid">
       <view
-        wx:for="{{intentCards}}"
+        wx:for="{{focusOptions}}"
         wx:key="id"
-        class="intent-card {{selectedCardId === item.id ? 'selected' : ''}}"
-        bindtap="selectCard"
+        class="profile-card {{selectedFocusId === item.id ? 'selected' : ''}}"
+        bindtap="selectFocus"
         data-id="{{item.id}}"
       >
-        <view hidden="{{selectedCardId !== item.id}}" class="card-check">✓</view>
+        <view hidden="{{selectedFocusId !== item.id}}" class="card-check">✓</view>
         <text class="card-icon">{{item.icon}}</text>
         <text class="card-title">{{item.title}}</text>
         <text class="card-desc">{{item.desc}}</text>
       </view>
     </view>
 
-    <!-- Natural language input (optional) -->
     <view class="intent-input-wrap">
       <input
         class="intent-input"
-        placeholder="或者，用自己的话说……（选填）"
+        placeholder="也可以写下自己的问题，例如：这些图案为什么反复出现？"
         placeholder-class="intent-placeholder"
-        maxlength="50"
+        maxlength="60"
         bindinput="onIntentInput"
         value="{{intentText}}"
       />
     </view>
 
-    <!-- Inline persona preview after card selection -->
-    <view wx:if="{{selectedCardPersonaName}}" class="persona-preview">
-      <text class="persona-preview-text">✨ 你的 AI 导览员将以「{{selectedCardPersonaName}}」身份陪你</text>
+    <view wx:if="{{selectedPersonaName}}" class="persona-preview">
+      <text class="persona-preview-text">AI 将优先以「{{selectedPersonaName}}」的方式陪你观察。</text>
     </view>
-
-    <view class="bottom-action">
-      <button
-        class="btn-primary"
-        loading="{{false}}"
-        disabled="{{loading}}"
-        bindtap="goToStep2"
-      >{{selectedCardId ? '好，继续 →' : '直接开始导览 →'}}</button>
-    </view>
-
   </view>
 
-  <!-- ═══ STEP 2: Time budget ═════════════════════════════════════════════════ -->
-  <view hidden="{{step !== 2}}">
-
+  <view hidden="{{step !== 2}}" class="step-panel">
     <view class="ob-header">
-      <text class="ob-title">今天大概有</text>
-      <text class="ob-title">多少时间？</text>
-      <text class="ob-hint">这会影响 AI 给你的内容详略</text>
+      <text class="ob-kicker">入场档案 2/3</text>
+      <text class="ob-title">你对半坡社会的第一判断是？</text>
+      <text class="ob-hint">这不是考试。AI 会在参观中帮你用证据修正或保留这个判断。</text>
     </view>
 
-    <view class="time-list">
+    <view class="choice-list">
       <view
-        wx:for="{{timeOptions}}"
+        wx:for="{{assumptionOptions}}"
         wx:key="id"
-        class="time-item {{selectedTimeId === item.id ? 'selected' : ''}}"
-        bindtap="selectTime"
+        class="choice-item {{selectedAssumptionId === item.id ? 'selected' : ''}}"
+        bindtap="selectAssumption"
         data-id="{{item.id}}"
       >
-        <text class="time-icon">{{item.icon}}</text>
-        <view class="time-body">
-          <text class="time-title">{{item.title}}</text>
-          <text class="time-desc">{{item.desc}}</text>
+        <view class="choice-body">
+          <text class="choice-title">{{item.title}}</text>
+          <text class="choice-desc">{{item.desc}}</text>
         </view>
-        <view hidden="{{selectedTimeId !== item.id}}" class="time-check">✓</view>
+        <view hidden="{{selectedAssumptionId !== item.id}}" class="choice-check">✓</view>
       </view>
     </view>
+  </view>
 
-    <view class="time-bottom">
-      <button
-        class="btn-primary"
-        loading="{{false}}"
-        disabled="{{loading}}"
-        bindtap="confirmTime"
-      >进入导览 →</button>
-      <text class="skip-link {{loading ? 'disabled' : ''}}" bindtap="skipTime">跳过，自由参观 →</text>
+  <view hidden="{{step !== 3}}" class="step-panel">
+    <view class="ob-header">
+      <text class="ob-kicker">入场档案 3/3</text>
+      <text class="ob-title">希望 AI 怎么陪你逛？</text>
+      <text class="ob-hint">这会影响回答长短、证据细节和追问频率。</text>
     </view>
 
+    <view class="choice-list">
+      <view
+        wx:for="{{rhythmOptions}}"
+        wx:key="id"
+        class="choice-item {{selectedRhythmId === item.id ? 'selected' : ''}}"
+        bindtap="selectRhythm"
+        data-id="{{item.id}}"
+      >
+        <text class="choice-icon">{{item.icon}}</text>
+        <view class="choice-body">
+          <text class="choice-title">{{item.title}}</text>
+          <text class="choice-desc">{{item.desc}}</text>
+        </view>
+        <view hidden="{{selectedRhythmId !== item.id}}" class="choice-check">✓</view>
+      </view>
+    </view>
+  </view>
+
+  <view class="bottom-action">
+    <view class="secondary-row">
+      <text wx:if="{{step > 1}}" class="text-action" bindtap="goBack">上一步</text>
+      <text class="text-action muted {{loading ? 'disabled' : ''}}" bindtap="skipProfile">跳过，直接开始</text>
+    </view>
+    <button
+      class="btn-primary"
+      loading="{{false}}"
+      disabled="{{loading}}"
+      bindtap="goNext"
+    >{{step < 3 ? '继续 →' : '生成我的导览 →'}}</button>
   </view>
 
   <view wx:if="{{loading}}" class="creating-mask" catchtap="noop" catchtouchmove="noop">

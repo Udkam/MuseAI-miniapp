@@ -15,7 +15,7 @@
  * Block shape:
  *   { type: 'heading',   id: n, level: 1|2|3, text: '...' }
  *   { type: 'paragraph', id: n, segments: Segment[] }
- *   { type: 'list',      id: n, ordered: bool, items: Segment[][] }
+ *   { type: 'list',      id: n, ordered: bool, start: number, items: Segment[][] }
  *
  * Segment shape:
  *   { text: '...', bold: bool, code: bool }
@@ -55,7 +55,9 @@ function parseMarkdown(mdText) {
   var blocks = []
   var idCounter = 0
   var lines = mdText.replace(/\r\n/g, '\n').split('\n')
-  var listBuffer = null  // { ordered: bool, items: Segment[][] }
+  var listBuffer = null  // { ordered: bool, start: number, items: Segment[][] }
+  var orderedCounter = 1
+  var orderedSeriesOpen = false
 
   function flushList() {
     if (!listBuffer) return
@@ -63,6 +65,7 @@ function parseMarkdown(mdText) {
       type: 'list',
       id: idCounter++,
       ordered: listBuffer.ordered,
+      start: listBuffer.start || 1,
       items: listBuffer.items,
     })
     listBuffer = null
@@ -75,6 +78,8 @@ function parseMarkdown(mdText) {
     var headingMatch = trimmed.match(/^(#{1,3})\s+(.+)$/)
     if (headingMatch) {
       flushList()
+      orderedCounter = 1
+      orderedSeriesOpen = false
       blocks.push({
         type: 'heading',
         id: idCounter++,
@@ -88,17 +93,26 @@ function parseMarkdown(mdText) {
     var ulMatch = trimmed.match(/^[-*+]\s+(.+)$/)
     if (ulMatch) {
       if (listBuffer && listBuffer.ordered) flushList()
+      orderedCounter = 1
+      orderedSeriesOpen = false
       if (!listBuffer) listBuffer = { ordered: false, items: [] }
       listBuffer.items.push(parseInline(ulMatch[1]))
       continue
     }
 
     // Ordered list: 1. / 2. / ...
-    var olMatch = trimmed.match(/^\d+\.\s+(.+)$/)
+    var olMatch = trimmed.match(/^(\d+)\.\s+(.+)$/)
     if (olMatch) {
       if (listBuffer && !listBuffer.ordered) flushList()
-      if (!listBuffer) listBuffer = { ordered: true, items: [] }
-      listBuffer.items.push(parseInline(olMatch[1]))
+      if (!listBuffer) {
+        var rawStart = parseInt(olMatch[1], 10) || 1
+        var start = orderedSeriesOpen ? orderedCounter : rawStart
+        listBuffer = { ordered: true, start: start, items: [] }
+        orderedCounter = start
+      }
+      listBuffer.items.push(parseInline(olMatch[2]))
+      orderedCounter += 1
+      orderedSeriesOpen = true
       continue
     }
 

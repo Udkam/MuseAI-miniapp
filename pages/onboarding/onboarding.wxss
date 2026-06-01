@@ -12,14 +12,42 @@
   overflow: hidden;
 }
 
-/* ── Header ─────────────────────────────────────────────────────────────────── */
+.progress-row {
+  display: flex;
+  gap: 12rpx;
+  padding: 8rpx 0 28rpx;
+}
+
+.progress-dot {
+  width: 44rpx;
+  height: 8rpx;
+  border-radius: 999rpx;
+  background: #E8DCCB;
+}
+
+.progress-dot.active {
+  width: 88rpx;
+  background: #C4845A;
+}
+
+.step-panel {
+  flex: 1;
+  min-height: 0;
+}
 
 .ob-header {
-  padding-bottom: 36rpx;
+  padding-bottom: 32rpx;
+}
+
+.ob-kicker {
+  display: block;
+  font-size: 23rpx;
+  color: #B08060;
+  margin-bottom: 12rpx;
 }
 
 .ob-title {
-  font-size: 44rpx;
+  font-size: 42rpx;
   font-weight: 700;
   color: #2C1810;
   display: block;
@@ -27,214 +55,173 @@
 }
 
 .ob-hint {
-  font-size: 26rpx;
-  color: #B08060;
+  font-size: 25rpx;
+  color: #8B6B55;
   display: block;
-  margin-top: 12rpx;
-  line-height: 1.5;
+  margin-top: 14rpx;
+  line-height: 1.55;
 }
 
-/* ── Intent card grid (2×2) ─────────────────────────────────────────────────── */
-
-.card-grid {
+.option-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 20rpx;
-  margin-bottom: 28rpx;
+  gap: 18rpx;
+  margin-bottom: 24rpx;
 }
 
-.intent-card {
+.profile-card {
   background: #F5F0E8;
   border: 3rpx solid transparent;
-  border-radius: 24rpx;
-  padding: 32rpx 24rpx 28rpx;
+  border-radius: 18rpx;
+  padding: 28rpx 22rpx 24rpx;
+  min-height: 210rpx;
+  box-sizing: border-box;
+  position: relative;
   display: flex;
   flex-direction: column;
   align-items: flex-start;
-  position: relative;
-  min-height: 200rpx;
-  box-sizing: border-box;
-  transition: border-color 0.2s, background 0.2s, box-shadow 0.2s;
 }
 
-.intent-card.selected {
+.profile-card.selected,
+.choice-item.selected {
   border-color: #C4845A;
   background: #FFF8F2;
-  box-shadow: 0 4rpx 20rpx rgba(196, 132, 90, 0.18);
+  box-shadow: 0 4rpx 18rpx rgba(196, 132, 90, 0.16);
 }
 
-.card-check {
-  position: absolute;
-  top: 16rpx;
-  right: 16rpx;
-  width: 40rpx;
-  height: 40rpx;
+.card-check,
+.choice-check {
+  width: 42rpx;
+  height: 42rpx;
   background: #C4845A;
   color: #FAF7F2;
   border-radius: 50%;
-  font-size: 22rpx;
+  font-size: 24rpx;
   font-weight: 700;
   display: flex;
   align-items: center;
   justify-content: center;
+  flex-shrink: 0;
+}
+
+.card-check {
+  position: absolute;
+  top: 14rpx;
+  right: 14rpx;
 }
 
 .card-icon {
-  font-size: 52rpx;
+  font-size: 48rpx;
   display: block;
   margin-bottom: 16rpx;
 }
 
-.card-title {
-  font-size: 30rpx;
+.card-title,
+.choice-title {
+  font-size: 29rpx;
   font-weight: 700;
   color: #2C1810;
-  line-height: 1.3;
+  line-height: 1.35;
   display: block;
-  margin-bottom: 10rpx;
 }
 
-.intent-card.selected .card-title {
+.profile-card.selected .card-title,
+.choice-item.selected .choice-title {
   color: #C4845A;
 }
 
-.card-desc {
+.card-desc,
+.choice-desc {
   font-size: 24rpx;
   color: #8B6B55;
   line-height: 1.5;
   display: block;
+  margin-top: 10rpx;
 }
-
-/* ── Natural language input ──────────────────────────────────────────────────── */
 
 .intent-input-wrap {
   background: #F5F0E8;
   border-radius: 16rpx;
   padding: 20rpx 24rpx;
-  margin-bottom: 20rpx;
+  margin-bottom: 18rpx;
 }
 
 .intent-input {
   width: 100%;
-  font-size: 28rpx;
+  font-size: 27rpx;
   color: #2C1810;
   line-height: 1.5;
 }
 
 .intent-placeholder {
-  color: #C4A882;
-  font-size: 28rpx;
+  color: #BDA58A;
+  font-size: 25rpx;
 }
-
-/* ── Persona preview ─────────────────────────────────────────────────────────── */
 
 .persona-preview {
   background: #FFF8F2;
-  border-left: 4rpx solid #C4845A;
+  border-left: 5rpx solid #C4845A;
   border-radius: 0 12rpx 12rpx 0;
   padding: 16rpx 20rpx;
-  margin-bottom: 20rpx;
 }
 
 .persona-preview-text {
-  font-size: 26rpx;
+  font-size: 25rpx;
   color: #8B6B55;
   line-height: 1.5;
 }
 
-/* ── Bottom action (step 1) ──────────────────────────────────────────────────── */
-
-.bottom-action {
-  padding: 24rpx 0 60rpx;
+.choice-list {
+  display: flex;
+  flex-direction: column;
+  gap: 14rpx;
 }
 
-/* ── Time budget options ─────────────────────────────────────────────────────── */
-
-.time-list {
-  margin-bottom: 24rpx;
-}
-
-.time-item {
+.choice-item {
   display: flex;
   align-items: center;
   background: #F5F0E8;
   border: 3rpx solid transparent;
-  border-radius: 20rpx;
-  padding: 32rpx 28rpx;
-  margin-bottom: 20rpx;
-  min-height: 88rpx;
+  border-radius: 18rpx;
+  padding: 22rpx 22rpx;
+  min-height: 96rpx;
   box-sizing: border-box;
-  transition: border-color 0.2s, background 0.2s, box-shadow 0.2s;
-  position: relative;
 }
 
-.time-item.selected {
-  border-color: #C4845A;
-  background: #FFF8F2;
-  box-shadow: 0 4rpx 20rpx rgba(196, 132, 90, 0.18);
-}
-
-.time-icon {
-  font-size: 44rpx;
-  margin-right: 24rpx;
+.choice-icon {
+  font-size: 42rpx;
+  margin-right: 20rpx;
   flex-shrink: 0;
 }
 
-.time-body {
+.choice-body {
   flex: 1;
+  min-width: 0;
 }
 
-.time-title {
-  font-size: 32rpx;
-  font-weight: 600;
-  color: #2C1810;
-  display: block;
-  margin-bottom: 6rpx;
+.bottom-action {
+  padding: 24rpx 0 58rpx;
 }
 
-.time-item.selected .time-title {
-  color: #C4845A;
-}
-
-.time-desc {
-  font-size: 26rpx;
-  color: #8B6B55;
-  display: block;
-}
-
-.time-check {
-  width: 48rpx;
-  height: 48rpx;
-  background: #C4845A;
-  color: #FAF7F2;
-  border-radius: 50%;
-  font-size: 24rpx;
-  font-weight: 700;
+.secondary-row {
+  min-height: 46rpx;
   display: flex;
+  justify-content: space-between;
   align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
-  margin-left: 16rpx;
+  margin-bottom: 18rpx;
 }
 
-/* ── Bottom action (step 2) ──────────────────────────────────────────────────── */
-
-.time-bottom {
-  display: flex;
-  flex-direction: column;
-  align-items: stretch;
-  padding-bottom: 60rpx;
-  gap: 24rpx;
-}
-
-.skip-link {
+.text-action {
   font-size: 26rpx;
-  color: #B08060;
-  text-align: right;
-  display: block;
+  color: #9B6F4D;
 }
 
-.skip-link.disabled {
+.text-action.muted {
+  margin-left: auto;
+  color: #B08060;
+}
+
+.text-action.disabled {
   opacity: 0.45;
 }
 

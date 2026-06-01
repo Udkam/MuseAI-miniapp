@@ -13,6 +13,7 @@
 
 const storage   = require('../utils/storage')
 const constants = require('../constants/index')
+const banpoHalls = require('../constants/banpo-halls')
 
 const TOUR_STATUS      = constants.TOUR_STATUS
 const STORAGE_KEYS     = constants.STORAGE_KEYS
@@ -44,7 +45,7 @@ const DEFAULT_TTS_PREFS = {
 
 // ─── Persona definitions ───────────────────────────────────────────────────
 // personaId: frontend ID used to look up prompt prefix + display name.
-// backendPersona: 'A'|'B'|'C' sent to createSession (backend system prompt).
+// backendPersona: 'A'|'B'|'C'|'D' sent to createSession (backend system prompt).
 // promptPrefix: prepended to every user message for extra persona flavour.
 var PERSONA_DEFS = {
   'default': {
@@ -55,27 +56,63 @@ var PERSONA_DEFS = {
   },
   'A': {
     id:             'A',
-    name:           '考古队长',
+    name:           '考古研究员',
     backendPersona: 'A',
     promptPrefix:   '',   // backend system prompt fully handles persona A
   },
+  'student': {
+    id:             'student',
+    name:           '研学记录员',
+    backendPersona: 'B',
+    promptPrefix:   '[研学记录员视角：回答要方便边看边记，把观察任务、证据要点和小结自然融入内容；不要每次都套固定栏目。]',
+  },
+  'resident': {
+    id:             'resident',
+    name:           '研学记录员',
+    backendPersona: 'B',
+    promptPrefix:   '[研学记录员视角：回答要方便边看边记，把观察任务、证据要点和小结自然融入内容；不要每次都套固定栏目。]',
+  },
   'B': {
     id:             'B',
-    name:           '半坡原住民',
+    name:           '研学记录员',
     backendPersona: 'B',
     promptPrefix:   '',   // backend system prompt fully handles persona B
   },
   'C': {
     id:             'C',
-    name:           '历史老师',
+    name:           '历史追问者',
     backendPersona: 'C',
     promptPrefix:   '',   // backend system prompt fully handles persona C
   },
+  'D': {
+    id:             'D',
+    name:           '器物研究员',
+    backendPersona: 'D',
+    promptPrefix:   '',   // backend system prompt fully handles persona D
+  },
+  'historian': {
+    id:             'historian',
+    name:           '历史追问者',
+    backendPersona: 'C',
+    promptPrefix:   '[历史追问者视角：请把半坡遗址放进史前中国、文明起源和今天的公共生活中追问，重视问题意识，不要写成课堂讲稿。]',
+  },
+  'artifact': {
+    id:             'artifact',
+    name:           '器物研究员',
+    backendPersona: 'D',
+    promptPrefix:   '[器物研究员视角：请优先从材料、器形、纹饰、制作工艺和使用痕迹解释问题，明确区分可观察事实与推测。]',
+  },
   'artisan': {
     id:             'artisan',
-    name:           '陶器工匠',
-    backendPersona: 'B',
-    promptPrefix:   '[工匠视角：你是六千年前的半坡制陶工匠，请从制作工艺、材料选择和实用功能角度讲解，用词朴实，分享匠人的技艺心得与生活体验，避免学术腔。]',
+    name:           '器物研究员',
+    backendPersona: 'D',
+    promptPrefix:   '[器物研究员视角：请优先从材料、器形、纹饰、制作工艺和使用痕迹解释问题，明确区分可观察事实与推测。]',
+  },
+  'community': {
+    id:             'community',
+    name:           '历史追问者',
+    backendPersona: 'C',
+    promptPrefix:   '[历史追问者视角：请把半坡遗址放进史前中国、文明起源和今天的公共生活中追问，重视问题意识，不要写成课堂讲稿。]',
   },
 }
 
@@ -87,7 +124,7 @@ function _makeEmptyTour() {
     status:            TOUR_STATUS.ONBOARDING,
     interestType:      null,
     persona:           null,
-    personaId:         null,   // 'default'|'A'|'B'|'C'|'artisan'
+    personaId:         null,   // 'default'|'A'|'B'|'C'|'D'|'student'|'historian'|'artifact'
     assumption:        null,
     currentHall:       null,
     currentExhibitId:  null,
@@ -97,12 +134,71 @@ function _makeEmptyTour() {
     pendingEvents:     [],
     // Onboarding extras (set by Stage 8G intent card flow)
     intentText:         null,
-    preferredHallOrder: ['settlement', 'artifacts', 'culture'],
+    preferredHallOrder: ['basic', 'site', 'kiln', 'workshop', 'banpoGirl', 'temp1', 'temp2', 'education', 'peony'],
     timeBudget:         null,
+    focusId:            null,
+    focusTitle:         null,
+    focusPrompt:        null,
+    assumptionText:     null,
+    guideModeId:        null,
+    guideModeTitle:     null,
+    guideModePrompt:    null,
   }
 }
 
 var _tour = _makeEmptyTour()
+var TOUR_SESSION_RESUME_MAX_AGE_MS = 12 * 60 * 60 * 1000
+
+function _isStoredTourSessionResumable(stored) {
+  if (!stored || !stored.sessionId) return false
+  if (!stored.createdAt) return false
+  if (stored.schemaVersion !== storage.TOUR_SESSION_SCHEMA_VERSION) return false
+  return Date.now() - stored.createdAt <= TOUR_SESSION_RESUME_MAX_AGE_MS
+}
+
+function _clearStaleTourResume() {
+  _tour.sessionId = null
+  _tour.sessionToken = null
+  _tour.currentHall = null
+  _tour.pendingEvents = []
+  storage.clearTour()
+}
+
+function _ensureTourCacheSchema() {
+  if (storage.ensureTourCacheSchema && storage.ensureTourCacheSchema()) {
+    _tour = _makeEmptyTour()
+  }
+}
+
+function _hydrateStoredTour() {
+  _ensureTourCacheSchema()
+  var stored = storage.getTourSession ? storage.getTourSession() : null
+  if (stored && stored.sessionId) {
+    if (!_isStoredTourSessionResumable(stored)) {
+      _clearStaleTourResume()
+      return
+    }
+    if (!_tour.sessionId && stored.sessionId) {
+      _tour.sessionId = stored.sessionId
+    }
+    if (!_tour.sessionToken && stored.sessionToken) {
+      _tour.sessionToken = stored.sessionToken
+    }
+  }
+
+  if (!_tour.currentHall) {
+    var hall = storage.get(STORAGE_KEYS.TOUR_CURRENT_HALL, null)
+    if (hall) _tour.currentHall = banpoHalls.normalizeHallToSlug(hall)
+  }
+}
+
+function _normalizeHallForStorage(hall) {
+  return banpoHalls.normalizeHallToSlug(hall)
+}
+
+function _getCurrentHallDisplayName() {
+  return _tour.currentHall ? banpoHalls.getHallDisplayName(_tour.currentHall) : ''
+}
 
 // ─── Preference helpers ────────────────────────────────────────────────────
 
@@ -139,7 +235,10 @@ function setTtsPrefs(patch) {
  */
 function createLocalTourState(opts) {
   var o = opts || {}
+  _ensureTourCacheSchema()
   _tour = _makeEmptyTour()
+  storage.setTourSession({ sessionId: null, sessionToken: null })
+  storage.remove(STORAGE_KEYS.TOUR_CURRENT_HALL)
   _tour.interestType = o.interestType || null
   _tour.persona      = o.persona      || null
   _tour.assumption   = o.assumption   || null
@@ -163,14 +262,32 @@ function setTourSession(param) {
 }
 
 /**
- * Save intent card extras captured during the Stage 8G onboarding flow.
- * @param {{ intentText?: string, preferredHallOrder?: string[], timeBudget?: string }} opts
+ * Save profile extras captured during onboarding.
+ * @param {{
+ *   intentText?: string,
+ *   preferredHallOrder?: string[],
+ *   timeBudget?: string,
+ *   focusId?: string,
+ *   focusTitle?: string,
+ *   focusPrompt?: string,
+ *   assumptionText?: string,
+ *   guideModeId?: string,
+ *   guideModeTitle?: string,
+ *   guideModePrompt?: string
+ * }} opts
  */
 function setOnboardingExtras(opts) {
   var o = opts || {}
   if (o.intentText         !== undefined) _tour.intentText         = o.intentText         || null
-  if (o.preferredHallOrder !== undefined) _tour.preferredHallOrder = o.preferredHallOrder || ['settlement', 'artifacts', 'culture']
+  if (o.preferredHallOrder !== undefined) _tour.preferredHallOrder = o.preferredHallOrder || ['basic', 'site', 'kiln', 'workshop', 'banpoGirl', 'temp1', 'temp2', 'education', 'peony']
   if (o.timeBudget         !== undefined) _tour.timeBudget         = o.timeBudget         || null
+  if (o.focusId            !== undefined) _tour.focusId            = o.focusId            || null
+  if (o.focusTitle         !== undefined) _tour.focusTitle         = o.focusTitle         || null
+  if (o.focusPrompt        !== undefined) _tour.focusPrompt        = o.focusPrompt        || null
+  if (o.assumptionText     !== undefined) _tour.assumptionText     = o.assumptionText     || null
+  if (o.guideModeId        !== undefined) _tour.guideModeId        = o.guideModeId        || null
+  if (o.guideModeTitle     !== undefined) _tour.guideModeTitle     = o.guideModeTitle     || null
+  if (o.guideModePrompt    !== undefined) _tour.guideModePrompt    = o.guideModePrompt    || null
 }
 
 /**
@@ -179,6 +296,9 @@ function setOnboardingExtras(opts) {
  * @param {object} patch
  */
 function updateTourState(patch) {
+  if (patch && patch.currentHall !== undefined) {
+    patch = Object.assign({}, patch, { currentHall: _normalizeHallForStorage(patch.currentHall) })
+  }
   Object.assign(_tour, patch)
   if (patch.sessionId !== undefined || patch.sessionToken !== undefined) {
     storage.setTourSession({ sessionId: _tour.sessionId, sessionToken: _tour.sessionToken })
@@ -194,12 +314,15 @@ function updateTourState(patch) {
  * @returns {string|null}
  */
 function getSavedCurrentHall() {
+  _hydrateStoredTour()
   if (_tour.currentHall) return _tour.currentHall
-  return storage.get(STORAGE_KEYS.TOUR_CURRENT_HALL, null) || null
+  var storedHall = storage.get(STORAGE_KEYS.TOUR_CURRENT_HALL, null)
+  return storedHall ? _normalizeHallForStorage(storedHall) : null
 }
 
 /** @returns {object} shallow copy of current tour state */
 function getTourState() {
+  _hydrateStoredTour()
   return Object.assign({}, _tour)
 }
 
@@ -216,8 +339,8 @@ function setCurrentExhibit(exhibit) {
   _tour.currentExhibit = {
     id:          exhibit.id          || exhibit.name || null,
     name:        exhibit.name        || '',
-    hall:        exhibit.hall        || '',
-    hallDisplay: exhibit.hallDisplay || exhibit.hall || '',
+    hall:        exhibit.hall ? banpoHalls.normalizeHallToSlug(exhibit.hall) : '',
+    hallDisplay: exhibit.hallDisplay || banpoHalls.getHallDisplayName(exhibit.hall) || '',
     era:         exhibit.era         || '',
     category:    exhibit.category    || '',
     description: exhibit.description || exhibit.summary || exhibit.desc || '',
@@ -245,10 +368,11 @@ function getCurrentExhibit() {
  *            durationSeconds?: number, metadata?: object }} event
  */
 function addTourEvent(event) {
+  var hall = event.hall || _tour.currentHall || null
   var entry = {
     event_type:       event.eventType       || event.event_type       || 'unknown',
     exhibit_id:       event.exhibitId        || event.exhibit_id        || null,
-    hall:             event.hall             || _tour.currentHall       || null,
+    hall:             hall ? _normalizeHallForStorage(hall) : null,
     duration_seconds: event.durationSeconds  || event.duration_seconds  || null,
     metadata:         event.metadata         || {},
   }
@@ -298,6 +422,7 @@ function clearTour() {
  * @returns {object}
  */
 function getTourHeader() {
+  _hydrateStoredTour()
   if (!_tour.sessionToken) return {}
   return { 'X-Session-Token': _tour.sessionToken }
 }
@@ -384,6 +509,83 @@ var _HALL_SUGGEST_TEMPLATES = {
   },
 }
 
+_HALL_SUGGEST_TEMPLATES['基本陈列展厅'] = _HALL_SUGGEST_TEMPLATES['出土文物陈列区']
+_HALL_SUGGEST_TEMPLATES['遗址保护大厅'] = _HALL_SUGGEST_TEMPLATES['半坡聚落复原区']
+_HALL_SUGGEST_TEMPLATES['陶窑展厅'] = {
+  default: [
+    { type: 'hall_intro', icon: '🔥', title: '制陶流程', prompt: '半坡陶器从泥土到成品大致经历哪些步骤？' },
+    { type: 'observation_task', icon: '🛠', title: '火候证据', prompt: '陶窑结构能说明半坡人掌握了怎样的烧制技术？' },
+  ],
+  A: [
+    { type: 'hall_intro', icon: '🔍', title: '窑炉证据', prompt: '考古上怎样判断半坡陶窑的结构和用途？' },
+    { type: 'observation_task', icon: '🔥', title: '烧成技术', prompt: '半坡陶器烧制技术有哪些可以观察的证据？' },
+  ],
+  B: [
+    { type: 'hall_intro', icon: '🏺', title: '做陶过程', prompt: '半坡人制作一件陶器通常要经历哪些过程？' },
+    { type: 'observation_task', icon: '🔥', title: '窑火作用', prompt: '陶窑中的火候会怎样影响陶器的结实程度和颜色？' },
+  ],
+  C: [
+    { type: 'hall_intro', icon: '💡', title: '生产分工', prompt: '陶窑和制陶活动能反映半坡社会怎样的分工？' },
+    { type: 'observation_task', icon: '🔎', title: '流程观察', prompt: '从制陶流程可以看出半坡人有哪些技术经验？' },
+  ],
+  artisan: [
+    { type: 'hall_intro', icon: '🛠', title: '工艺步骤', prompt: '半坡陶器从选泥、成型到入窑烧成有哪些关键步骤？' },
+    { type: 'observation_task', icon: '🔥', title: '火候判断', prompt: '半坡工匠可能怎样判断陶器烧制的火候？' },
+  ],
+}
+_HALL_SUGGEST_TEMPLATES['史前工坊'] = {
+  default: [
+    { type: 'hall_intro', icon: '🛠', title: '体验重点', prompt: '史前工坊适合重点体验哪些半坡生活或工艺内容？' },
+    { type: 'observation_task', icon: '✋', title: '动手理解', prompt: '为什么动手体验能帮助理解半坡人的技术？' },
+  ],
+}
+_HALL_SUGGEST_TEMPLATES['半坡姑娘雕塑'] = {
+  default: [
+    { type: 'hall_intro', icon: '🗿', title: '形象意义', prompt: '半坡姑娘形象为什么适合作为半坡文化的观展地标？' },
+    { type: 'observation_task', icon: '💡', title: '人物想象', prompt: '我们怎样在不编造历史的前提下理解半坡人的形象？' },
+  ],
+}
+_HALL_SUGGEST_TEMPLATES['教研中心'] = {
+  default: [
+    { type: 'hall_intro', icon: '📚', title: '研学问题', prompt: '如果把半坡博物馆作为研学课程，最适合提出哪些问题？' },
+    { type: 'observation_task', icon: '🔎', title: '整理证据', prompt: '参观结束后怎样把看到的遗址和文物整理成一条证据链？' },
+  ],
+}
+_HALL_SUGGEST_TEMPLATES['牡丹园'] = {
+  default: [
+    { type: 'hall_intro', icon: '🌸', title: '休憩观察', prompt: '牡丹园在博物馆参观中可以承担怎样的休憩和景观作用？' },
+    { type: 'observation_task', icon: '🌿', title: '环境联想', prompt: '从园林休憩空间可以怎样联想到半坡人的自然环境？' },
+  ],
+}
+_HALL_SUGGEST_TEMPLATES['临展厅一'] = {
+  default: [
+    { type: 'hall_intro', icon: '🖼️', title: '现场主题', prompt: '这个临展厅的当期内容以现场展签为准；如果还不知道主题，我应该先看哪些线索？' },
+    { type: 'observation_task', icon: '🔎', title: '看展方法', prompt: '面对临展或临时展览，怎样通过标题、导语、展品组合和动线判断策展思路？' },
+  ],
+  A: [
+    { type: 'hall_intro', icon: '🔍', title: '信息来源', prompt: '研究临展时，哪些信息必须以现场展签和馆方清单为准，哪些只能作为推测？' },
+    { type: 'observation_task', icon: '🧭', title: '策展证据', prompt: '在临展厅里，怎样从展览标题、单元划分和展品顺序判断策展问题？' },
+  ],
+  B: [
+    { type: 'hall_intro', icon: '📝', title: '记录方法', prompt: '参观临展时，如果当期展品清单还不完整，我的研学笔记应该先记录哪些现场信息？' },
+    { type: 'observation_task', icon: '🔎', title: '主题线索', prompt: '我可以怎样用标题、导语和展品组合快速判断这个临展想讲什么？' },
+  ],
+  C: [
+    { type: 'hall_intro', icon: '💡', title: '临展追问', prompt: '临展和常设展有什么不同？临展通常会借一个主题提出怎样的新问题？' },
+    { type: 'observation_task', icon: '🧭', title: '叙事线索', prompt: '怎样从临展的开头、单元和结尾看出策展人想引导我们追问什么？' },
+  ],
+  artisan: [
+    { type: 'hall_intro', icon: '🏺', title: '器物看法', prompt: '在临展厅里观察器物时，怎样先看材料、器形、说明牌和展柜组合？' },
+    { type: 'observation_task', icon: '🔎', title: '现场细节', prompt: '如果不知道临展当期清单，我应该如何从现场展签判断哪些器物值得细看？' },
+  ],
+}
+_HALL_SUGGEST_TEMPLATES['临展厅二'] = _HALL_SUGGEST_TEMPLATES['临展厅一']
+
+function _isTemporaryHall(hall) {
+  var normalized = banpoHalls.normalizeHallToSlug(hall)
+  return ['temporary-hall-1', 'temporary-hall-2'].indexOf(normalized) >= 0
+}
+
 /**
  * Generate guide suggestions for the current tour context.
  * Can be called with an optional list of real exhibits from the API to
@@ -402,6 +604,7 @@ function generateGuideSuggestions(opts) {
   var exhibit  = options.currentExhibit !== undefined ? options.currentExhibit : (_tour.currentExhibit || null)
   var persona  = _tour.personaId || 'default'
   var exhibits = options.exhibits || []
+  var hallDisplay = hall ? banpoHalls.getHallDisplayName(hall) : null
 
   var suggestions = []
   var counter = 0
@@ -461,10 +664,19 @@ function generateGuideSuggestions(opts) {
 
   // ── Hall mode: suggestions based on hall + persona ─────────────────────────
   if (!hall) return []
-  var hallTpls = _HALL_SUGGEST_TEMPLATES[hall]
+  var hallTpls = _HALL_SUGGEST_TEMPLATES[hallDisplay] || _HALL_SUGGEST_TEMPLATES[hall]
   if (!hallTpls) return []
 
-  var personaTpls = hallTpls[persona] || hallTpls['default'] || []
+  var personaFallback = {
+    student: 'B',
+    resident: 'B',
+    historian: 'C',
+    community: 'C',
+    artifact: 'artisan',
+    artisan: 'D',
+    D: 'artisan',
+  }
+  var personaTpls = hallTpls[persona] || hallTpls[personaFallback[persona]] || hallTpls['default'] || []
   for (var i = 0; i < personaTpls.length; i++) {
     var tpl = personaTpls[i]
     suggestions.push({
@@ -520,6 +732,63 @@ function isContextQuestion(text) {
   return false
 }
 
+function buildClientContext(rawInput, opts) {
+  var options = opts || {}
+  var recentMessages = options.recentMessages || null
+  var def = PERSONA_DEFS[_tour.personaId] || PERSONA_DEFS['default']
+  var ex = _tour.currentExhibit || null
+  var lines = []
+
+  lines.push('[导览上下文]')
+  if (_tour.currentHall) {
+    var hallDisplay = _getCurrentHallDisplayName()
+    lines.push('当前展厅：' + hallDisplay)
+    lines.push('回答必须优先围绕当前展厅；检索材料若与当前展厅冲突，以当前展厅和用户问题为准。')
+    if (_isTemporaryHall(_tour.currentHall)) {
+      lines.push('临展厅当期主题和展品清单尚未在系统中完整确认，不要编造当期展品，也不要借用基本陈列展厅的农耕工具、陶器等内容来填空。')
+    }
+  }
+  lines.push('当前身份：' + (def.name || 'MuseAI 导览员'))
+  lines.push('身份只决定观察角度和语气，不是固定回答模板。')
+
+  if (_tour.focusTitle || _tour.intentText || _tour.assumptionText || _tour.guideModeTitle) {
+    lines.push('[入场问卷]')
+    if (_tour.focusTitle)      lines.push('兴趣方向：' + _tour.focusTitle)
+    if (_tour.intentText)      lines.push('用户自写问题：' + _tour.intentText)
+    if (_tour.assumptionText)  lines.push('初始判断：' + _tour.assumptionText)
+    if (_tour.guideModeTitle)  lines.push('导览节奏：' + _tour.guideModeTitle)
+  }
+
+  if (ex) {
+    lines.push('[当前展品]')
+    if (ex.name) lines.push('名称：' + ex.name)
+    if (ex.hallDisplay || ex.hall) lines.push('展厅：' + (ex.hallDisplay || ex.hall))
+    if (ex.category) lines.push('类别：' + ex.category)
+    if (ex.era) lines.push('时代：' + ex.era)
+    if (ex.description) lines.push('简介：' + String(ex.description).slice(0, 180))
+  }
+
+  if (recentMessages && recentMessages.length) {
+    lines.push('[近期对话]')
+    recentMessages.slice(-4).forEach(function (m) {
+      var role = m.role === 'user' ? '用户' : 'AI'
+      lines.push(role + '：' + String(m.content || '').slice(0, 100))
+    })
+  } else if (tourStore_isContextQuestionSafe(rawInput)) {
+    lines.push('用户在问上下文，但当前前端没有可用的近期对话记录；请如实说明。')
+  }
+
+  return lines.join('\n').slice(0, 1200)
+}
+
+function tourStore_isContextQuestionSafe(text) {
+  try {
+    return isContextQuestion(text)
+  } catch (_) {
+    return false
+  }
+}
+
 // ─── Prompt builder (ported from useTourWorkbench.buildStyledPrompt) ───────
 
 /**
@@ -552,15 +821,34 @@ function buildStyledPrompt(rawInput, opts) {
   // ── 1. Persona prefix ──────────────────────────────────────────────────
   if (def.promptPrefix) parts.push(def.promptPrefix)
 
+  // Onboarding profile: keep the entry questionnaire connected to later answers.
+  if (_tour.focusTitle || _tour.intentText || _tour.assumptionText || _tour.guideModeTitle) {
+    var profileLines = ['[入场问卷上下文]']
+    if (_tour.focusTitle)      profileLines.push('用户今天最想追问：' + _tour.focusTitle)
+    if (_tour.intentText)      profileLines.push('用户自己写下的问题：' + _tour.intentText)
+    if (_tour.assumptionText)  profileLines.push('用户对半坡社会的初始判断：' + _tour.assumptionText)
+    if (_tour.focusPrompt)     profileLines.push('内容侧重点：' + _tour.focusPrompt)
+    if (_tour.guideModeTitle)  profileLines.push('导览节奏：' + _tour.guideModeTitle)
+    if (_tour.guideModePrompt) profileLines.push('回应方式：' + _tour.guideModePrompt)
+    profileLines.push('回答时优先照顾这些偏好；当证据与用户初始判断不一致时，用温和追问引导反思，不要直接否定用户。')
+    profileLines.push('---')
+    parts.push(profileLines.join('\n'))
+  }
+
   // ── 2. Hall context (when browsing a hall without a specific exhibit) ──────
   // Inject current hall so backend RAG doesn't guess or hallucinate a different hall.
   if (!hasEx && _tour.currentHall) {
-    parts.push([
+    var hallDisplayName = _getCurrentHallDisplayName()
+    var hallLines = [
       '[当前展厅上下文]',
-      '用户当前正在参观的展厅是：' + _tour.currentHall,
-      '请围绕该展厅相关内容作答，不要把它称为其他展厅名称。',
-      '---',
-    ].join('\n'))
+      '用户当前正在参观的展厅是：' + hallDisplayName,
+      '请围绕该展厅相关内容作答，不要把它称为其他展厅名称；检索材料若与当前展厅冲突，以当前展厅和用户问题为准。',
+    ]
+    if (_isTemporaryHall(_tour.currentHall)) {
+      hallLines.push('该空间是临展厅，当期主题和展品清单需要以现场展签/馆方清单为准；不要编造当期展品，也不要把基本陈列展厅的农耕工具、陶器等内容搬进来回答。')
+    }
+    hallLines.push('---')
+    parts.push(hallLines.join('\n'))
   }
 
   // ── 3. Exhibit context — disambiguation only, no forced answer structure ─
@@ -646,10 +934,16 @@ function buildStyledPrompt(rawInput, opts) {
   // ── 5. Dialogue tone constraint — always present ───────────────────────
   var PERSONA_TONE_MAP = {
     'default':  '中立、亲切、专业，不要过度拟人化。',
-    'A':        '引用证据和推断，语气对话化，不要像论文报告。',
-    'B':        '可以沉浸式叙述，但不要编造超出史料的细节。',
-    'C':        '可以提问引导，但不要每段都反问用户。',
-    'artisan':  '强调工艺和材质，保持工匠视角，语言朴实自然。',
+    'A':        '像研究员一样引用证据和推断，但用对话语气表达，不要写成论文报告。',
+    'student':  '像研学记录员一样帮助用户知道看什么、怎么记、为什么重要，但不要固定套“观察任务/笔记要点”栏目。',
+    'resident': '像研学记录员一样帮助用户知道看什么、怎么记、为什么重要，但不要固定套“观察任务/笔记要点”栏目。',
+    'B':        '像研学记录员一样帮助用户知道看什么、怎么记、为什么重要，但不要固定套“观察任务/笔记要点”栏目。',
+    'C':        '像历史爱好者一样追问大问题，联系史前中国和今天；追问要自然出现，不要每段都反问。',
+    'historian':'像历史爱好者一样追问大问题，联系史前中国和今天；追问要自然出现，不要每段都反问。',
+    'community':'像历史爱好者一样追问大问题，联系史前中国和今天；追问要自然出现，不要每段都反问。',
+    'D':        '从材料、器形、纹饰和使用痕迹切入，明确区分观察事实与推测，但不要机械分栏。',
+    'artifact': '从材料、器形、纹饰和使用痕迹切入，明确区分观察事实与推测，但不要机械分栏。',
+    'artisan':  '从材料、器形、纹饰和使用痕迹切入，明确区分观察事实与推测，但不要机械分栏。',
   }
   var toneHint = PERSONA_TONE_MAP[_tour.personaId] || PERSONA_TONE_MAP['default']
   parts.push([
@@ -659,6 +953,7 @@ function buildStyledPrompt(rawInput, opts) {
     '使用"你""我们可以看""这件展品"等自然的一对一口吻。',
     '回答像博物馆AI导览员在和用户单独交流，不是在做报告或广播讲解。',
     '当前导览风格提示：' + toneHint,
+    '以上风格只应自然融入回答，不要变成固定模板；用户问什么，就先回答什么。',
     '---',
   ].join('\n'))
 
@@ -702,8 +997,8 @@ function getPersonaDef() {
 }
 
 /**
- * Return the backend persona letter ('A'|'B'|'C') for createSession calls.
- * artisan and default both map to 'B'.
+ * Return the backend persona letter ('A'|'B'|'C'|'D') for createSession calls.
+ * default maps to 'B'; artisan maps to 'D'.
  */
 function getBackendPersona() {
   return getPersonaDef().backendPersona || 'B'
@@ -712,10 +1007,12 @@ function getBackendPersona() {
 // ─── Persona helpers (ported from useTour computed props) ──────────────────
 
 /**
- * @returns {string} Display label for the current session's persona, e.g. '考古队长'
+ * @returns {string} Display label for the current session's persona, e.g. '考古研究员'
  */
 function getPersonaLabel() {
-  var map = { A: '考古队长', B: '半坡原住民', C: '历史老师' }
+  var def = PERSONA_DEFS[_tour.personaId]
+  if (def && def.name) return def.name
+  var map = { A: '考古研究员', B: '研学记录员', C: '历史追问者', D: '器物研究员' }
   return map[_tour.persona] || ''
 }
 
@@ -723,7 +1020,18 @@ function getPersonaLabel() {
  * @returns {string} Report title for the current persona
  */
 function getReportThemeTitle() {
-  var map = { A: '你的半坡考古报告', B: '半坡一日穿越体验', C: '半坡游学荣誉证书' }
+  var idMap = {
+    student: '半坡研学记录报告',
+    resident: '半坡研学记录报告',
+    A: '半坡考古研究报告',
+    historian: '半坡历史追问报告',
+    community: '半坡历史追问报告',
+    D: '半坡器物观察报告',
+    artifact: '半坡器物观察报告',
+    artisan: '半坡器物观察报告',
+  }
+  if (_tour.personaId && idMap[_tour.personaId]) return idMap[_tour.personaId]
+  var map = { A: '半坡考古研究报告', B: '半坡研学记录报告', C: '半坡历史追问报告', D: '半坡器物观察报告' }
   return map[_tour.persona] || ''
 }
 
@@ -758,6 +1066,7 @@ module.exports = {
   setUiPrefs,
   setStylePrefs,
   setTtsPrefs,
+  buildClientContext,
   buildStyledPrompt,
   isContextQuestion,
 
@@ -775,4 +1084,5 @@ module.exports = {
 
   // Hall persistence
   getSavedCurrentHall,
+  getCurrentHallDisplayName: _getCurrentHallDisplayName,
 }
