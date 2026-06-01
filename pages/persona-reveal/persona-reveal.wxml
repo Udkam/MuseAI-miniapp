@@ -1,64 +1,78 @@
 <view class="page-wrap reveal" wx:if="{{persona}}">
-
-  <view class="reveal-top">
-    <text class="reveal-hint text-muted text-sm">根据你的回答，</text>
-  </view>
-
-  <!-- Persona card -->
-  <view class="persona-card" style="border-color: {{persona.color}}">
-    <text class="persona-icon">{{persona.icon}}</text>
-    <text class="persona-title" style="color: {{persona.color}}">{{persona.title}}</text>
-    <text class="persona-desc">{{persona.desc}}</text>
-  </view>
-
-  <!-- Badge -->
-  <view class="badge-row">
-    <view class="badge" style="background: {{persona.color}}">
-      <text class="badge-text">{{persona.label}}</text>
+  <view class="reveal-shell">
+    <view class="reveal-heading">
+      <text class="reveal-kicker">MuseAI 已生成</text>
+      <text class="reveal-title">你的导览身份</text>
     </view>
-  </view>
 
-  <!-- AI behavior description -->
-  <view class="ai-behavior-block">
-    <text class="ai-behavior-label">AI 导览员会这样陪你</text>
-    <view class="ai-behavior-bubble">
-      <text class="ai-behavior-text">{{persona.aiDesc}}</text>
-    </view>
-  </view>
+    <view class="pass-card" style="border-color: {{persona.color}};">
+      <view class="pass-head">
+        <view class="persona-mark" style="background-color: {{persona.color}};">
+          <text class="persona-icon">{{persona.icon}}</text>
+        </view>
+        <view class="pass-title-block">
+          <text class="pass-label">今日观察视角</text>
+          <text class="persona-title" style="color: {{persona.color}};">{{persona.label}}</text>
+        </view>
+      </view>
 
-  <!-- Onboarding profile preview -->
-  <view wx:if="{{hasEntryProfile}}" class="entry-profile-block">
-    <text class="entry-profile-label">你的导览档案</text>
-    <view class="entry-profile-row" wx:if="{{focusTitle}}">
-      <text class="entry-profile-key">追问方向</text>
-      <text class="entry-profile-value">{{focusTitle}}</text>
-    </view>
-    <view class="entry-profile-row" wx:if="{{guideModeTitle}}">
-      <text class="entry-profile-key">导览节奏</text>
-      <text class="entry-profile-value">{{guideModeTitle}}</text>
-    </view>
-  </view>
+      <text class="persona-desc">{{persona.desc}}</text>
 
-  <!-- Assumption challenge preview -->
-  <view wx:if="{{assumptionHint}}" class="challenge-preview">
-    <text class="challenge-icon">💡</text>
-    <text class="challenge-text">{{assumptionHint}}</text>
-  </view>
+      <view class="pass-divider"></view>
 
-  <!-- Preferred hall recommendation -->
-  <view wx:if="{{preferredHall}}" class="preferred-hall-block">
-    <text class="preferred-hall-label">为你优先推荐</text>
-    <view class="preferred-hall-row">
-      <text class="preferred-hall-arrow">▶</text>
-      <view class="preferred-hall-info">
-        <text class="preferred-hall-name">{{preferredHall}}</text>
-        <text class="preferred-hall-desc">{{preferredHallDesc}}</text>
+      <view class="ai-brief">
+        <text class="ai-brief-label">AI 会优先</text>
+        <text class="ai-brief-text">{{persona.aiDesc}}</text>
       </view>
     </view>
-  </view>
 
-  <view class="bottom-action">
-    <button class="btn-primary" bindtap="goHall">进入展厅 →</button>
-  </view>
+    <view class="route-card">
+      <view class="route-card-head">
+        <text class="route-title">接下来这样逛</text>
+        <text class="route-sub">路线、提问和报告都会按这个视角组织</text>
+      </view>
 
+      <view class="route-track">
+        <view wx:for="{{routeTips}}" wx:key="title" class="route-node">
+          <text class="route-index" style="background-color: {{persona.color}};">{{index + 1}}</text>
+          <text class="route-node-title">{{item.title}}</text>
+        </view>
+      </view>
+
+      <view wx:if="{{hasEntryProfile}}" class="profile-strip">
+        <view wx:if="{{focusTitle}}" class="profile-item">
+          <text class="profile-key">追问</text>
+          <text class="profile-value">{{focusTitle}}</text>
+        </view>
+        <view wx:if="{{guideModeTitle}}" class="profile-item">
+          <text class="profile-key">节奏</text>
+          <text class="profile-value">{{guideModeTitle}}</text>
+        </view>
+      </view>
+    </view>
+
+    <view class="next-flow">
+      <view class="flow-item">
+        <text class="flow-label">先看路线</text>
+        <text class="flow-desc">确认参观顺序</text>
+      </view>
+      <view class="flow-divider"></view>
+      <view class="flow-item">
+        <text class="flow-label">再选展厅</text>
+        <text class="flow-desc">从现场位置开始</text>
+      </view>
+      <view class="flow-divider"></view>
+      <view class="flow-item">
+        <text class="flow-label">边看边问</text>
+        <text class="flow-desc">生成游览报告</text>
+      </view>
+    </view>
+
+    <view class="bottom-action">
+      <button
+        class="btn-primary reveal-cta"
+        bindtap="goHall"
+      >查看个性化路线 →</button>
+    </view>
+  </view>
 </view>

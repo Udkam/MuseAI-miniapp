@@ -34,7 +34,7 @@ function buildHeaders(extra) {
 }
 
 function wxRequestOnce(url, method, data, header, timeout) {
-  return new Promise((resolve, reject) => {
+  return new Promise((resolve) => {
     wx.request({
       url,
       method,
@@ -42,7 +42,12 @@ function wxRequestOnce(url, method, data, header, timeout) {
       header,
       timeout,
       success: resolve,
-      fail: reject,
+      fail: function(err) {
+        resolve({
+          statusCode: 0,
+          data: { detail: (err && err.errMsg) || '网络错误' },
+        })
+      },
     })
   })
 }
@@ -82,17 +87,7 @@ async function request(path, options) {
   while (true) {
     let res
 
-    try {
-      res = await wxRequestOnce(url, method, data, header, timeout)
-    } catch (err) {
-      // wx.request fail — network unreachable / DNS failure / timeout
-      if (attempt >= retries) {
-        return { ok: false, status: 0, data: { detail: (err && err.errMsg) || '网络错误' } }
-      }
-      attempt++
-      await wait(baseDelayMs * attempt)
-      continue
-    }
+    res = await wxRequestOnce(url, method, data, header, timeout)
 
     const status       = res.statusCode
     const responseData = res.data || {}

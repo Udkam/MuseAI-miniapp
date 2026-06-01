@@ -46,6 +46,55 @@
   padding: 0 0 48rpx;
 }
 
+.resume-card {
+  margin-top: 22rpx;
+  padding: 22rpx 24rpx;
+  background: #FFFBF5;
+  border: 2rpx solid #EAD9C2;
+  border-radius: 18rpx;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24rpx;
+  box-shadow: 0 10rpx 24rpx rgba(61, 43, 26, 0.06);
+}
+
+.resume-copy {
+  min-width: 0;
+  flex: 1;
+}
+
+.resume-label {
+  display: block;
+  color: #C4845A;
+  font-size: 22rpx;
+  line-height: 1.35;
+}
+
+.resume-title {
+  display: block;
+  color: #3D2B1A;
+  font-size: 30rpx;
+  font-weight: 700;
+  line-height: 1.35;
+  margin-top: 4rpx;
+}
+
+.resume-meta {
+  display: block;
+  color: #8B6B55;
+  font-size: 22rpx;
+  line-height: 1.35;
+  margin-top: 4rpx;
+}
+
+.resume-arrow {
+  color: #C4845A;
+  font-size: 46rpx;
+  line-height: 1;
+  flex-shrink: 0;
+}
+
 .footer-note {
   padding-bottom: 60rpx;
   display: flex;

@@ -1,5 +1,21 @@
 var parseMarkdown = require('../../../utils/markdown').parseMarkdown
 
+function toPlainText(content) {
+  return String(content || '')
+    .replace(/```[\s\S]*?```/g, function (block) {
+      return block.replace(/```[a-zA-Z0-9_-]*\n?/g, '').replace(/```/g, '')
+    })
+    .replace(/^#{1,6}\s+/gm, '')
+    .replace(/^\s*[-*+]\s+/gm, '• ')
+    .replace(/^\s*\d+\.\s+/gm, '')
+    .replace(/\*\*([^*]+)\*\*/g, '$1')
+    .replace(/\*([^*]+)\*/g, '$1')
+    .replace(/`([^`]+)`/g, '$1')
+    .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim()
+}
+
 Component({
   properties: {
     role:        { type: String,  value: 'user'  },
@@ -22,6 +38,19 @@ Component({
       } else {
         this.setData({ blocks: [] })
       }
+    },
+  },
+
+  methods: {
+    copyContent: function () {
+      var text = toPlainText(this.properties.content)
+      if (!text) return
+      wx.setClipboardData({
+        data: text,
+        success: function () {
+          wx.showToast({ title: '已复制回答', icon: 'success', duration: 1200 })
+        },
+      })
     },
   },
 })

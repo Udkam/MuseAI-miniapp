@@ -6,6 +6,18 @@
   padding: 40rpx 0 48rpx;
 }
 
+.hall-title-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 24rpx;
+}
+
+.hall-title-copy {
+  flex: 1;
+  min-width: 0;
+}
+
 .hall-title {
   font-size: 44rpx;
   font-weight: 700;
@@ -16,6 +28,84 @@
 
 .hall-sub {
   display: block;
+}
+
+.route-entry {
+  display: flex;
+  align-items: center;
+  gap: 8rpx;
+  border: 2rpx solid #D8B08C;
+  border-radius: 100rpx;
+  padding: 12rpx 20rpx;
+  color: #8B5E3C;
+  background: #FFF8EF;
+  flex-shrink: 0;
+}
+
+.route-entry-icon {
+  font-size: 28rpx;
+}
+
+.route-entry-text {
+  font-size: 24rpx;
+  font-weight: 650;
+}
+
+/* ── Route summary ─────────────────────────────────────────────────────────── */
+
+.route-summary-card {
+  background: #FFFAF5;
+  border: 2rpx solid #EDD8B8;
+  border-radius: 18rpx;
+  padding: 26rpx 28rpx;
+  margin-bottom: 30rpx;
+}
+
+.route-summary-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18rpx;
+  margin-bottom: 14rpx;
+}
+
+.route-summary-label {
+  font-size: 24rpx;
+  color: #C4845A;
+  font-weight: 600;
+}
+
+.route-summary-source {
+  font-size: 20rpx;
+  color: #8B6B55;
+  background: #F5F0E8;
+  border-radius: 100rpx;
+  padding: 5rpx 16rpx;
+  flex-shrink: 0;
+}
+
+.route-summary-line {
+  display: block;
+  font-size: 29rpx;
+  font-weight: 650;
+  color: #3D2B1A;
+  line-height: 1.55;
+  margin-bottom: 10rpx;
+}
+
+.route-summary-hint {
+  display: block;
+  font-size: 23rpx;
+  color: #8B6B55;
+  line-height: 1.55;
+}
+
+.route-summary-notice {
+  display: block;
+  font-size: 22rpx;
+  color: #B08060;
+  line-height: 1.5;
+  margin-top: 8rpx;
 }
 
 .hall-list {
@@ -30,7 +120,20 @@
   background: #F5F0E8;
   border-radius: 20rpx;
   padding: 32rpx 28rpx;
-  gap: 24rpx;
+  gap: 20rpx;
+}
+
+.hall-order {
+  width: 42rpx;
+  height: 42rpx;
+  border-radius: 50%;
+  background: #D8B08C;
+  color: #FAF7F2;
+  font-size: 22rpx;
+  font-weight: 700;
+  line-height: 42rpx;
+  text-align: center;
+  flex-shrink: 0;
 }
 
 .hall-icon-wrap {
@@ -77,24 +180,3 @@
 
 /* ── Recommended badge ──────────────────────────────────────────────────────── */
 
-.hall-card.recommended {
-  border: 3rpx solid #C4845A;
-}
-
-.hall-name-row {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 12rpx;
-  margin-bottom: 8rpx;
-}
-
-.hall-recommend-badge {
-  background: #C4845A;
-  color: #FAF7F2;
-  font-size: 20rpx;
-  font-weight: 600;
-  padding: 4rpx 16rpx;
-  border-radius: 100rpx;
-  flex-shrink: 0;
-}

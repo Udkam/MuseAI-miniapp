@@ -17,6 +17,8 @@
   max-width: 78%;
   padding: 24rpx 30rpx;
   border-radius: 24rpx;
+  position: relative;
+  user-select: text;
 }
 
 .bubble.user {
@@ -159,6 +161,21 @@
   border-radius: 2rpx;
   margin-top: 4rpx;
   animation: cursor-blink 0.8s step-end infinite;
+}
+
+.bubble-copy {
+  margin-top: 14rpx;
+  display: flex;
+  justify-content: flex-end;
+}
+
+.bubble-copy-text {
+  font-size: 22rpx;
+  color: #9A7458;
+  background: #FFF8EF;
+  border: 2rpx solid #EAD9C9;
+  border-radius: 100rpx;
+  padding: 4rpx 18rpx;
 }
 
 @keyframes cursor-blink {

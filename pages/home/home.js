@@ -4,12 +4,19 @@ var api       = require('../../api/index')
 Page({
   data: {
     hasTourSession: false,
+    resumeHallName: '',
+    aiConversationCount: 0,
     starting:       false,  // debounce goQuickStart
   },
 
   onShow: function () {
     var state = tourStore.getTourState()
-    this.setData({ hasTourSession: !!state.sessionId })
+    var canResume = tourStore.hasResumableTourSession(5)
+    this.setData({
+      hasTourSession: canResume,
+      resumeHallName: canResume ? (tourStore.getCurrentHallDisplayName() || '展厅选择') : '',
+      aiConversationCount: state.aiConversationCount || 0,
+    })
   },
 
   goOnboarding: function () {
@@ -24,18 +31,18 @@ Page({
     self.setData({ starting: true })
 
     tourStore.setStylePrefs({ answerLength: 'balanced', depth: 'standard', terminology: 'plain' })
-    tourStore.createLocalTourState({ interestType: 'B', persona: 'B', assumption: 'D', personaId: 'student' })
+    tourStore.createLocalTourState({ interestType: 'B', persona: 'B', assumption: 'D', personaId: 'default' })
     tourStore.setOnboardingExtras({
       intentText:         '',
-      preferredHallOrder: ['site', 'basic', 'education'],
+      preferredHallOrder: ['basic', 'site', 'kiln'],
       timeBudget:         null,
-      focusId:            'study',
-      focusTitle:         '带着任务研学',
-      focusPrompt:        '请优先给出观察任务、记录要点和适合研学汇报的清晰小结。',
+      focusId:            'default',
+      focusTitle:         '默认参观',
+      focusPrompt:        '请按普通游客第一次参观的节奏，先建立整体印象，再给出最值得看的重点。',
       assumptionText:     '先不下判断，跟证据走',
-      guideModeId:        'notebook',
-      guideModeTitle:     '研学记录模式',
-      guideModePrompt:    '用户正在做研学记录，请在回答中给出清晰观察任务和可整理成笔记的小结。',
+      guideModeId:        'default',
+      guideModeTitle:     '默认体验',
+      guideModePrompt:    '用户是直接开始的游客，请用清晰、友好、不过度学术的方式讲重点。',
     })
 
     var guestId = 'miniapp_guest_' + Date.now()
@@ -65,6 +72,11 @@ Page({
   },
 
   resumeTour: function () {
+    if (!tourStore.hasResumableTourSession(5)) {
+      this.setData({ hasTourSession: false })
+      wx.showToast({ title: '完成 5 次 AI 对话后可继续上次导览', icon: 'none' })
+      return
+    }
     wx.navigateTo({ url: '/pages/hall/hall' })
   },
 })

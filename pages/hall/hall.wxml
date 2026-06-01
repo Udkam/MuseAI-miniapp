@@ -1,26 +1,32 @@
 <view class="page-wrap hall">
 
   <view class="hall-header">
-    <text class="hall-title">选择你的探索区域</text>
-    <text class="hall-sub text-muted text-sm">点击展厅，开始 AI 导览对话</text>
+    <view class="hall-title-row">
+      <view class="hall-title-copy">
+        <text class="hall-title">选择你的探索区域</text>
+        <text class="hall-sub text-muted text-sm">按固定展厅顺序浏览，也可以从现场所在展厅开始</text>
+      </view>
+      <view class="route-entry" bindtap="goRoute">
+        <text class="route-entry-icon">🧭</text>
+        <text class="route-entry-text">路线</text>
+      </view>
+    </view>
   </view>
 
   <view class="hall-list">
     <view
       wx:for="{{halls}}"
       wx:key="id"
-      class="hall-card {{item.isRecommended ? 'recommended' : ''}}"
+      class="hall-card"
       bindtap="selectHall"
       data-hall="{{item}}"
     >
+      <view class="hall-order">{{item.order}}</view>
       <view class="hall-icon-wrap">
         <text class="hall-icon">{{item.icon}}</text>
       </view>
       <view class="hall-info">
-        <view class="hall-name-row">
-          <text class="hall-name">{{item.name}}</text>
-          <view wx:if="{{item.isRecommended}}" class="hall-recommend-badge">AI 推荐先去</view>
-        </view>
+        <text class="hall-name">{{item.name}}</text>
         <text class="hall-desc text-muted">{{item.desc}}</text>
       </view>
       <text class="hall-arrow text-clay">›</text>

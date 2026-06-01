@@ -194,7 +194,7 @@ Page({
       selectedRhythmId: null,
       intentText: '',
     })
-    this._finish()
+    this._finish({ directHall: true })
   },
 
   noop: function () {},
@@ -220,9 +220,10 @@ Page({
     return null
   },
 
-  _finish: function () {
+  _finish: function (options) {
     if (this._navigating) return
     this._navigating = true
+    var finishOptions = options || {}
 
     var self = this
     var focus = this._findFocus(this.data.selectedFocusId) || DEFAULT_FOCUS
@@ -261,8 +262,11 @@ Page({
     self.setData({ loading: true })
 
     var go = function () {
+      var url = finishOptions.directHall
+        ? '/pages/hall/hall'
+        : '/pages/persona-reveal/persona-reveal?persona=' + personaId + '&assumption=' + assumption.id
       wx.redirectTo({
-        url: '/pages/persona-reveal/persona-reveal?persona=' + personaId + '&assumption=' + assumption.id,
+        url: url,
         fail: function () {
           self._navigating = false
           self.setData({ loading: false })

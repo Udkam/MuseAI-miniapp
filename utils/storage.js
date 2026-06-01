@@ -6,6 +6,7 @@ const KEYS = {
   TOUR_SESSION_TOKEN:    'tour_session_token',
   TOUR_SESSION_CREATED_AT: 'tour_session_created_at',
   TOUR_SESSION_SCHEMA_VERSION: 'tour_session_schema_version',
+  TOUR_AI_CONVERSATION_COUNT: 'tour_ai_conversation_count',
   TOUR_CACHE_SCHEMA_VERSION: 'tour_cache_schema_version',
   TOUR_CURRENT_HALL:     'tour_current_hall',
   TOUR_PENDING_EVENTS:   'tour_pending_events',
@@ -68,19 +69,25 @@ function getTourSession() {
     sessionToken: get(KEYS.TOUR_SESSION_TOKEN, null),
     createdAt:    Number(get(KEYS.TOUR_SESSION_CREATED_AT, 0)) || 0,
     schemaVersion: get(KEYS.TOUR_SESSION_SCHEMA_VERSION, null),
+    aiConversationCount: Number(get(KEYS.TOUR_AI_CONVERSATION_COUNT, 0)) || 0,
   }
 }
 
 function setTourSession({ sessionId, sessionToken }) {
+  const previousSessionId = get(KEYS.TOUR_SESSION_ID, null)
   if (sessionId) {
     set(KEYS.TOUR_SESSION_ID, sessionId)
     set(KEYS.TOUR_SESSION_CREATED_AT, Date.now())
     set(KEYS.TOUR_SESSION_SCHEMA_VERSION, TOUR_SESSION_SCHEMA_VERSION)
+    if (previousSessionId !== sessionId) {
+      set(KEYS.TOUR_AI_CONVERSATION_COUNT, 0)
+    }
   } else {
     remove(KEYS.TOUR_SESSION_ID)
     remove(KEYS.TOUR_SESSION_CREATED_AT)
     remove(KEYS.TOUR_SESSION_SCHEMA_VERSION)
     remove(KEYS.TOUR_SESSION_TOKEN)
+    remove(KEYS.TOUR_AI_CONVERSATION_COUNT)
     return
   }
   // sessionToken may be empty string — store as-is so key exists
@@ -97,6 +104,7 @@ function clearAuth() {
     KEYS.TOUR_SESSION_TOKEN,
     KEYS.TOUR_SESSION_CREATED_AT,
     KEYS.TOUR_SESSION_SCHEMA_VERSION,
+    KEYS.TOUR_AI_CONVERSATION_COUNT,
     KEYS.TOUR_CACHE_SCHEMA_VERSION,
     KEYS.TOUR_CURRENT_HALL,
     KEYS.TOUR_PENDING_EVENTS,
@@ -110,6 +118,7 @@ function clearTour() {
     KEYS.TOUR_SESSION_TOKEN,
     KEYS.TOUR_SESSION_CREATED_AT,
     KEYS.TOUR_SESSION_SCHEMA_VERSION,
+    KEYS.TOUR_AI_CONVERSATION_COUNT,
     KEYS.TOUR_CURRENT_HALL,
     KEYS.TOUR_PENDING_EVENTS,
   ].forEach(remove)

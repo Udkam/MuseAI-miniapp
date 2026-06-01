@@ -1,86 +1,201 @@
 const tourStore = require('../../store/tour')
-const api       = require('../../api/index')
+const api = require('../../api/index')
+const banpoHalls = require('../../constants/banpo-halls')
 
-var MOCK_FALLBACK = [
-  { id: 'mock-1', name: '人面网纹彩陶盆', category: '陶器与艺术', hall: 'pottery-spirit-hall', hallDisplay: '出土文物陈列区', era: '新石器时代·仰韶文化', importance: 5, description: '', floor: null },
-  { id: 'mock-2', name: '鹿纹彩陶盆',     category: '陶器与艺术', hall: 'pottery-spirit-hall', hallDisplay: '出土文物陈列区', era: '新石器时代·仰韶文化', importance: 5, description: '', floor: null },
-]
+const ENABLE_HALL_DISCOVERY_LOG = false
+
+function makeFallbackExhibit(id, hall, name, category, description, importance) {
+  return {
+    id: 'local-' + id,
+    name: name,
+    category: category || '代表性展项',
+    hall: hall,
+    hallDisplay: banpoHalls.getHallDisplayName(hall),
+    era: '新石器时代·仰韶文化',
+    importance: importance || 3,
+    description: description || '',
+    floor: null,
+    isLocalFallback: true,
+  }
+}
+
+const FALLBACK_EXHIBITS_BY_HALL = {
+  'basic-exhibition-hall': [
+    makeFallbackExhibit('basic-banpo-people', 'basic-exhibition-hall', '半坡人', '体质人类学', '通过头骨、肢骨和复原资料认识半坡先民的体质特征、寿命和劳动痕迹。', 5),
+    makeFallbackExhibit('basic-site-plan', 'basic-exhibition-hall', '半坡遗址平面分布图', '遗址信息', '理解居住区、墓葬区、制陶区和壕沟等空间关系，是进入半坡叙事的基础。', 5),
+    makeFallbackExhibit('basic-stone-tools', 'basic-exhibition-hall', '石器工具', '生产工具', '磨制石器反映半坡人的耕作、采集和加工活动。', 4),
+    makeFallbackExhibit('basic-bone-tools', 'basic-exhibition-hall', '骨角器', '生产工具', '骨针、骨锥等器物能看到材料利用和手工技术。', 4),
+    makeFallbackExhibit('basic-tao-zeng', 'basic-exhibition-hall', '陶甑', '炊煮器', '陶甑与蒸煮方式有关，可从饮食结构和生活技术角度观察。', 4),
+    makeFallbackExhibit('basic-pointed-bottle', 'basic-exhibition-hall', '尖底瓶', '汲水陶器', '尖底瓶常被用来讨论取水方式、重心和半坡人的生活智慧。', 5),
+    makeFallbackExhibit('basic-deer-basin', 'basic-exhibition-hall', '鹿纹彩陶盆', '彩陶', '鹿纹彩陶盆能连接动物图像、审美表达和半坡人的精神世界。', 5),
+    makeFallbackExhibit('basic-face-basin', 'basic-exhibition-hall', '人面网纹彩陶盆', '彩陶', '彩陶盆上的人面与纹样是理解半坡图像表达的重要线索。', 5),
+    makeFallbackExhibit('basic-ornaments', 'basic-exhibition-hall', '装饰品与身份标识物', '装饰品', '发饰、陶饰和骨器残片有助于观察审美与社会身份差异。', 3),
+  ],
+  'site-protection-hall': [
+    makeFallbackExhibit('site-strata', 'site-protection-hall', '堆积层剖面', '遗址保护', '地层关系能帮助理解考古发掘怎样判断年代和活动顺序。', 5),
+    makeFallbackExhibit('site-round-house', 'site-protection-hall', '地面圆形房屋遗迹', '居址遗存', '房屋遗迹展示居住空间、柱洞和灶址等生活痕迹。', 5),
+    makeFallbackExhibit('site-semi-house', 'site-protection-hall', '半地穴式方形房屋遗迹', '居址遗存', '半地穴式房屋有助于观察半坡人的居住结构和聚落组织。', 5),
+    makeFallbackExhibit('site-kiln-area', 'site-protection-hall', '制陶区与窑场遗迹', '生产遗存', '制陶区能把陶器成品和烧制现场联系起来。', 4),
+    makeFallbackExhibit('site-burial', 'site-protection-hall', '仰身直肢葬', '墓葬遗存', '墓葬形态和随葬现象是理解社会关系与生命观的重要材料。', 4),
+    makeFallbackExhibit('site-child-burial', 'site-protection-hall', '小女孩墓', '墓葬遗存', '儿童墓葬能引出半坡社会中的年龄、亲属和礼俗问题。', 4),
+    makeFallbackExhibit('site-urn-burial', 'site-protection-hall', '瓮棺葬', '墓葬遗存', '瓮棺葬反映儿童葬俗和陶器的特殊使用方式。', 4),
+    makeFallbackExhibit('site-ditch', 'site-protection-hall', '大围沟', '聚落设施', '壕沟可以讨论聚落边界、防护和公共劳动组织。', 4),
+  ],
+  'kiln-hall': [
+    makeFallbackExhibit('kiln-body', 'kiln-hall', '陶窑', '制陶遗存', '陶窑展示烧成空间，是理解陶器生产流程的关键。', 5),
+    makeFallbackExhibit('kiln-structure', 'kiln-hall', '横穴窑结构', '制陶技术', '观察火膛、窑室和烟道，可以理解温度控制和烧制技术。', 4),
+    makeFallbackExhibit('kiln-traces', 'kiln-hall', '烧成痕迹', '工艺痕迹', '器表颜色、火候差异和残片能帮助判断烧制过程。', 4),
+  ],
+  'prehistoric-workshop': [
+    makeFallbackExhibit('workshop-stone', 'prehistoric-workshop', '石器打磨体验', '研学体验', '通过打磨动作理解工具制作的时间成本和手工精度。', 4),
+    makeFallbackExhibit('workshop-pottery', 'prehistoric-workshop', '陶器纹饰拓印', '研学体验', '从纹样复制和观察中理解彩陶装饰的结构。', 4),
+    makeFallbackExhibit('workshop-bone', 'prehistoric-workshop', '骨针制作体验', '研学体验', '把手作体验和骨器、纺织、缝缀等生活技术联系起来。', 3),
+  ],
+  'education-center': [
+    makeFallbackExhibit('edu-task', 'education-center', '研学任务卡', '研学材料', '把观察点整理成问题、证据和小结，适合做参观复盘。', 4),
+    makeFallbackExhibit('edu-template', 'education-center', '观察记录模板', '研学材料', '帮助记录展品名称、用途、材料、证据和仍需追问的问题。', 3),
+  ],
+  'banpo-girl-sculpture': [
+    makeFallbackExhibit('girl-sculpture', 'banpo-girl-sculpture', '半坡姑娘雕塑', '公共艺术', '以现代艺术方式呈现半坡人物形象，适合作为导览入口或合影点。', 3),
+  ],
+  'peony-garden': [
+    makeFallbackExhibit('peony-garden', 'peony-garden', '牡丹园', '公共空间', '园区休憩空间，可作为路线中的缓冲点和复盘点。', 2),
+  ],
+  'temporary-hall-1': [
+    makeFallbackExhibit('temp1-theme', 'temporary-hall-1', '临展厅一当期主题', '临时展览', '临展内容需要以现场展签和馆方清单为准，系统暂不编造具体展品。', 2),
+  ],
+  'temporary-hall-2': [
+    makeFallbackExhibit('temp2-theme', 'temporary-hall-2', '临展厅二当期主题', '临时展览', '临展内容需要以现场展签和馆方清单为准，系统暂不编造具体展品。', 2),
+  ],
+}
+
+function cloneExhibits(list) {
+  return list.map(function (item) { return Object.assign({}, item) })
+}
+
+function getFallbackExhibits(hallSlug) {
+  if (hallSlug && FALLBACK_EXHIBITS_BY_HALL[hallSlug]) {
+    return cloneExhibits(FALLBACK_EXHIBITS_BY_HALL[hallSlug])
+  }
+  let all = []
+  Object.keys(FALLBACK_EXHIBITS_BY_HALL).forEach(function (slug) {
+    all = all.concat(FALLBACK_EXHIBITS_BY_HALL[slug])
+  })
+  return cloneExhibits(all)
+}
+
+function dedupeExhibits(list) {
+  const seen = {}
+  const out = []
+  ;(list || []).forEach(function (ex) {
+    const key = ex && (ex.id || ex.name)
+    if (!key || seen[key]) return
+    seen[key] = true
+    out.push(ex)
+  })
+  return out
+}
+
+function matchesKeyword(ex, keyword) {
+  const text = [
+    ex.name,
+    ex.category,
+    ex.hallDisplay,
+    ex.era,
+    ex.description,
+  ].join(' ')
+  return text.indexOf(keyword) >= 0
+}
 
 Page({
   data: {
-    exhibits:   [],
-    loading:    true,
+    exhibits: [],
+    loading: true,
     searchText: '',
-    hallHint:   '',
-    empty:      false,
+    hallHint: '',
+    dataNotice: '',
+    empty: false,
   },
 
   _searchTimer: null,
-  _reqSeq:      0,       // monotonic counter — stale async results are discarded
-  _cachedAll:   null,    // full exhibit list for client-side search merge
-  _currentHall: '',      // Chinese hall name from tourStore
+  _reqSeq: 0,
+  _cachedAll: null,
+  _currentHallSlug: '',
+  _currentHallName: '',
 
   onLoad: function () {
-    var state = tourStore.getTourState()
-    this._currentHall = state.currentHall || ''
-    this.setData({ hallHint: this._currentHall ? '当前展厅：' + this._currentHall : '半坡博物馆全部展品' })
-    this._discoverHallSlugs()
+    const state = tourStore.getTourState()
+    const storedHall = tourStore.getSavedCurrentHall ? tourStore.getSavedCurrentHall() : state.currentHall
+    this._currentHallSlug = storedHall ? banpoHalls.normalizeHallToSlug(storedHall) : ''
+    this._currentHallName = this._currentHallSlug ? banpoHalls.getHallDisplayName(this._currentHallSlug) : ''
+    this.setData({
+      hallHint: this._currentHallName ? '当前展厅：' + this._currentHallName : '半坡博物馆全部展项',
+    })
+    if (ENABLE_HALL_DISCOVERY_LOG) this._discoverHallSlugs()
     this._loadExhibits()
   },
 
-  // ── Hall slug discovery ──────────────────────────────────────────────────
   _discoverHallSlugs: function () {
     api.exhibitsApi.listHalls().then(function (res) {
       if (!res.ok || !Array.isArray(res.data)) return
       console.log('[halls/list]', res.data)
       res.data.forEach(function (slug) {
         if (!api.HALL_SLUG_NAMES[slug]) {
-          console.warn('[halls] unknown slug — add to HALL_SLUG_NAMES in api/index.js:', slug)
+          console.warn('[halls] unknown slug, add to HALL_SLUG_NAMES in api/index.js:', slug)
         }
       })
     }).catch(function () {})
   },
 
-  // ── Load exhibit list ───────────────────────────────────────────────────
   _loadExhibits: function () {
-    var self   = this
-    var params = { limit: 100 }
-    var slug   = api.hallNameToSlug(this._currentHall)
+    const self = this
+    const params = { limit: 100 }
+    const slug = this._currentHallSlug
+    const localList = getFallbackExhibits(slug)
 
-    if (slug) {
-      params.hall = slug
-      console.log('[load] hall filter slug=' + slug + ' (from "' + this._currentHall + '")')
-    } else if (this._currentHall) {
-      console.warn('[load] no slug mapping for "' + this._currentHall + '" — loading all exhibits')
-    }
+    if (slug) params.hall = slug
 
-    var seq = ++self._reqSeq
-    self.setData({ loading: true, empty: false })
+    const seq = ++self._reqSeq
+    self._cachedAll = localList
+    self.setData({
+      exhibits: localList,
+      loading: false,
+      empty: localList.length === 0,
+      dataNotice: '',
+    })
 
-    api.exhibitsApi.list(params).then(function (res) {
+    api.exhibitsApi.list(params, { timeout: 3000, retries: 0 }).then(function (res) {
       if (seq !== self._reqSeq) return
-      console.log('[load raw] status=' + (res.status || res.ok))
-      if (res.ok && res.data && res.data.exhibits) {
-        var list = res.data.exhibits.map(api.normalizeExhibit)
-        console.log('[load normalized]', list.map(function (e) { return e.name + ' (' + e.hall + ')' }))
-        self._cachedAll = list
-        self.setData({ exhibits: list, loading: false, empty: list.length === 0 })
-      } else {
-        self._useFallback()
+      if (res.ok && res.data && Array.isArray(res.data.exhibits)) {
+        const list = res.data.exhibits.map(api.normalizeExhibit).filter(Boolean)
+        if (list.length) {
+          self._cachedAll = list
+          self.setData({ exhibits: list, loading: false, empty: false, dataNotice: '' })
+        } else if (!localList.length) {
+          self._useFallback('当前展厅数据库暂无馆方展品清单，先展示可用于导览的代表性展项。')
+        }
+      } else if (!localList.length) {
+        self._useFallback('展品接口暂时不可用，先展示本地代表性展项。')
       }
     }).catch(function () {
       if (seq !== self._reqSeq) return
-      self._useFallback()
+      if (!localList.length) self._useFallback('展品接口暂时不可用，先展示本地代表性展项。')
     })
   },
 
-  _useFallback: function () {
-    this.setData({ exhibits: MOCK_FALLBACK, loading: false, empty: false })
+  _useFallback: function (notice) {
+    const list = getFallbackExhibits(this._currentHallSlug)
+    this._cachedAll = list
+    this.setData({
+      exhibits: list,
+      loading: false,
+      empty: list.length === 0,
+      dataNotice: notice || '',
+    })
   },
 
-  // ── Search ───────────────────────────────────────────────────────────────
   onSearchInput: function (e) {
-    var val = e.detail.value
+    const val = e.detail.value
     this.setData({ searchText: val })
     clearTimeout(this._searchTimer)
     ++this._reqSeq
@@ -88,92 +203,55 @@ Page({
       this._loadExhibits()
       return
     }
-    var self = this
-    this._searchTimer = setTimeout(function () { self._enhancedSearch(val.trim()) }, 400)
+    const self = this
+    this._searchTimer = setTimeout(function () { self._enhancedSearch(val.trim()) }, 180)
   },
 
   doSearch: function () {
-    var keyword = (this.data.searchText || '').trim()
+    const keyword = (this.data.searchText || '').trim()
     if (keyword) this._enhancedSearch(keyword)
   },
 
-  // Enhanced search:
-  //   1. Backend ILIKE search (handles server-indexed data).
-  //   2. Client-side includes() on cached full list (catches short CJK keywords).
-  //   3. Alias expansion: resolveAliases() finds canonical names for user aliases.
-  //   4. Merge: API results first, then client-side extras (dedup by id).
-  //   5. Sort by importance descending.
   _enhancedSearch: function (keyword) {
-    var self = this
-    var seq  = ++self._reqSeq
-    self.setData({ loading: true, empty: false })
+    const self = this
+    const seq = ++self._reqSeq
+    const localFallback = getFallbackExhibits(self._currentHallSlug)
+    const fullNorm = dedupeExhibits((self._cachedAll || []).concat(localFallback))
+    const aliasNames = api.resolveAliases(keyword)
+    const localMatches = fullNorm.filter(function (ex) {
+      return matchesKeyword(ex, keyword) || (ex.name && aliasNames.indexOf(ex.name) >= 0)
+    })
 
-    var searchP   = api.exhibitsApi.search(keyword)
-    var fullListP = self._cachedAll
-      ? Promise.resolve({ ok: true, data: { exhibits: self._cachedAll.map(function (e) {
-          return { id: e.id, name: e.name, hall: e.hall, category: e.category, era: e.era, importance: e.importance, estimated_visit_time: e.estimatedVisitTime, floor: e.floor }
-        }) } })
-      : api.exhibitsApi.list({ limit: 100 })
+    self._cachedAll = fullNorm
+    self.setData({
+      exhibits: localMatches,
+      loading: false,
+      empty: localMatches.length === 0,
+      dataNotice: localMatches.length ? '' : '本地代表展项未命中，正在尝试从服务器搜索完整清单。',
+    })
 
-    Promise.all([searchP, fullListP]).then(function (results) {
+    api.exhibitsApi.search(keyword).then(function (apiRes) {
       if (seq !== self._reqSeq) return
-
-      var apiRes  = results[0]
-      var fullRes = results[1]
-
-      var apiList = []
-      if (apiRes.ok && apiRes.data && apiRes.data.exhibits) {
-        apiList = apiRes.data.exhibits.map(api.normalizeExhibit)
-        console.log('[search raw] keyword=' + keyword + ', api returned:', apiList.map(function (e) { return e.name }))
+      let apiList = []
+      if (apiRes.ok && apiRes.data && Array.isArray(apiRes.data.exhibits)) {
+        apiList = apiRes.data.exhibits.map(api.normalizeExhibit).filter(Boolean)
       }
-
-      var extraList = []
-      if (fullRes.ok && fullRes.data && fullRes.data.exhibits) {
-        var fullNorm = fullRes.data.exhibits.map(api.normalizeExhibit)
-        if (!self._cachedAll) self._cachedAll = fullNorm
-
-        // Direct name includes
-        var clientMatched = fullNorm.filter(function (ex) {
-          return ex.name && ex.name.indexOf(keyword) >= 0
-        })
-
-        // Alias expansion: also match canonical names for known aliases
-        var aliasNames   = api.resolveAliases(keyword)
-        var aliasMatched = []
-        if (aliasNames.length) {
-          aliasMatched = fullNorm.filter(function (ex) {
-            return ex.name && aliasNames.indexOf(ex.name) >= 0
-          })
-          if (aliasMatched.length) {
-            console.log('[search alias] keyword="' + keyword + '" resolved to', aliasNames, '→', aliasMatched.map(function (e) { return e.name }))
-          }
-        }
-
-        // Union of direct + alias matches
-        var seenExtra = {}
-        clientMatched.concat(aliasMatched).forEach(function (ex) {
-          if (!seenExtra[ex.id]) { seenExtra[ex.id] = true; extraList.push(ex) }
-        })
-        console.log('[search client-filter] found:', extraList.map(function (e) { return e.name }))
-      }
-
-      // Merge: API first, client-side extras appended (dedup by id)
-      var seen   = {}
-      var merged = []
-      apiList.forEach(function (ex) {
-        if (!seen[ex.id]) { seen[ex.id] = true; merged.push(ex) }
-      })
-      extraList.forEach(function (ex) {
-        if (!seen[ex.id]) { seen[ex.id] = true; merged.push(ex) }
-      })
-
+      const merged = dedupeExhibits(apiList.concat(localMatches))
       merged.sort(function (a, b) { return (b.importance || 0) - (a.importance || 0) })
-      console.log('[search merged]', merged.map(function (e) { return e.name }))
-      self.setData({ exhibits: merged, loading: false, empty: merged.length === 0 })
+      self.setData({
+        exhibits: merged,
+        loading: false,
+        empty: merged.length === 0,
+        dataNotice: merged.some(function (ex) { return ex.isLocalFallback })
+          ? '部分结果来自本地代表性展项；完整展品清单仍需馆方数据导入。'
+          : '',
+      })
     }).catch(function (err) {
       if (seq !== self._reqSeq) return
       console.error('[search] error:', err)
-      self.setData({ exhibits: [], loading: false, empty: true })
+      if (!localMatches.length) {
+        self.setData({ dataNotice: '展品接口暂时不可用，本地代表展项也没有匹配结果。' })
+      }
     })
   },
 
@@ -182,12 +260,15 @@ Page({
     this._loadExhibits()
   },
 
-  // ── Navigation ──────────────────────────────────────────────────────────
   selectExhibit: function (e) {
-    var ex = e.currentTarget.dataset.exhibit
-    wx.navigateTo({
-      url: '/pages/exhibit-detail/exhibit-detail?id=' + encodeURIComponent(ex.id)
-        + '&name=' + encodeURIComponent(ex.name),
-    })
+    const ex = e.currentTarget.dataset.exhibit
+    let url = '/pages/exhibit-detail/exhibit-detail?name=' + encodeURIComponent(ex.name)
+    if (ex.id && ex.id.indexOf('local-') !== 0 && ex.id.indexOf('mock-') !== 0) {
+      url += '&id=' + encodeURIComponent(ex.id)
+    } else {
+      tourStore.setCurrentExhibit(ex)
+      url += '&local=1'
+    }
+    wx.navigateTo({ url: url })
   },
 })

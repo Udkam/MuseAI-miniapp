@@ -14,8 +14,13 @@
     <view style="margin-top:20rpx;">
       <button class="btn-secondary" bindtap="goQuickStart">直接开始，默认体验</button>
     </view>
-    <view wx:if="{{hasTourSession}}" style="margin-top:20rpx;">
-      <button class="btn-secondary" bindtap="resumeTour">继续上次游览</button>
+    <view wx:if="{{hasTourSession}}" class="resume-card" bindtap="resumeTour">
+      <view class="resume-copy">
+        <text class="resume-label">继续上次导览</text>
+        <text class="resume-title">{{resumeHallName}}</text>
+        <text class="resume-meta">已完成 {{aiConversationCount}} 次 AI 对话</text>
+      </view>
+      <text class="resume-arrow">›</text>
     </view>
   </view>
 

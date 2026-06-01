@@ -3,16 +3,28 @@ const chatStore = require('../../store/chat')
 const tourStore = require('../../store/tour')
 const banpoHalls = require('../../constants/banpo-halls')
 
+var HALL_WELCOME_COPY = {
+  'basic-exhibition-hall': '这里是基本陈列展厅。先把半坡看成一个完整的生活系统：房屋、工具、陶器、装饰品，都在回答同一个问题：六千年前的人怎样组织日常生活。\n你可以从一件器物、一个纹样，或“他们怎么吃住劳动”问起。',
+  'site-protection-hall': '这里是遗址保护大厅。这里看的不是单件文物，而是半坡聚落的真实空间：房址、墓葬、壕沟、作坊和灶址之间的关系。\n建议你先观察“什么在一起、什么被分开”，再问我这些空间关系说明了什么。',
+  'kiln-hall': '这里是陶窑展厅。陶器不是凭空出现的，它要经过选泥、成型、干燥、装饰和烧成。\n你可以把这里当作“生产现场”来看：窑炉结构、火候痕迹和失败残片，都能解释一件陶器为什么会变成现在的样子。',
+  'prehistoric-workshop': '这里是史前工坊。它适合把刚才看到的工具、陶器和材料，转化成可以亲手理解的过程。\n如果你正在研学，可以重点记录：哪一步最难、需要什么经验、它和展厅里的展品有什么对应关系。',
+  'education-center': '这里是教研中心。它更适合整理问题，而不是只继续看展。\n你可以把前面看到的展厅内容变成三类记录：一个最有证据的发现、一个仍不确定的问题、一个可以继续讨论的观点。',
+  'banpo-girl-sculpture': '这里是半坡姑娘雕塑。它不是考古原件，而是现代人根据半坡文化想象出的公共形象。\n我们可以一起区分：哪些来自考古证据，哪些属于艺术再现，哪些影响了今天观众对半坡人的第一印象。',
+  'peony-garden': '这里是牡丹园，也是参观中的休整空间。\n如果你刚看完展厅，可以在这里做一次简短复盘：刚才哪个细节最有证据？哪个问题还没有答案？下一步要去哪里验证？',
+  'temporary-hall-1': '这里是临展空间。当期主题和展品需要以现场展签与馆方清单为准。\n你可以把看到的展览标题、展签关键词或具体对象告诉我，我会基于现场信息帮你梳理。',
+  'temporary-hall-2': '这里是临展空间。当期主题和展品需要以现场展签与馆方清单为准。\n你可以把看到的展览标题、展签关键词或具体对象告诉我，我会基于现场信息帮你梳理。',
+}
+
+function buildWelcomeMessage(hallSlug, hallName) {
+  if (hallSlug && HALL_WELCOME_COPY[hallSlug]) return HALL_WELCOME_COPY[hallSlug]
+  var name = hallName || '这个展厅'
+  return '欢迎来到' + name + '。我会优先围绕你当前看到的展厅回答，不把其他展厅的内容混进来。\n你可以直接问一个展品、一个细节，或让 MuseAI 帮你整理观察重点。'
+}
+
 Page({
   data: {
     hallName:         '展厅',
-    messages: [
-      {
-        id:      1,
-        role:    'assistant',
-        content: '欢迎来到半坡遗址！这里是距今约6000年的半坡先民聚居地，也是中国最早发掘、保存完整的新石器时代村落遗址之一。\n我是你的 AI 导览伙伴 MuseAI。你想了解什么呢？',
-      },
-    ],
+    messages:         [],
     streamingContent: '',    // live text — throttled setData, NOT stored in messages[]
     isThinking:       false, // waiting for first chunk
     isStreaming:      false, // receiving chunks
@@ -46,7 +58,8 @@ Page({
     // Only reset chat on a fresh tour entry (hall page → tour).
     // When coming from exhibit-detail goDeeper(), options.exhibit is set —
     // preserve history so the user can still ask "我们刚才在讨论什么".
-    if (!options.exhibit) {
+    var freshEntry = !options.exhibit
+    if (freshEntry) {
       chatStore.resetChat()
     }
 
@@ -58,13 +71,23 @@ Page({
     var hallSlug = rawHall ? banpoHalls.normalizeHallToSlug(rawHall) : null
     var hallName = hallSlug ? banpoHalls.getHallDisplayName(hallSlug) : null
 
+    var patch = { sessionId: state.sessionId || null, currentExhibit: exhibit }
     if (hallName) {
       wx.setNavigationBarTitle({ title: hallName })
       tourStore.updateTourState({ currentHall: hallSlug })
-      this.setData({ hallName: hallName, sessionId: state.sessionId || null, currentExhibit: exhibit })
+      patch.hallName = hallName
     } else {
-      this.setData({ sessionId: state.sessionId || null, currentExhibit: exhibit })
+      hallName = this.data.hallName
     }
+    if (freshEntry) {
+      var welcomeMsg = { id: 1, role: 'assistant', content: buildWelcomeMessage(hallSlug, hallName) }
+      chatStore.setMessages([welcomeMsg])
+      patch.messages = [welcomeMsg]
+    } else {
+      var storedMessages = chatStore.getState().messages
+      if (storedMessages && storedMessages.length) patch.messages = storedMessages
+    }
+    this.setData(patch)
   },
 
   // Refresh exhibit context when navigating back to this page (also after goDeeper)
@@ -237,6 +260,7 @@ Page({
 
         var traceId = payload.trace_id || null
         chatStore.finishAssistantMessage({ content: finalContent, traceId: traceId })
+        tourStore.incrementAiConversationCount()
 
         var aiMsg = {
           id:      Date.now(),
@@ -458,7 +482,11 @@ Page({
     }
 
     api.tourApi.recordEvents(state.sessionId, events, state.sessionToken)
-      .then(function () {
+      .then(function (res) {
+        if (!res || !res.ok) {
+          console.warn('[tour] flush events returned non-ok, restoring:', res && res.status)
+          tourStore.restorePendingEvents(events)
+        }
         if (callback) callback()
       })
       .catch(function (err) {
@@ -602,14 +630,24 @@ Page({
 
   goReport: function () {
     var self = this
-    // Flush pending events before navigating to report page
-    self._flushEvents(function () {
-      wx.navigateTo({ url: '/pages/report/report' })
-    })
-  },
+    if (self._reportNavigating) return
+    self._reportNavigating = true
 
-  goRoute: function () {
-    // redirectTo replaces tour page — prevents page-stack overflow on repeated hall visits
-    wx.redirectTo({ url: '/pages/route/route' })
+    if (self.data.isThinking || self.data.isStreaming) {
+      self.stopStream()
+    }
+
+    // Navigate first so a slow/cancelled event upload never makes the button feel dead.
+    wx.navigateTo({
+      url: '/pages/report/report',
+      complete: function () {
+        setTimeout(function () { self._reportNavigating = false }, 600)
+      },
+    })
+
+    // Best-effort background flush; report page also merges local pending events.
+    setTimeout(function () {
+      self._flushEvents(null)
+    }, 0)
   },
 })

@@ -26,7 +26,7 @@ function _clean(params) {
 // GET /health  (server root, not under /api/v1)
 const healthApi = {
   check: function() {
-    return new Promise(function(resolve, reject) {
+    return new Promise(function(resolve) {
       wx.request({
         url:     SERVER_ROOT + '/health',
         method:  'GET',
@@ -39,7 +39,11 @@ const healthApi = {
           })
         },
         fail: function(err) {
-          reject(new Error((err && err.errMsg) || '网络不可达'))
+          resolve({
+            ok: false,
+            status: 0,
+            data: { detail: (err && err.errMsg) || '网络不可达' },
+          })
         },
       })
     })
@@ -143,7 +147,8 @@ const tourApi = {
   recordEvents: function(id, events, token) {
     return req.post('/tour/sessions/' + id + '/events', { events: events }, {
       headers: token ? { 'X-Session-Token': token } : undefined,
-      retries: 1,
+      timeout: 4000,
+      retries: 0,
     })
   },
 
@@ -156,12 +161,16 @@ const tourApi = {
   generateReport: function(id, token) {
     return req.post('/tour/sessions/' + id + '/report', null, {
       headers: token ? { 'X-Session-Token': token } : undefined,
+      timeout: 8000,
+      retries: 0,
     })
   },
 
   getReport: function(id, token) {
     return req.get('/tour/sessions/' + id + '/report', {
       headers: token ? { 'X-Session-Token': token } : undefined,
+      timeout: 5000,
+      retries: 0,
     })
   },
 
@@ -323,8 +332,13 @@ function normalizeExhibit(raw) {
 }
 
 const exhibitsApi = {
-  list: function(params) {
-    return req.get('/exhibits', { data: _clean(params || {}), retries: 1 })
+  list: function(params, options) {
+    var opt = options || {}
+    return req.get('/exhibits', {
+      data: _clean(params || {}),
+      timeout: opt.timeout || 3000,
+      retries: opt.retries == null ? 0 : opt.retries,
+    })
   },
 
   get: function(id) {
@@ -332,15 +346,23 @@ const exhibitsApi = {
   },
 
   search: function(keyword) {
-    return req.get('/exhibits', { data: _clean({ search: keyword, limit: 20 }), retries: 1 })
+    return req.get('/exhibits', {
+      data: _clean({ search: keyword, limit: 20 }),
+      timeout: 3000,
+      retries: 0,
+    })
   },
 
   listByHall: function(hall) {
-    return req.get('/exhibits', { data: _clean({ hall: hall, limit: 50 }), retries: 1 })
+    return req.get('/exhibits', {
+      data: _clean({ hall: hall, limit: 50 }),
+      timeout: 3000,
+      retries: 0,
+    })
   },
 
   listHalls: function() {
-    return req.get('/exhibits/halls/list', { retries: 1 })
+    return req.get('/exhibits/halls/list', { timeout: 3000, retries: 0 })
   },
 }
 

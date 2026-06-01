@@ -54,6 +54,73 @@
   color: #5A3E2B;
 }
 
+/* ── Loading / skeleton ────────────────────────────────────────────────────── */
+
+.route-skeleton {
+  padding: 8rpx 0 44rpx;
+}
+
+.skeleton-card {
+  background: #F5F0E8;
+  border-radius: 16rpx;
+  padding: 30rpx 32rpx;
+  margin-bottom: 36rpx;
+}
+
+.skeleton-line {
+  height: 22rpx;
+  border-radius: 100rpx;
+  background: linear-gradient(90deg, #EDE3D6 0%, #F9F6F1 50%, #EDE3D6 100%);
+  background-size: 240% 100%;
+  animation: skeleton-shimmer 1.4s ease-in-out infinite;
+  margin-bottom: 18rpx;
+}
+
+.skeleton-line-title {
+  width: 55%;
+  height: 30rpx;
+}
+
+.skeleton-line-short {
+  width: 72%;
+  margin-bottom: 0;
+}
+
+.skeleton-route {
+  display: flex;
+  align-items: center;
+  background: #F9F6F1;
+  border: 2rpx solid #EDD8B8;
+  border-radius: 16rpx;
+  padding: 42rpx 34rpx;
+}
+
+.skeleton-dot {
+  width: 56rpx;
+  height: 56rpx;
+  border-radius: 50%;
+  background: #EDE3D6;
+  animation: skeleton-pulse 1.4s ease-in-out infinite;
+}
+
+.skeleton-rail {
+  flex: 1;
+  height: 4rpx;
+  margin: 0 12rpx;
+  border-radius: 100rpx;
+  background: #E8D9C8;
+}
+
+@keyframes skeleton-shimmer {
+  0%   { background-position: 100% 0; }
+  100% { background-position: -100% 0; }
+}
+
+@keyframes skeleton-pulse {
+  0%, 100% { opacity: 0.55; }
+  50%      { opacity: 1; }
+}
+
 /* ── Stats row ──────────────────────────────────────────────────────────────── */
 
 .stats-row {

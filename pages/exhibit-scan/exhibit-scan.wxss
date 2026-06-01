@@ -51,6 +51,17 @@
   padding: 4rpx 8rpx;
 }
 
+.data-notice {
+  background: #FFF8EF;
+  border-left: 6rpx solid #C4845A;
+  color: #8A6E55;
+  font-size: 24rpx;
+  line-height: 1.6;
+  padding: 18rpx 22rpx;
+  margin: -8rpx 0 28rpx;
+  border-radius: 0 14rpx 14rpx 0;
+}
+
 /* ── Exhibit list ─────────────────────────────────────────────────────────── */
 
 .exhibit-list {

@@ -94,7 +94,7 @@ var HALLS_MAP = {
   },
 }
 
-var DEFAULT_ORDER = ['basic', 'site', 'kiln', 'workshop', 'banpoGirl', 'temp1', 'temp2', 'education', 'peony']
+var DEFAULT_ORDER = ['basic', 'site', 'kiln', 'workshop', 'banpoGirl', 'education', 'peony', 'temp1', 'temp2']
 var LEGACY_HALL_SLUGS = {
   'relic-hall': 'basic-exhibition-hall',
   'pottery-spirit-hall': 'basic-exhibition-hall',

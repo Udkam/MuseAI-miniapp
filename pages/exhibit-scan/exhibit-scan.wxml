@@ -21,6 +21,10 @@
     </view>
   </view>
 
+  <view wx:if="{{dataNotice}}" class="data-notice">
+    <text>{{dataNotice}}</text>
+  </view>
+
   <!-- Loading -->
   <view wx:if="{{loading}}" class="state-wrap">
     <text class="text-muted text-sm">加载展品中…</text>
@@ -51,8 +55,8 @@
   <!-- Empty state -->
   <view wx:elif="{{!loading}}" class="state-wrap">
     <text class="empty-icon">🔍</text>
-    <text class="empty-text text-muted">没有找到相关展品</text>
-    <text class="text-muted text-sm" style="display:block;margin-top:8rpx;">换个关键词试试</text>
+    <text class="empty-text text-muted">没有找到匹配展项</text>
+    <text class="text-muted text-sm" style="display:block;margin-top:8rpx;">可以换成“陶器”“房屋”“墓葬”等关键词</text>
   </view>
 
 </view>

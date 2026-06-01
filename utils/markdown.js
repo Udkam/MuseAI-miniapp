@@ -49,6 +49,31 @@ function parseInline(rawText) {
   return segments.length ? segments : [{ text: rawText, bold: false, code: false }]
 }
 
+function needsAsciiSpace(left, right) {
+  return /[A-Za-z0-9]$/.test(left || '') && /^[A-Za-z0-9]/.test(right || '')
+}
+
+function lastSegmentText(segments) {
+  if (!segments || !segments.length) return ''
+  return segments[segments.length - 1].text || ''
+}
+
+function appendSoftLine(segments, rawText) {
+  if (!segments || !segments.length) return parseInline(rawText)
+  if (needsAsciiSpace(lastSegmentText(segments), rawText)) {
+    segments.push({ text: ' ', bold: false, code: false })
+  }
+  return segments.concat(parseInline(rawText))
+}
+
+function joinSoftLines(lines) {
+  var segments = []
+  lines.forEach(function (line) {
+    segments = appendSoftLine(segments, line)
+  })
+  return segments
+}
+
 function parseMarkdown(mdText) {
   if (!mdText) return []
 
@@ -56,8 +81,19 @@ function parseMarkdown(mdText) {
   var idCounter = 0
   var lines = mdText.replace(/\r\n/g, '\n').split('\n')
   var listBuffer = null  // { ordered: bool, start: number, items: Segment[][] }
+  var paragraphLines = []
   var orderedCounter = 1
   var orderedSeriesOpen = false
+
+  function flushParagraph() {
+    if (!paragraphLines.length) return
+    blocks.push({
+      type: 'paragraph',
+      id: idCounter++,
+      segments: joinSoftLines(paragraphLines),
+    })
+    paragraphLines = []
+  }
 
   function flushList() {
     if (!listBuffer) return
@@ -77,6 +113,7 @@ function parseMarkdown(mdText) {
     // Heading: # / ## / ###
     var headingMatch = trimmed.match(/^(#{1,3})\s+(.+)$/)
     if (headingMatch) {
+      flushParagraph()
       flushList()
       orderedCounter = 1
       orderedSeriesOpen = false
@@ -92,6 +129,7 @@ function parseMarkdown(mdText) {
     // Unordered list: - / * / +
     var ulMatch = trimmed.match(/^[-*+]\s+(.+)$/)
     if (ulMatch) {
+      flushParagraph()
       if (listBuffer && listBuffer.ordered) flushList()
       orderedCounter = 1
       orderedSeriesOpen = false
@@ -103,6 +141,7 @@ function parseMarkdown(mdText) {
     // Ordered list: 1. / 2. / ...
     var olMatch = trimmed.match(/^(\d+)\.\s+(.+)$/)
     if (olMatch) {
+      flushParagraph()
       if (listBuffer && !listBuffer.ordered) flushList()
       if (!listBuffer) {
         var rawStart = parseInt(olMatch[1], 10) || 1
@@ -118,19 +157,21 @@ function parseMarkdown(mdText) {
 
     // Empty line → flush list, don't create a block
     if (trimmed === '') {
+      flushParagraph()
       flushList()
       continue
     }
 
-    // Plain paragraph line
-    flushList()
-    blocks.push({
-      type: 'paragraph',
-      id: idCounter++,
-      segments: parseInline(trimmed),
-    })
+    // Single newlines are Markdown soft breaks, not forced paragraph breaks.
+    if (listBuffer && listBuffer.items.length) {
+      var lastIndex = listBuffer.items.length - 1
+      listBuffer.items[lastIndex] = appendSoftLine(listBuffer.items[lastIndex], trimmed)
+    } else {
+      paragraphLines.push(trimmed)
+    }
   }
 
+  flushParagraph()
   flushList()
 
   // Final fallback: if nothing parsed, return whole text as one paragraph

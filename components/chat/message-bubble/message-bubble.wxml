@@ -2,17 +2,17 @@
   <view class="bubble {{role}}{{isError ? ' error' : ''}}">
 
     <!-- User message: always plain text -->
-    <text wx:if="{{role === 'user'}}" class="bubble-text">{{content}}</text>
+    <text wx:if="{{role === 'user'}}" class="bubble-text" selectable="{{true}}" user-select="{{true}}">{{content}}</text>
 
     <!-- Assistant message with Markdown blocks -->
     <view wx:elif="{{role === 'assistant' && blocks.length > 0}}" class="md-body">
       <block wx:for="{{blocks}}" wx:key="id" wx:for-item="blk">
 
         <!-- Headings h1 / h2 / h3 -->
-        <view wx:if="{{blk.type === 'heading'}}" class="md-h md-h{{blk.level}}">{{blk.text}}</view>
+        <text wx:if="{{blk.type === 'heading'}}" class="md-h md-h{{blk.level}}" selectable="{{true}}" user-select="{{true}}">{{blk.text}}</text>
 
         <!-- Paragraph: inline segments (bold / code / plain) -->
-        <view wx:elif="{{blk.type === 'paragraph'}}" class="md-p">
+        <text wx:elif="{{blk.type === 'paragraph'}}" class="md-p" selectable="{{true}}" user-select="{{true}}">
           <text
             wx:for="{{blk.segments}}"
             wx:key="text"
@@ -20,7 +20,7 @@
             wx:for-item="seg"
             class="md-seg{{seg.bold ? ' md-bold' : ''}}{{seg.code ? ' md-code' : ''}}"
           >{{seg.text}}</text>
-        </view>
+        </text>
 
         <!-- List: unordered bullet • or ordered 1. 2. -->
         <view wx:elif="{{blk.type === 'list'}}" class="md-list">
@@ -32,7 +32,7 @@
             class="md-li"
           >
             <text class="md-bullet">{{blk.ordered ? ((blk.start || 1) + li)+'.' : '•'}}</text>
-            <view class="md-li-body">
+            <text class="md-li-body" selectable="{{true}}" user-select="{{true}}">
               <text
                 wx:for="{{listItem}}"
                 wx:key="text"
@@ -40,7 +40,7 @@
                 wx:for-item="seg2"
                 class="md-seg{{seg2.bold ? ' md-bold' : ''}}{{seg2.code ? ' md-code' : ''}}"
               >{{seg2.text}}</text>
-            </view>
+            </text>
           </view>
         </view>
 
@@ -48,9 +48,12 @@
     </view>
 
     <!-- Fallback: no blocks (empty content or user msg edge case) -->
-    <text wx:else class="bubble-text">{{content}}</text>
+    <text wx:else class="bubble-text" selectable="{{true}}" user-select="{{true}}">{{content}}</text>
 
     <view wx:if="{{role === 'assistant' && isStreaming}}" class="typing-cursor"></view>
+    <view wx:if="{{role === 'assistant' && content && !isStreaming}}" class="bubble-copy" bindtap="copyContent">
+      <text class="bubble-copy-text">复制</text>
+    </view>
 
   </view>
 </view>

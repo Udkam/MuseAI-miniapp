@@ -129,12 +129,13 @@ function _makeEmptyTour() {
     currentHall:       null,
     currentExhibitId:  null,
     currentExhibit:    null,   // full exhibit object; set by exhibit-detail before goDeeper
+    aiConversationCount: 0,
     visitedHalls:      [],
     visitedExhibitIds: [],
     pendingEvents:     [],
     // Onboarding extras (set by Stage 8G intent card flow)
     intentText:         null,
-    preferredHallOrder: ['basic', 'site', 'kiln', 'workshop', 'banpoGirl', 'temp1', 'temp2', 'education', 'peony'],
+    preferredHallOrder: ['basic', 'site', 'kiln', 'workshop', 'banpoGirl', 'education', 'peony', 'temp1', 'temp2'],
     timeBudget:         null,
     focusId:            null,
     focusTitle:         null,
@@ -148,6 +149,7 @@ function _makeEmptyTour() {
 
 var _tour = _makeEmptyTour()
 var TOUR_SESSION_RESUME_MAX_AGE_MS = 12 * 60 * 60 * 1000
+var TOUR_SESSION_RESUME_MIN_AI_TURNS = 5
 
 function _isStoredTourSessionResumable(stored) {
   if (!stored || !stored.sessionId) return false
@@ -184,6 +186,7 @@ function _hydrateStoredTour() {
     if (!_tour.sessionToken && stored.sessionToken) {
       _tour.sessionToken = stored.sessionToken
     }
+    _tour.aiConversationCount = Number(stored.aiConversationCount || 0)
   }
 
   if (!_tour.currentHall) {
@@ -259,6 +262,23 @@ function setTourSession(param) {
   _tour.sessionId    = param.sessionId    || null
   _tour.sessionToken = param.sessionToken || null
   storage.setTourSession({ sessionId: _tour.sessionId, sessionToken: _tour.sessionToken })
+  var stored = storage.getTourSession ? storage.getTourSession() : null
+  _tour.aiConversationCount = stored ? Number(stored.aiConversationCount || 0) : 0
+}
+
+function incrementAiConversationCount() {
+  if (!_tour.sessionId) return 0
+  _tour.aiConversationCount = Number(_tour.aiConversationCount || 0) + 1
+  storage.set(STORAGE_KEYS.TOUR_AI_CONVERSATION_COUNT, _tour.aiConversationCount)
+  return _tour.aiConversationCount
+}
+
+function hasResumableTourSession(minTurns) {
+  var required = minTurns == null ? TOUR_SESSION_RESUME_MIN_AI_TURNS : minTurns
+  _hydrateStoredTour()
+  var stored = storage.getTourSession ? storage.getTourSession() : null
+  if (!_isStoredTourSessionResumable(stored)) return false
+  return Number(stored.aiConversationCount || 0) >= required
 }
 
 /**
@@ -279,7 +299,7 @@ function setTourSession(param) {
 function setOnboardingExtras(opts) {
   var o = opts || {}
   if (o.intentText         !== undefined) _tour.intentText         = o.intentText         || null
-  if (o.preferredHallOrder !== undefined) _tour.preferredHallOrder = o.preferredHallOrder || ['basic', 'site', 'kiln', 'workshop', 'banpoGirl', 'temp1', 'temp2', 'education', 'peony']
+  if (o.preferredHallOrder !== undefined) _tour.preferredHallOrder = o.preferredHallOrder || ['basic', 'site', 'kiln', 'workshop', 'banpoGirl', 'education', 'peony', 'temp1', 'temp2']
   if (o.timeBudget         !== undefined) _tour.timeBudget         = o.timeBudget         || null
   if (o.focusId            !== undefined) _tour.focusId            = o.focusId            || null
   if (o.focusTitle         !== undefined) _tour.focusTitle         = o.focusTitle         || null
@@ -328,6 +348,49 @@ function getTourState() {
 
 // ─── Exhibit context ───────────────────────────────────────────────────────
 
+function inferDiscussionObjectKind(exhibit) {
+  var ex = exhibit || {}
+  var text = [
+    ex.objectKind || ex.kind || '',
+    ex.category || '',
+    ex.name || '',
+    ex.description || '',
+  ].join(' ')
+
+  if (/房屋|房址|遗迹|遗址|墓葬|壕沟|窑址|灶址|柱洞|地层|灰坑|作坊|居址|聚落/.test(text)) {
+    return '遗迹'
+  }
+  if (/陶|盆|瓶|罐|钵|器|石器|骨器|工具|饰品|纹|残片|器物/.test(text)) {
+    return '器物'
+  }
+  if (/图|模型|复原|照片|展板|说明|资料|示意/.test(text)) {
+    return '资料'
+  }
+  if (/雕塑|园|中心|空间|展厅/.test(text)) {
+    return '空间'
+  }
+  return '展项'
+}
+
+function buildObjectPrompt(kind, name, intent) {
+  var n = name ? '“' + name + '”' : '这个' + kind
+  if (intent === 'details') {
+    if (kind === '遗迹') return '请带我观察' + n + '：哪些是现场能看到的遗存，哪些只是合理推测？'
+    if (kind === '资料') return n + '里最值得抓住的关键信息是什么？它能帮助我理解哪个半坡问题？'
+    return '请带我观察' + n + '的关键细节：材料、形态、痕迹或纹样里哪些最能说明问题？'
+  }
+  if (intent === 'function') {
+    if (kind === '遗迹') return n + '在半坡聚落中可能承担什么功能？我们能从哪些现象判断？'
+    if (kind === '资料') return n + '和半坡人的生活、生产或信仰有什么关系？'
+    if (kind === '空间') return n + '为什么安排在这里？它和参观路线里的其他内容有什么关系？'
+    return n + '可能怎么使用？哪些痕迹或形态能支持这个判断？'
+  }
+  if (kind === '遗迹') return n + '和周围的房址、墓葬、壕沟或作坊之间有什么关系？'
+  if (kind === '资料') return n + '可以和展厅里的哪些实物或遗迹互相印证？'
+  if (kind === '空间') return n + '适合帮我复盘前面哪些观察？'
+  return n + '能和展厅里哪些对象放在一起比较？比较后能看出什么？'
+}
+
 /**
  * Store the exhibit currently being discussed so buildStyledPrompt can inject
  * its metadata into every message while the user is in exhibit-focus mode.
@@ -343,6 +406,7 @@ function setCurrentExhibit(exhibit) {
     hallDisplay: exhibit.hallDisplay || banpoHalls.getHallDisplayName(exhibit.hall) || '',
     era:         exhibit.era         || '',
     category:    exhibit.category    || '',
+    objectKind:  exhibit.objectKind  || exhibit.kind || inferDiscussionObjectKind(exhibit),
     description: exhibit.description || exhibit.summary || exhibit.desc || '',
     tags:        exhibit.tags        || [],
   }
@@ -369,12 +433,17 @@ function getCurrentExhibit() {
  */
 function addTourEvent(event) {
   var hall = event.hall || _tour.currentHall || null
+  var eventType = event.eventType || event.event_type || 'unknown'
+  var hallSlug = hall ? _normalizeHallForStorage(hall) : null
   var entry = {
-    event_type:       event.eventType       || event.event_type       || 'unknown',
+    event_type:       eventType,
     exhibit_id:       event.exhibitId        || event.exhibit_id        || null,
-    hall:             hall ? _normalizeHallForStorage(hall) : null,
+    hall:             hallSlug,
     duration_seconds: event.durationSeconds  || event.duration_seconds  || null,
     metadata:         event.metadata         || {},
+  }
+  if (eventType === 'hall_enter' && hallSlug && _tour.visitedHalls.indexOf(hallSlug) === -1) {
+    _tour.visitedHalls = _tour.visitedHalls.concat(hallSlug)
   }
   _tour.pendingEvents = _tour.pendingEvents.concat(entry)
   _persistPendingEvents()
@@ -612,32 +681,38 @@ function generateGuideSuggestions(opts) {
 
   // ── Exhibit mode: suggestions around the selected exhibit ─────────────────
   if (exhibit) {
-    // 1. "它有什么用？" — always first
+    var objectKind = exhibit.objectKind || inferDiscussionObjectKind(exhibit)
+    var objectName = exhibit.name || ''
+
     suggestions.push({
-      id: _id(), type: 'observation_task', icon: '❓', title: '它有什么用？',
-      actionType: 'ask', payload: { prompt: '它有什么用？' },
+      id: _id(), type: 'observation_task', icon: '🔎', title: '看关键细节',
+      actionType: 'ask', payload: { prompt: buildObjectPrompt(objectKind, objectName, 'details') },
     })
 
-    // 2. Category-specific observation task
     var cat = exhibit.category || ''
-    var obsTitle = '观察结构细节'
-    var obsPmt   = '这件器物有什么独特的结构或工艺细节值得仔细观察？'
+    var obsTitle = objectKind === '遗迹' ? '判断空间作用' : (objectKind === '资料' ? '读懂信息' : '问用途和证据')
+    var obsPmt   = buildObjectPrompt(objectKind, objectName, 'function')
     if (cat.indexOf('彩陶') >= 0) {
-      obsTitle = '了解纹样含义'
-      obsPmt   = '"' + exhibit.name + '"上的纹样图案有什么含义或象征？'
+      obsTitle = '读纹样证据'
+      obsPmt   = '请围绕“' + objectName + '”上的纹样说明：哪些能直接观察，哪些属于可能解释？'
     } else if (cat.indexOf('汲水') >= 0 || cat.indexOf('汲') >= 0) {
       obsTitle = '了解使用原理'
-      obsPmt   = '"' + exhibit.name + '"是如何使用的？设计有什么独特之处？'
+      obsPmt   = '“' + objectName + '”可能怎样使用？它的形态设计提供了哪些证据？'
     } else if (cat.indexOf('骨') >= 0 || cat.indexOf('石') >= 0) {
       obsTitle = '了解制作工艺'
-      obsPmt   = '"' + exhibit.name + '"是怎么制作的？需要哪些技艺？'
+      obsPmt   = '“' + objectName + '”可能怎样制作？能从哪些加工痕迹判断？'
     }
     suggestions.push({
       id: _id(), type: 'observation_task', icon: '🔎', title: obsTitle,
       actionType: 'ask', payload: { prompt: obsPmt },
     })
 
-    // 3. Related exhibit: highest importance in same hall, not current
+    suggestions.push({
+      id: _id(), type: 'comparison', icon: '🧭', title: '放回展厅看',
+      actionType: 'ask', payload: { prompt: buildObjectPrompt(objectKind, objectName, 'relation') },
+    })
+
+    // Related object: highest importance in same hall, not current
     var related = null
     for (var ri = 0; ri < exhibits.length; ri++) {
       var re = exhibits[ri]
@@ -647,19 +722,18 @@ function generateGuideSuggestions(opts) {
     if (related) {
       suggestions.push({
         id: _id(), type: 'related_exhibit', icon: '🏺',
-        title: '看看：' + related.name,
+        title: '对照：' + related.name,
         actionType: 'open_exhibit',
         payload: { exhibitId: related.id, exhibitName: related.name },
       })
     }
 
-    // 4. Back to exhibit list
     suggestions.push({
-      id: _id(), type: 'next_step', icon: '←', title: '返回展品列表',
+      id: _id(), type: 'next_step', icon: '←', title: '返回列表',
       actionType: 'navigate_back', payload: {},
     })
 
-    return suggestions
+    return suggestions.slice(0, 4)
   }
 
   // ── Hall mode: suggestions based on hall + persona ─────────────────────────
@@ -760,7 +834,9 @@ function buildClientContext(rawInput, opts) {
   }
 
   if (ex) {
-    lines.push('[当前展品]')
+    var exKindForContext = ex.objectKind || inferDiscussionObjectKind(ex)
+    lines.push('[当前讨论对象]')
+    lines.push('对象类型：' + exKindForContext)
     if (ex.name) lines.push('名称：' + ex.name)
     if (ex.hallDisplay || ex.hall) lines.push('展厅：' + (ex.hallDisplay || ex.hall))
     if (ex.category) lines.push('类别：' + ex.category)
@@ -854,12 +930,14 @@ function buildStyledPrompt(rawInput, opts) {
   // ── 3. Exhibit context — disambiguation only, no forced answer structure ─
   if (hasEx) {
     var exName = ex.name || ''
-    var ctx    = ['[当前展品上下文｜仅用于指代消歧]']
-    ctx.push('当前用户正在查看的展品是：' + exName)
+    var exKind = ex.objectKind || inferDiscussionObjectKind(ex)
+    var ctx    = ['[当前讨论对象上下文｜仅用于指代消歧]']
+    ctx.push('当前用户正在讨论的对象类型是：' + exKind)
+    ctx.push('当前用户正在讨论的对象是：' + exName)
     if (exName) {
-      ctx.push('当用户说"它""这个""这件展品""这里的东西"等指代词时，优先理解为：' + exName + '。')
-      ctx.push('除非用户明确提到其他展品，不要把这些指代词解释成其他展品。')
-      ctx.push('检索材料若出现其他展品，只能作为比较，不能替代当前展品。')
+      ctx.push('当用户说"它""这个""这里的东西""这处遗迹""这件器物"等指代词时，优先理解为：' + exName + '。')
+      ctx.push('除非用户明确提到其他对象，不要把这些指代词解释成别的内容。')
+      ctx.push('检索材料若出现其他对象，只能作为比较，不能替代当前对象。')
     }
     if (ex.hallDisplay || ex.hall)  ctx.push('展厅：' + (ex.hallDisplay || ex.hall))
     if (ex.era)                     ctx.push('时代：' + ex.era)
@@ -923,9 +1001,10 @@ function buildStyledPrompt(rawInput, opts) {
   // ── 4. Exhibit focus hint — respond to the specific question asked, no fixed structure ─
   if (hasEx) {
     parts.push([
-      '[展品问答提示]',
-      '用户正在围绕展品"' + (ex.name || '') + '"提问，请聚焦该展品直接回答用户的具体问题。',
-      '不要先泛泛介绍展厅，也不要把回答扩展到无关展品。',
+      '[对象问答提示]',
+      '用户正在围绕当前对象"' + (ex.name || '') + '"提问，请聚焦该对象直接回答用户的具体问题。',
+      '这个对象可能是器物、遗迹、资料或空间，不要默认称为“展品”。',
+      '不要先泛泛介绍展厅，也不要把回答扩展到无关对象。',
       '根据用户实际问题作答：问定义就解释定义，问价值就解释价值，问细节就给观察点，不要强行回答用户没问的内容。',
       '---',
     ].join('\n'))
@@ -950,7 +1029,7 @@ function buildStyledPrompt(rawInput, opts) {
     '[对话语气约束]',
     '你正在和一名手机小程序用户进行一对一博物馆导览对话。',
     '禁止使用"各位观众""大家请看""各位游客""同学们""朋友们"等群体讲解/广播式称呼。',
-    '使用"你""我们可以看""这件展品"等自然的一对一口吻。',
+    '使用"你""我们可以看""这个对象"等自然的一对一口吻；只有确认是具体器物时才说"这件器物"。',
     '回答像博物馆AI导览员在和用户单独交流，不是在做报告或广播讲解。',
     '当前导览风格提示：' + toneHint,
     '以上风格只应自然融入回答，不要变成固定模板；用户问什么，就先回答什么。',
@@ -1041,6 +1120,8 @@ module.exports = {
   // Session lifecycle
   createLocalTourState,
   setTourSession,
+  incrementAiConversationCount,
+  hasResumableTourSession,
   updateTourState,
   getTourState,
   clearTour,

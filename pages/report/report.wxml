@@ -1,42 +1,22 @@
-<!-- ── Loading state ─────────────────────────────────────────────────────── -->
 <view wx:if="{{isLoading}}" class="report-loading">
-  <text class="report-loading-icon">📊</text>
+  <text class="report-loading-icon">📋</text>
   <view class="report-loading-dots">
     <view class="rdot"></view>
     <view class="rdot"></view>
     <view class="rdot"></view>
   </view>
-  <text class="report-loading-text">正在生成你的专属报告…</text>
+  <text class="report-loading-text">正在整理你的游览记录…</text>
 </view>
 
-<!-- ── Report content ─────────────────────────────────────────────────────── -->
 <scroll-view wx:if="{{isReady}}" scroll-y class="report-scroll">
 <view class="page-wrap report">
 
-  <!-- Header -->
   <view class="report-header">
     <text class="report-badge-icon">📜</text>
     <text class="report-title">{{reportTitle}}</text>
     <text class="report-persona text-clay">身份：{{persona}}</text>
   </view>
 
-  <!-- One-liner gold quote -->
-  <view wx:if="{{oneLiner}}" class="one-liner-card">
-    <text class="one-liner-mark">"</text>
-    <text class="one-liner-text">{{oneLiner}}</text>
-    <text class="one-liner-mark one-liner-mark-right">"</text>
-  </view>
-
-  <!-- Identity tags -->
-  <view wx:if="{{identityTags.length > 0}}" class="identity-tags-row">
-    <text
-      wx:for="{{identityTags}}"
-      wx:key="*this"
-      class="identity-tag"
-    >{{item}}</text>
-  </view>
-
-  <!-- Stats grid -->
   <view class="stats-grid">
     <view class="stat-item">
       <text class="stat-num">{{stats.halls}}</text>
@@ -44,11 +24,11 @@
     </view>
     <view class="stat-item">
       <text class="stat-num">{{stats.exhibits}}</text>
-      <text class="stat-label text-muted">展品</text>
+      <text class="stat-label text-muted">展项</text>
     </view>
     <view class="stat-item">
       <text class="stat-num">{{stats.messages}}</text>
-      <text class="stat-label text-muted">互动</text>
+      <text class="stat-label text-muted">问题</text>
     </view>
     <view class="stat-item">
       <text class="stat-num">{{stats.duration}}</text>
@@ -56,47 +36,78 @@
     </view>
   </view>
 
-  <!-- Radar / trait analysis (bar chart) -->
-  <view wx:if="{{radarBars.length > 0}}" class="card">
-    <text class="section-label text-clay text-bold">游览特质分析</text>
-    <view class="radar-bars">
-      <view
-        wx:for="{{radarBars}}"
-        wx:key="label"
-        class="radar-bar-row"
-      >
-        <text class="radar-bar-label">{{item.label}}</text>
-        <view class="radar-bar-track">
-          <view class="radar-bar-fill" style="width: {{item.barWidth}}%;"></view>
-        </view>
-        <text class="radar-bar-value">{{item.value}}</text>
+  <view class="card summary-card">
+    <text class="section-label text-clay text-bold">本次游览总结</text>
+    <text class="summary-text">{{journeySummary}}</text>
+  </view>
+
+  <view wx:if="{{visitedHallCards.length > 0}}" class="card">
+    <text class="section-label text-clay text-bold">到访展厅</text>
+    <view class="hall-card-list">
+      <view wx:for="{{visitedHallCards}}" wx:key="name" class="hall-summary-row">
+        <text class="hall-summary-name">{{item.name}}</text>
+        <text class="hall-summary-note">{{item.note}}</text>
       </view>
     </view>
   </view>
 
-  <!-- Highlights -->
-  <view wx:if="{{highlights.length > 0}}" class="card">
-    <text class="section-label text-clay text-bold">本次游览亮点</text>
+  <view class="card">
+    <text class="section-label text-clay text-bold">你的提问线索</text>
+    <text class="summary-text">{{questionSummary}}</text>
+    <view wx:if="{{questionSamples.length > 0}}" class="question-list">
+      <view wx:for="{{questionSamples}}" wx:key="*this" class="question-row">
+        <text class="question-mark">问</text>
+        <text class="question-text">{{item}}</text>
+      </view>
+    </view>
+  </view>
+
+  <view wx:if="{{takeaways.length > 0}}" class="card">
+    <text class="section-label text-clay text-bold">可带走的结论</text>
     <view class="highlight-list">
-      <view
-        wx:for="{{highlights}}"
-        wx:key="*this"
-        class="highlight-row"
-      >
+      <view wx:for="{{takeaways}}" wx:key="*this" class="highlight-row">
         <text class="highlight-dot text-gold">◆</text>
         <text class="highlight-text">{{item}}</text>
       </view>
     </view>
   </view>
 
-  <!-- Fallback notice (shown only when local demo data is used after API error) -->
-  <view wx:if="{{loadError}}" class="error-notice">
-    <text class="error-notice-text">⚠ 报告生成失败，当前显示为演示数据</text>
+  <view wx:if="{{nextSuggestions.length > 0}}" class="card">
+    <text class="section-label text-clay text-bold">下一步建议</text>
+    <view class="highlight-list">
+      <view wx:for="{{nextSuggestions}}" wx:key="*this" class="highlight-row">
+        <text class="highlight-dot text-gold">◆</text>
+        <text class="highlight-text">{{item}}</text>
+      </view>
+    </view>
   </view>
 
-  <!-- Actions -->
+  <view wx:if="{{reviewChecklist.length > 0}}" class="card">
+    <text class="section-label text-clay text-bold">复盘清单</text>
+    <view class="review-list">
+      <view wx:for="{{reviewChecklist}}" wx:key="label" class="review-row">
+        <text class="review-label">{{item.label}}</text>
+        <text class="review-text">{{item.text}}</text>
+      </view>
+    </view>
+  </view>
+
+  <view wx:if="{{highlights.length > 0}}" class="card compact-card">
+    <text class="section-label text-clay text-bold">记录摘要</text>
+    <view class="highlight-list">
+      <view wx:for="{{highlights}}" wx:key="*this" class="highlight-row">
+        <text class="highlight-dot text-gold">◆</text>
+        <text class="highlight-text">{{item}}</text>
+      </view>
+    </view>
+  </view>
+
+  <view wx:if="{{dataNotice || loadError}}" class="error-notice">
+    <text class="error-notice-text">{{dataNotice}}</text>
+  </view>
+
   <view class="report-actions">
-    <button class="btn-primary"  bindtap="shareReport">分享报告</button>
+    <button class="btn-primary" bindtap="shareReport">分享报告</button>
     <button class="btn-secondary" style="margin-top:20rpx;" bindtap="goHome">返回首页</button>
   </view>
 

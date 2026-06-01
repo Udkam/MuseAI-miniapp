@@ -33,6 +33,7 @@ const STORAGE_KEYS = {
   TOUR_SESSION_TOKEN:    'tour_session_token',
   TOUR_SESSION_CREATED_AT: 'tour_session_created_at',
   TOUR_SESSION_SCHEMA_VERSION: 'tour_session_schema_version',
+  TOUR_AI_CONVERSATION_COUNT: 'tour_ai_conversation_count',
   TOUR_CACHE_SCHEMA_VERSION: 'tour_cache_schema_version',
   TOUR_PENDING_EVENTS:   'tour_pending_events',
   TOUR_CURRENT_HALL:     'tour_current_hall',

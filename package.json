@@ -1,7 +1,9 @@
 {
   "scripts": {
     "test:markdown": "node scripts/test-markdown.js",
-    "test:suggestions": "node scripts/test-guide-suggestions.js"
+    "test:suggestions": "node scripts/test-guide-suggestions.js",
+    "test:report": "node scripts/test-report-stats.js",
+    "test:all": "npm run test:markdown && npm run test:suggestions && npm run test:report"
   },
   "dependencies": {
     "tdesign-miniprogram": "^1.15.0"

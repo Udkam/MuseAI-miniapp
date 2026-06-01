@@ -31,4 +31,27 @@ assert.strictEqual(compact.length, 1)
 assert.strictEqual(compact[0].start, 1)
 assert.strictEqual(compact[0].items.length, 3)
 
+const softParagraph = parseMarkdown('**有节制的解释**\n，每一种都紧贴着证据')
+assert.strictEqual(softParagraph.length, 1)
+assert.strictEqual(softParagraph[0].type, 'paragraph')
+assert.deepStrictEqual(
+  softParagraph[0].segments.map(function (seg) { return { text: seg.text, bold: seg.bold } }),
+  [
+    { text: '有节制的解释', bold: true },
+    { text: '，每一种都紧贴着证据', bold: false },
+  ]
+)
+
+const continuedList = parseMarkdown('- **可能是图腾化的形象**\n：人和鱼的融合，很像共同表达。')
+assert.strictEqual(continuedList.length, 1)
+assert.strictEqual(continuedList[0].type, 'list')
+assert.strictEqual(continuedList[0].items.length, 1)
+assert.deepStrictEqual(
+  continuedList[0].items[0].map(function (seg) { return { text: seg.text, bold: seg.bold } }),
+  [
+    { text: '可能是图腾化的形象', bold: true },
+    { text: '：人和鱼的融合，很像共同表达。', bold: false },
+  ]
+)
+
 console.log('markdown parser checks passed')

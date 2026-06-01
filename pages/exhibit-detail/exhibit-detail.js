@@ -1,22 +1,35 @@
 const tourStore = require('../../store/tour')
 const api       = require('../../api/index')
+const banpoHalls = require('../../constants/banpo-halls')
 
 var MOCK_EXHIBITS = {
   '人面鱼纹盆': {
     id: 'mock-1', name: '人面鱼纹盆', category: '彩陶', era: '距今约6000年',
-    hall: '出土文物陈列区',
+    hall: 'basic-exhibition-hall', hallDisplay: '基本陈列展厅',
     description: '仰韶文化半坡类型彩陶的代表作。陶盆内壁绘有两组人面与鱼纹交错的纹样，人面额头绘鱼纹，嘴角伸出鱼，充满神秘的巫术意味，是研究半坡先民精神世界的重要实物。',
   },
   '尖底瓶': {
     id: 'mock-2', name: '尖底瓶', category: '汲水陶器', era: '距今约6000年',
-    hall: '出土文物陈列区',
+    hall: 'basic-exhibition-hall', hallDisplay: '基本陈列展厅',
     description: '半坡遗址最具特色的日用陶器之一。尖底设计利用水的浮力自动扶正，是新石器时代先民的巧妙发明，体现了半坡人高超的物理智慧。',
   },
 }
 
 var DEFAULT_EXHIBIT = {
-  id: '', name: '', category: '展品', era: '新石器时代',
-  hall: '半坡遗址', description: '关于此展品的详细介绍。',
+  id: '', name: '', category: '展项', objectKind: '展项', era: '新石器时代',
+  hall: 'basic-exhibition-hall', hallDisplay: '基本陈列展厅',
+  description: '该展项资料待馆方完整清单确认。你可以先围绕它的名称、所在展厅和现场观察向 MuseAI 追问。',
+}
+
+function buildFallbackExhibit(name) {
+  var state = tourStore.getTourState()
+  var hall = state.currentHall ? banpoHalls.normalizeHallToSlug(state.currentHall) : DEFAULT_EXHIBIT.hall
+  return Object.assign({}, DEFAULT_EXHIBIT, {
+    id: 'local-' + (name || 'unknown'),
+    name: name || '未知展项',
+    hall: hall,
+    hallDisplay: banpoHalls.getHallDisplayName(hall),
+  })
 }
 
 Page({
@@ -31,11 +44,20 @@ Page({
     var self = this
     var id   = options.id   ? decodeURIComponent(options.id)   : ''
     var name = options.name ? decodeURIComponent(options.name) : ''
+    var local = options.local === '1'
 
     this._enterAt = Date.now()
     wx.setNavigationBarTitle({ title: name || '展品详情' })
 
-    if (id) {
+    if (local) {
+      var cached = tourStore.getCurrentExhibit ? tourStore.getCurrentExhibit() : null
+      if (cached && (!name || cached.name === name)) {
+        self.setData({ exhibit: cached, loading: false })
+        wx.setNavigationBarTitle({ title: cached.name || '展项详情' })
+      } else {
+        self._useMock(name)
+      }
+    } else if (id) {
       api.exhibitsApi.get(id).then(function (res) {
         if (res.ok && res.data) {
           var ex = api.normalizeExhibit(res.data)
@@ -73,7 +95,7 @@ Page({
   },
 
   _useMock: function (name) {
-    var ex = MOCK_EXHIBITS[name] || Object.assign({}, DEFAULT_EXHIBIT, { name: name || '未知展品' })
+    var ex = MOCK_EXHIBITS[name] || buildFallbackExhibit(name)
     this.setData({ exhibit: ex, loading: false })
     wx.setNavigationBarTitle({ title: ex.name || '展品详情' })
   },

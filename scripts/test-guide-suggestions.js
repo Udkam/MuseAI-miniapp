@@ -54,6 +54,10 @@ storage[storageUtil.KEYS.TOUR_CACHE_SCHEMA_VERSION] = storageUtil.TOUR_CACHE_SCH
 reloadTourStore()
 assert.strictEqual(tourStore.getTourState().sessionId, 'fresh-session', 'fresh session cache should hydrate')
 assert.strictEqual(tourStore.getTourHeader()['X-Session-Token'], 'fresh-token', 'fresh session token should hydrate')
+assert.strictEqual(tourStore.hasResumableTourSession(), false, 'fresh session without enough AI turns should not show resume entry')
+storage[storageUtil.KEYS.TOUR_AI_CONVERSATION_COUNT] = 5
+reloadTourStore()
+assert.strictEqual(tourStore.hasResumableTourSession(), true, 'session with five AI turns should show resume entry')
 
 resetStorage()
 storage[storageUtil.KEYS.TOUR_SESSION_ID] = 'expired-session'
@@ -205,6 +209,35 @@ assert.ok(
   }),
   'exhibit-mode ceramic prompt should name the selected exhibit'
 )
+
+resetTour('student', '遗址保护大厅')
+const siteObject = {
+  id: 'local-site-1',
+  name: '地面圆形房屋遗迹',
+  category: '遗址遗存',
+  hall: 'site-protection-hall',
+  hallDisplay: '遗址保护大厅',
+}
+tourStore.setCurrentExhibit(siteObject)
+const siteSuggestions = askSuggestions(tourStore.generateGuideSuggestions({
+  currentHall: '遗址保护大厅',
+  currentExhibit: tourStore.getCurrentExhibit(),
+  exhibits: [],
+}))
+assert.ok(siteSuggestions.length >= 3, 'site object should expose neutral discussion suggestions')
+siteSuggestions.forEach(function (item) {
+  assert.strictEqual(item.payload.prompt.indexOf('这件展品'), -1, 'site-object prompt should not call an object 展品')
+  assert.strictEqual(item.payload.prompt.indexOf('这件器物'), -1, 'site-object prompt should not call a site relic 器物')
+})
+assert.ok(
+  siteSuggestions.some(function (item) {
+    return item.payload.prompt.indexOf('遗存') >= 0 || item.payload.prompt.indexOf('聚落') >= 0 || item.payload.prompt.indexOf('空间') >= 0
+  }),
+  'site-object prompt should use relic/site language'
+)
+const sitePrompt = tourStore.buildStyledPrompt('这个说明什么？', { recentMessages: null })
+assert.ok(sitePrompt.indexOf('[当前讨论对象上下文') >= 0, 'styled prompt should use neutral object context')
+assert.ok(sitePrompt.indexOf('对象类型是：遗迹') >= 0, 'styled prompt should infer site object kind')
 
 resetTour('artifact', HALLS[0])
 tourStore.setOnboardingExtras({
