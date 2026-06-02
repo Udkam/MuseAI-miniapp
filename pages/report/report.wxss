@@ -128,6 +128,36 @@
   line-height: 1.75;
 }
 
+.reflection-card {
+  background: #FFFDF9;
+}
+
+.reflection-row {
+  display: grid;
+  grid-template-columns: 84rpx 1fr;
+  gap: 18rpx;
+  padding: 18rpx 0;
+  border-top: 2rpx solid #F0E2D5;
+}
+
+.reflection-row:first-of-type {
+  border-top: 0;
+  padding-top: 0;
+}
+
+.reflection-label {
+  font-size: 24rpx;
+  font-weight: 700;
+  color: #C4845A;
+  line-height: 1.7;
+}
+
+.reflection-text {
+  font-size: 27rpx;
+  color: #5A3E2B;
+  line-height: 1.7;
+}
+
 .hall-card-list {
   display: flex;
   flex-direction: column;

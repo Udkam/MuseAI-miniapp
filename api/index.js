@@ -294,6 +294,19 @@ var EXHIBIT_ALIASES = {
   '镇馆之宝':      ['人面网纹彩陶盆'],
 }
 
+var NON_EXHIBIT_NAMES = {
+  '半坡人': true,
+  '生态环境': true,
+  '临展厅一当期主题': true,
+  '临展厅二当期主题': true,
+}
+
+function isDisplayableExhibitName(name) {
+  var n = String(name || '').trim()
+  if (!n) return false
+  return !NON_EXHIBIT_NAMES[n]
+}
+
 /**
  * Given a search keyword, return an array of canonical names to also search.
  * Returns [] if no alias match.
@@ -317,9 +330,11 @@ function resolveAliases(keyword) {
 function normalizeExhibit(raw) {
   if (!raw) return null
   var slug = raw.hall || raw.hall_name || ''
+  var name = raw.name || raw.title || '未知展品'
+  if (!isDisplayableExhibitName(name)) return null
   return {
     id:                raw.id                   || '',
-    name:              raw.name                 || raw.title || '未知展品',
+    name:              name,
     hall:              slug,
     hallDisplay:       hallSlugToName(slug),     // user-visible Chinese name
     category:          raw.category             || '',
@@ -459,6 +474,7 @@ module.exports = {
   HALL_SLUG_NAMES,
   HALL_NAME_SLUGS,
   EXHIBIT_ALIASES,
+  isDisplayableExhibitName,
   resolveAliases,
 
   healthApi,

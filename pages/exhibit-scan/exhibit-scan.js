@@ -21,7 +21,6 @@ function makeFallbackExhibit(id, hall, name, category, description, importance) 
 
 const FALLBACK_EXHIBITS_BY_HALL = {
   'basic-exhibition-hall': [
-    makeFallbackExhibit('basic-banpo-people', 'basic-exhibition-hall', '半坡人', '体质人类学', '通过头骨、肢骨和复原资料认识半坡先民的体质特征、寿命和劳动痕迹。', 5),
     makeFallbackExhibit('basic-site-plan', 'basic-exhibition-hall', '半坡遗址平面分布图', '遗址信息', '理解居住区、墓葬区、制陶区和壕沟等空间关系，是进入半坡叙事的基础。', 5),
     makeFallbackExhibit('basic-stone-tools', 'basic-exhibition-hall', '石器工具', '生产工具', '磨制石器反映半坡人的耕作、采集和加工活动。', 4),
     makeFallbackExhibit('basic-bone-tools', 'basic-exhibition-hall', '骨角器', '生产工具', '骨针、骨锥等器物能看到材料利用和手工技术。', 4),
@@ -70,7 +69,9 @@ const FALLBACK_EXHIBITS_BY_HALL = {
 }
 
 function cloneExhibits(list) {
-  return list.map(function (item) { return Object.assign({}, item) })
+  return list
+    .filter(function (item) { return api.isDisplayableExhibitName ? api.isDisplayableExhibitName(item.name) : true })
+    .map(function (item) { return Object.assign({}, item) })
 }
 
 function getFallbackExhibits(hallSlug) {
@@ -89,6 +90,7 @@ function dedupeExhibits(list) {
   const out = []
   ;(list || []).forEach(function (ex) {
     const key = ex && (ex.id || ex.name)
+    if (ex && api.isDisplayableExhibitName && !api.isDisplayableExhibitName(ex.name)) return
     if (!key || seen[key]) return
     seen[key] = true
     out.push(ex)

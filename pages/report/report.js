@@ -18,6 +18,45 @@ var FALLBACK_RADAR = [
   { label: '器物观察', value: 1, barWidth: 33 },
 ]
 
+var REFLECTION_TOPIC_LABELS = {
+  craft:      '器物工艺',
+  settlement: '聚落空间',
+  social:     '社会组织',
+  spiritual:  '精神文化',
+  life:       '日常生活',
+  evidence:   '证据推理',
+}
+
+var PERSONA_INITIAL_FOCUS = {
+  A: { key: 'evidence', text: '先看证据和推理过程' },
+  B: { key: 'evidence', text: '把观察整理成可复盘的研学记录' },
+  C: { key: 'social', text: '追问半坡与更大的历史问题' },
+  D: { key: 'craft', text: '从器物材料、器形、纹饰和工艺进入半坡' },
+  default: { key: 'evidence', text: '跟着现场证据形成判断' },
+}
+
+var TOPIC_KEYWORDS = {
+  craft:      ['陶', '器', '工艺', '纹', '材料', '制作', '烧制', '陶窑', '尖底瓶', '彩陶', '石器', '骨器', '工具', '器形', '用途', '痕迹'],
+  settlement: ['聚落', '房屋', '半地穴', '壕沟', '遗址', '空间', '布局', '作坊', '灶', '墓葬', '居住', '保护大厅'],
+  social:     ['社会', '组织', '分工', '规则', '共同体', '协作', '等级', '贫富', '身份', '公共', '权力', '资源', '秩序'],
+  spiritual:  ['精神', '信仰', '仪式', '审美', '象征', '人面', '鱼纹', '图案', '纹饰', '祭祀', '观念'],
+  life:       ['生活', '吃', '食物', '农业', '农耕', '居住', '日常', '生存', '采集', '狩猎', '儿童', '家庭'],
+  evidence:   ['证据', '推断', '不确定', '考古', '展签', '材料', '判断', '线索', '地层', '出土', '遗存'],
+}
+
+var HALL_TOPIC_WEIGHTS = {
+  'basic-exhibition-hall': { craft: 1, life: 1, evidence: 1 },
+  'site-protection-hall':  { settlement: 2, social: 1, evidence: 1 },
+  'kiln-hall':             { craft: 2, evidence: 1 },
+  'prehistoric-workshop':  { craft: 1, life: 1 },
+  'education-center':      { evidence: 2 },
+  'banpo-girl-sculpture':  { spiritual: 1, social: 1 },
+  'peony-garden':          { life: 1 },
+  'pottery-spirit-hall':   { craft: 2, spiritual: 1 },
+  'site-archaeology-hall': { settlement: 2, social: 1 },
+  'civilization-spark-hall': { evidence: 1, spiritual: 1 },
+}
+
 var HALL_NOTES = {
   'basic-exhibition-hall': '建立对半坡生活、器物和生产方式的基础认识。',
   'site-protection-hall': '把房屋、墓葬、壕沟等遗迹放回真实聚落空间中理解。',
@@ -34,49 +73,49 @@ var PERSONA_REPORT_COPY = {
   A: {
     title: '半坡考古观察报告',
     tags: ['考古研究员', '证据链', '现场观察'],
-    summaryPrefix: '你的路线更像一次小型田野观察：先确认遗迹和展品事实，再把问题放回证据链。',
+    summaryPrefix: '这次记录偏向考古观察：先看遗迹、展厅和可验证材料，再整理能够支撑判断的线索。',
     takeaways: [
-      '把“看到什么”和“能推断什么”分开记录，后续追问会更准确。',
-      '优先保留地层、房址、墓葬和器物使用痕迹这些可验证线索。',
+      '报告中最有价值的部分，是那些能从遗迹位置、出土材料或展品细节直接回到证据的问题。',
+      '半坡不是单件文物的集合，房址、墓葬、工具和器物共同构成了可验证的生活现场。',
     ],
-    next: ['补看一个未到访展厅，验证现有判断是否只来自单一材料。', '选一件器物追问“证据从哪里来”，训练证据链表达。'],
+    next: ['如果记录主要集中在一个展厅，结论仍更像局部观察；空间遗迹、器物和生产线索之间的关系还没有完全展开。'],
   },
   B: {
     title: '半坡研学记录报告',
     tags: ['研学记录员', '观察任务', '复盘笔记'],
-    summaryPrefix: '你的参观已经形成研学笔记的基本骨架：展厅、问题、证据点和下一步复盘方向。',
+    summaryPrefix: '这次记录偏向研学整理：展厅到访、提问和观察点会被整理成可复盘的笔记线索。',
     takeaways: [
-      '每个展厅保留一个关键词和一个问题，最适合整理成研学报告。',
-      '把现场观察写成“展品名称 + 看到的细节 + 它说明什么”，比只写感受更有用。',
+      '目前的报告价值在于把“看过哪些展厅”和“留下了哪些问题”连在一起，而不是只保留游览顺序。',
+      '当提问能落到一件展品、一处遗迹或一个生活场景上，研学记录会更像一份可复查的观察材料。',
     ],
-    next: ['回到最感兴趣的展厅，补记 3 个可拍照或可抄写的证据点。', '用“我原来以为...现在发现...”写一段研学反思。'],
+    next: ['如果展品记录为空，报告仍能总结路线和问题，但还缺少可引用的具体材料。'],
   },
   C: {
     title: '半坡历史追问报告',
     tags: ['历史追问者', '文明起源', '公共问题'],
-    summaryPrefix: '你的提问集中在半坡社会如何组织生活，以及这些遗存怎样进入今天的历史叙事。',
+    summaryPrefix: '这次记录偏向历史追问：重点不是把展品逐个看完，而是看半坡社会如何被遗存重新说明。',
     takeaways: [
-      '不要只问“是什么”，继续追问“为什么这样组织”“这对今天理解共同体有什么意义”。',
-      '把半坡放进农业、定居、手工业和公共协作的长时段变化中，会更有历史纵深。',
+      '半坡的历史意义会从定居、农业、手工业和公共协作之间显现出来。',
+      '当问题从“这是什么”转向“它说明了怎样的共同生活”，报告就开始具有公共史学的线索。',
     ],
-    next: ['围绕“聚落如何协作”继续看遗址保护大厅或教研中心。', '把一个展品和今天的生活经验做比较，形成公共史学问题。'],
+    next: ['如果本次主要看器物而少看遗址空间，社会组织和公共生活这一层还会比较薄。'],
   },
   D: {
     title: '半坡器物观察报告',
     tags: ['器物研究员', '材料工艺', '纹饰用途'],
-    summaryPrefix: '你的观察重点适合落在器物本身：材料、器形、纹饰、工艺和使用痕迹。',
+    summaryPrefix: '这次记录偏向器物观察：材料、器形、纹饰、工艺和使用痕迹是报告的主要入口。',
     takeaways: [
-      '观察器物时先看形状、口沿、底部和表面痕迹，再讨论用途。',
-      '纹饰不一定只有审美意义，也可能关联身份、仪式或生活经验，需要谨慎推断。',
+      '器物不是孤立的“好看物件”，它们会把制作技术、使用场景和生活需求连在一起。',
+      '纹饰、磨损、器形和材料都能成为线索，但它们需要和出土位置、展厅叙事一起理解。',
     ],
-    next: ['选择一件陶器追问“它如何被制作出来”，把材料和工艺连起来。', '比较两件器物的形制差异，判断它们服务的生活场景。'],
+    next: ['如果还没有打开具体展品，报告只能停留在展厅层面的器物观察，无法展开单件器物的细节判断。'],
   },
   default: {
     title: '半坡导览总结',
     tags: ['MuseAI 导览', '半坡遗址', '文化观察'],
-    summaryPrefix: '你已经完成一次以半坡遗址为核心的导览观察。',
-    takeaways: ['记录你最想继续追问的问题，会比一次性看完所有内容更有收获。'],
-    next: ['选择一个未到访展厅继续探索。', '进入具体展品页，让 MuseAI 围绕一件器物展开讲解。'],
+    summaryPrefix: '这次记录围绕半坡遗址展开，报告会把展厅、问题和具体展项整理为一条游览线索。',
+    takeaways: ['当前最清楚的内容，是你实际到访过的展厅和已经留下的提问。'],
+    next: ['尚未到访或尚未打开具体展品的部分，会在报告中保持空白，不强行生成结论。'],
   },
 }
 
@@ -139,7 +178,11 @@ function collectHallSlugs(data, events, state) {
 function collectQuestions(events) {
   return events
     .filter(function (event) { return event.event_type === 'exhibit_question' || event.eventType === 'exhibit_question' })
-    .map(function (event) { return event.metadata && event.metadata.message ? event.metadata.message : '' })
+    .map(function (event) {
+      return event.metadata && (event.metadata.message || event.metadata.question)
+        ? (event.metadata.message || event.metadata.question)
+        : ''
+    })
     .filter(Boolean)
 }
 
@@ -149,32 +192,149 @@ function collectExhibitNames(events) {
   }).filter(Boolean))
 }
 
+function buildObservationFindings(personaKey, hallNames, questions, exhibitNames, focusText) {
+  var copy = PERSONA_REPORT_COPY[personaKey] || PERSONA_REPORT_COPY.default
+  var findings = copy.takeaways.slice(0, 1)
+  if (hallNames.length) {
+    findings.push('本次已经形成展厅层面的观察范围：' + hallNames.join('、') + '。')
+  }
+  if (questions.length) {
+    findings.push('问题线索中最明确的一条是：“' + questions[0] + '”。')
+  }
+  if (exhibitNames.length) {
+    findings.push('展项层面的材料来自：' + exhibitNames.join('、') + '。')
+  }
+  if (focusText) {
+    findings.push('入口关注点“' + focusText + '”已经成为这份报告的解释角度。')
+  }
+  if (!hallNames.length && !questions.length && !exhibitNames.length) {
+    findings = ['当前记录还停留在导览入口阶段，报告暂时只能保留身份、路线和基础统计。']
+  }
+  return findings.slice(0, 3)
+}
+
+function buildOpenThreads(personaKey, hallSlugs, questions, exhibitNames) {
+  var copy = PERSONA_REPORT_COPY[personaKey] || PERSONA_REPORT_COPY.default
+  var visited = {}
+  hallSlugs.forEach(function (slug) { visited[slug] = true })
+  var unvisitedNames = []
+  banpoHalls.DEFAULT_ORDER.forEach(function (id) {
+    var hall = banpoHalls.getHall(id)
+    if (hall && !visited[hall.backendSlug]) unvisitedNames.push(hall.name)
+  })
+
+  var threads = []
+  if (unvisitedNames.length) {
+    threads.push('尚未纳入记录的常设空间包括：' + unvisitedNames.slice(0, 3).join('、') + (unvisitedNames.length > 3 ? '等' : '') + '。这些部分会影响报告对半坡生活系统的完整度。')
+  }
+  if (!questions.length) {
+    threads.push('问题线索暂为空，因此报告无法判断你最在意的是器物、聚落、社会组织还是精神文化。')
+  }
+  if (!exhibitNames.length) {
+    threads.push('具体展项暂为空，因此单件器物的材料、用途和纹饰解释还没有进入报告。')
+  }
+  if (!threads.length) {
+    threads.push('展厅、提问和展项都已有记录，报告已经具备较完整的复盘依据。')
+  }
+  return threads.concat(copy.next || []).slice(0, 3)
+}
+
 function buildReviewChecklist(personaKey, hallNames, questions, exhibitNames) {
-  var firstHall = hallNames[0] || '下一个展厅'
   var hasQuestion = questions.length > 0
   var hasExhibit = exhibitNames.length > 0
-  var common = [
+  return [
     {
-      label: '补一条证据',
-      text: hasQuestion
-        ? '把你最想继续追问的问题，补上一件展品或一个遗迹细节作为证据。'
-        : '在' + firstHall + '选择一个细节，记录“我看到什么，它能说明什么”。',
+      label: '展厅依据',
+      text: hallNames.length
+        ? '已记录到访：' + hallNames.join('、') + '。'
+        : '尚未记录到明确到访展厅，当前报告只能依据入口身份和本机状态整理。',
     },
     {
-      label: '打开一件展品',
+      label: '提问依据',
+      text: hasQuestion
+        ? '已保留 ' + questions.length + ' 条提问，报告会优先围绕这些问题整理。'
+        : '尚未记录到用户提问，因此问题线索暂为空。',
+    },
+    {
+      label: '展项依据',
       text: hasExhibit
-        ? '围绕已打开的展项继续追问用途、材料、位置或不确定性。'
-        : '进入展品浏览页，选择一件具体展品后再生成报告，展品总结会更完整。',
+        ? '已打开展项：' + exhibitNames.join('、') + '。'
+        : '尚未记录到具体展项浏览，展品层面的总结暂不展开。',
     },
   ]
-  var byPersona = {
-    A: { label: '校准推断', text: '把推断写成“证据支持 / 仍不确定”两栏，避免只凭印象下结论。' },
-    B: { label: '形成笔记', text: '按“展厅 - 展品 - 观察 - 小结”的格式整理，可直接变成研学记录。' },
-    C: { label: '提出追问', text: '把半坡和今天的共同生活、劳动分工或公共空间联系起来，形成一个历史问题。' },
-    D: { label: '细看器物', text: '从口沿、底部、纹饰、磨损和烧成痕迹中选两个细节比较。' },
-    default: { label: '继续参观', text: '沿 AI 路线再看一个展厅，报告会自动补充到访和提问线索。' },
+}
+
+function matchTopics(text) {
+  var matched = []
+  if (!text) return matched
+  Object.keys(TOPIC_KEYWORDS).forEach(function (topic) {
+    var keywords = TOPIC_KEYWORDS[topic]
+    for (var i = 0; i < keywords.length; i++) {
+      if (String(text).indexOf(keywords[i]) >= 0) {
+        matched.push(topic)
+        return
+      }
+    }
+  })
+  return matched
+}
+
+function buildLocalReflection(data, events, state, personaKey) {
+  var initial = PERSONA_INITIAL_FOCUS[personaKey] || PERSONA_INITIAL_FOCUS.default
+  var assumptionText = state.assumptionText || '你选择先跟着现场证据形成判断。'
+  var scores = { craft: 0, settlement: 0, social: 0, spiritual: 0, life: 0, evidence: 0 }
+  var questionCount = 0
+  var deepDiveCount = 0
+
+  ;(events || []).forEach(function (event) {
+    var type = event.event_type || event.eventType || ''
+    var meta = event.metadata || {}
+    var hall = hallSlug(event.hall || '')
+    var text = [hall, meta.message || '', meta.question || '', meta.exhibit_name || ''].join(' ')
+    var weight = 0.5
+    if (type === 'exhibit_question') { questionCount += 1; weight = 3 }
+    else if (type === 'exhibit_deep_dive') { deepDiveCount += 1; weight = 3 }
+    else if (type === 'exhibit_view') weight = 1
+    else if (type === 'hall_enter' || type === 'hall_leave') weight = 0.75
+
+    var hallWeights = HALL_TOPIC_WEIGHTS[hall] || {}
+    Object.keys(hallWeights).forEach(function (topic) {
+      scores[topic] += hallWeights[topic] * weight
+    })
+    matchTopics(text).forEach(function (topic) {
+      scores[topic] += weight
+    })
+  })
+
+  var signals = questionCount + deepDiveCount
+  if (signals < 2) {
+    return {
+      initial_assumption: initial.text + '；入场判断是：' + assumptionText,
+      observed_focus: '目前只记录到少量提问或深入查看，更多是展厅到访线索。',
+      change_summary: '证据不足，暂时不能判断你的关注点是否发生了明显变化。建议再围绕一个展厅或展项提出至少两个问题。',
+      confidence: 0.35,
+      status: 'insufficient',
+    }
   }
-  return [byPersona[personaKey] || byPersona.default].concat(common)
+
+  var topTopic = 'evidence'
+  Object.keys(scores).forEach(function (topic) {
+    if (scores[topic] > scores[topTopic]) topTopic = topic
+  })
+  var observedLabel = REFLECTION_TOPIC_LABELS[topTopic] || topTopic
+  var initialLabel = REFLECTION_TOPIC_LABELS[initial.key] || initial.key
+  var totalScore = Object.keys(scores).reduce(function (sum, key) { return sum + scores[key] }, 0) || 1
+  var confidence = Math.min(0.92, 0.5 + (scores[topTopic] / totalScore) * 0.3 + Math.min(signals, 6) * 0.03)
+
+  return {
+    initial_assumption: initial.text + '；入场判断是：' + assumptionText,
+    observed_focus: '你的提问和深入查看主要集中在' + observedLabel + '。',
+    change_summary: topTopic === initial.key
+      ? '关注点基本保持稳定：你从' + initialLabel + '进入导览，过程中也持续围绕这一方向积累证据。'
+      : '关注点出现了转向：你从' + initialLabel + '进入导览，但过程中更频繁地追问' + observedLabel + '，说明新的证据正在改变你的观察重心。',
+    confidence: Math.round(confidence * 100) / 100,
+    status: topTopic === initial.key ? 'stable' : 'shifted',
+  }
 }
 
 Page({
@@ -203,6 +363,7 @@ Page({
     takeaways: [],
     nextSuggestions: [],
     reviewChecklist: [],
+    reflection: null,
     dataNotice: '',
 
     radarBars: [],
@@ -310,6 +471,7 @@ Page({
       takeaways: experience.takeaways,
       nextSuggestions: experience.nextSuggestions,
       reviewChecklist: experience.reviewChecklist,
+      reflection: data.reflection || experience.reflection,
       dataNotice: experience.dataNotice,
       radarBars: radarBars,
       highlights: experience.highlights,
@@ -345,19 +507,19 @@ Page({
     var hallPart = hallNames.length > 1 ? hallNames.join('、') : firstHall
     var questionPart = questions.length
       ? '你提出的问题集中在“' + questions[0] + '”等线索上。'
-      : '本次还没有留下可复盘的提问，建议在下个展厅主动记录一个问题。'
+      : '本次没有留下明确提问，报告会更多依赖到访展厅和路线记录。'
     var exhibitPart = exhibitNames.length
       ? '你重点打开过 ' + exhibitNames.join('、') + '。'
-      : '展品数为 0 通常表示你还没有进入具体展品页，或服务器展品清单尚未完成导入。'
+      : '当前没有具体展项记录，单件器物层面的判断暂不展开。'
 
     var journeySummary = copy.summaryPrefix + ' 本次到访：' + hallPart + '。' + questionPart + exhibitPart
     if (focusText) {
-      journeySummary += ' 你的入口关注点是“' + focusText + '”，后续报告可继续围绕这个主题补充证据。'
+      journeySummary += ' 入口关注点“' + focusText + '”构成了本次报告的解释角度。'
     }
 
     var questionSummary = questions.length
-      ? '本次保留下来的问题可作为后续复盘标题。优先选择最能连接展品细节和历史解释的问题继续追问。'
-      : '你还没有形成明确问题。下一步可以用“这个展项说明了什么？”或“证据在哪里？”作为起点。'
+      ? '本次留下 ' + questions.length + ' 条提问，问题已经开始从“看见什么”转向“这些材料说明什么”。'
+      : '本次没有记录到明确提问，因此这一栏只保留为空白事实，不替你生成假问题。'
 
     var highlights = []
     if (hallNames.length) highlights.push('到访展厅：' + hallNames.join('、'))
@@ -369,7 +531,7 @@ Page({
     if (isLocalFallback) {
       dataNotice = '服务器报告暂不可用，当前内容根据本机游览记录整理。'
     } else if (!exhibitCount) {
-      dataNotice = '展品数为 0 不是理想状态：可能是你未进入具体展品页，也可能是服务器展品清单尚未导入。展厅与问答总结仍可使用。'
+      dataNotice = '展项记录暂为空：本报告主要依据展厅访问和问答整理，暂不展开单件器物统计。'
     }
 
     return {
@@ -383,9 +545,10 @@ Page({
       visitedHallCards: visitedHallCards,
       questionSummary: questionSummary,
       questionSamples: questions.slice(0, 3),
-      takeaways: copy.takeaways,
-      nextSuggestions: copy.next,
+      takeaways: buildObservationFindings(personaKey, hallNames, questions, exhibitNames, focusText),
+      nextSuggestions: buildOpenThreads(personaKey, hallSlugs, questions, exhibitNames),
       reviewChecklist: buildReviewChecklist(personaKey, hallNames, questions, exhibitNames),
+      reflection: buildLocalReflection(data, events, state, personaKey),
       dataNotice: dataNotice,
       highlights: highlights,
     }
@@ -420,6 +583,7 @@ Page({
       takeaways: experience.takeaways,
       nextSuggestions: experience.nextSuggestions,
       reviewChecklist: experience.reviewChecklist,
+      reflection: experience.reflection,
       dataNotice: experience.dataNotice,
       radarBars: FALLBACK_RADAR.slice(),
       highlights: experience.highlights,

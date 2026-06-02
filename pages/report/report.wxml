@@ -41,6 +41,22 @@
     <text class="summary-text">{{journeySummary}}</text>
   </view>
 
+  <view wx:if="{{reflection}}" class="card reflection-card">
+    <text class="section-label text-clay text-bold">认知变化</text>
+    <view class="reflection-row">
+      <text class="reflection-label">起初</text>
+      <text class="reflection-text">{{reflection.initial_assumption}}</text>
+    </view>
+    <view class="reflection-row">
+      <text class="reflection-label">过程</text>
+      <text class="reflection-text">{{reflection.observed_focus}}</text>
+    </view>
+    <view class="reflection-row">
+      <text class="reflection-label">现在</text>
+      <text class="reflection-text">{{reflection.change_summary}}</text>
+    </view>
+  </view>
+
   <view wx:if="{{visitedHallCards.length > 0}}" class="card">
     <text class="section-label text-clay text-bold">到访展厅</text>
     <view class="hall-card-list">
@@ -52,7 +68,7 @@
   </view>
 
   <view class="card">
-    <text class="section-label text-clay text-bold">你的提问线索</text>
+    <text class="section-label text-clay text-bold">本次问题线索</text>
     <text class="summary-text">{{questionSummary}}</text>
     <view wx:if="{{questionSamples.length > 0}}" class="question-list">
       <view wx:for="{{questionSamples}}" wx:key="*this" class="question-row">
@@ -63,7 +79,7 @@
   </view>
 
   <view wx:if="{{takeaways.length > 0}}" class="card">
-    <text class="section-label text-clay text-bold">可带走的结论</text>
+    <text class="section-label text-clay text-bold">本次观察</text>
     <view class="highlight-list">
       <view wx:for="{{takeaways}}" wx:key="*this" class="highlight-row">
         <text class="highlight-dot text-gold">◆</text>
@@ -73,7 +89,7 @@
   </view>
 
   <view wx:if="{{nextSuggestions.length > 0}}" class="card">
-    <text class="section-label text-clay text-bold">下一步建议</text>
+    <text class="section-label text-clay text-bold">仍未展开的线索</text>
     <view class="highlight-list">
       <view wx:for="{{nextSuggestions}}" wx:key="*this" class="highlight-row">
         <text class="highlight-dot text-gold">◆</text>
@@ -83,7 +99,7 @@
   </view>
 
   <view wx:if="{{reviewChecklist.length > 0}}" class="card">
-    <text class="section-label text-clay text-bold">复盘清单</text>
+    <text class="section-label text-clay text-bold">报告依据</text>
     <view class="review-list">
       <view wx:for="{{reviewChecklist}}" wx:key="label" class="review-row">
         <text class="review-label">{{item.label}}</text>
