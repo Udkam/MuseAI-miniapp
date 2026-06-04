@@ -1,7 +1,15 @@
 var parseMarkdown = require('../../../utils/markdown').parseMarkdown
 
-function toPlainText(content) {
+function normalizeAssistantContent(content) {
   return String(content || '')
+    .replace(/^(#{1,6}\s*)说明了什么[？?：:]?\s*$/gm, '$1我的分析：')
+    .replace(/^(\s*(?:[-*+]\s*)?)(?:\*\*)?说明了什么[？?：:]?(?:\*\*)?\s*/gm, '$1**我的分析：**\n')
+    .replace(/^(\s*(?:[-*+]\s*)?)(?:\*\*)?为什么重要[？?：:]?(?:\*\*)?\s*/gm, '$1**我的分析：**\n')
+    .replace(/^(\s*(?:[-*+]\s*)?)(?:\*\*)?下一步(?:推荐)?观察[？?：:]?(?:\*\*)?\s*/gm, '$1')
+}
+
+function toPlainText(content) {
+  return normalizeAssistantContent(content)
     .replace(/```[\s\S]*?```/g, function (block) {
       return block.replace(/```[a-zA-Z0-9_-]*\n?/g, '').replace(/```/g, '')
     })
@@ -34,7 +42,7 @@ Component({
     // Error messages are parsed too (they're plain text, parse is harmless).
     'role, content': function (role, content) {
       if (role === 'assistant' && content) {
-        this.setData({ blocks: parseMarkdown(content) })
+        this.setData({ blocks: parseMarkdown(normalizeAssistantContent(content)) })
       } else {
         this.setData({ blocks: [] })
       }

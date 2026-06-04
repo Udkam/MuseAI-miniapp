@@ -254,7 +254,8 @@ assert.ok(profiledPrompt.indexOf('器物细节观察') >= 0, 'styled prompt shou
 assert.ok(profiledPrompt.indexOf('鱼纹为什么出现') >= 0, 'styled prompt should include user-written intent')
 assert.ok(profiledPrompt.indexOf('先不下判断，跟证据走') >= 0, 'styled prompt should include initial assumption')
 assert.ok(profiledPrompt.indexOf('不要用"好的"') >= 0, 'styled prompt should forbid filler openings')
-assert.ok(profiledPrompt.indexOf('需要解释含义时写“说明了什么”') >= 0, 'styled prompt should prefer explanation summary wording')
+assert.ok(profiledPrompt.indexOf('需要解释含义时写“我的分析：”') >= 0, 'styled prompt should prefer analysis summary wording')
+assert.ok(profiledPrompt.indexOf('不要写“说明了什么”') >= 0, 'styled prompt should forbid old explanation heading')
 assert.strictEqual(profiledPrompt.indexOf('为什么重要，但'), -1, 'styled prompt should not steer answers toward 为什么重要')
 assert.strictEqual(profiledPrompt.indexOf('下一步建议观察'), -1, 'styled prompt should not steer answers toward next-step template')
 
