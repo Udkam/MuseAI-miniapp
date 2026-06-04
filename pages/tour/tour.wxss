@@ -270,7 +270,8 @@
 .input-bar {
   display: flex;
   align-items: center;
-  padding: 16rpx 24rpx 40rpx;
+  padding: 16rpx 24rpx calc(40rpx + constant(safe-area-inset-bottom));
+  padding: 16rpx 24rpx calc(40rpx + env(safe-area-inset-bottom));
   background: #F5F0E8;
   border-top: 2rpx solid #DDD0C0;
   gap: 12rpx;

@@ -1,7 +1,8 @@
 /* ── Page ───────────────────────────────────────────────────────────────────── */
 
 .route-page {
-  padding-bottom: 60rpx;
+  padding-bottom: calc(60rpx + constant(safe-area-inset-bottom));
+  padding-bottom: calc(60rpx + env(safe-area-inset-bottom));
 }
 
 /* ── Header ─────────────────────────────────────────────────────────────────── */
@@ -541,5 +542,6 @@
 /* ── Bottom action ──────────────────────────────────────────────────────────── */
 
 .bottom-action {
-  padding: 16rpx 0 40rpx;
+  padding: 16rpx 0 calc(40rpx + constant(safe-area-inset-bottom));
+  padding: 16rpx 0 calc(40rpx + env(safe-area-inset-bottom));
 }

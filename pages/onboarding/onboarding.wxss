@@ -200,7 +200,8 @@
 }
 
 .bottom-action {
-  padding: 24rpx 0 58rpx;
+  padding: 24rpx 0 calc(58rpx + constant(safe-area-inset-bottom));
+  padding: 24rpx 0 calc(58rpx + env(safe-area-inset-bottom));
 }
 
 .secondary-row {

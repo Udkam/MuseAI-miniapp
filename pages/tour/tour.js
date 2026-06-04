@@ -182,13 +182,13 @@ Page({
     // Detect referential questions (e.g. "我们在讨论什么") and inject recent history
     var currentExhibit = state.currentExhibit || null
     var isCtxQ         = tourStore.isContextQuestion(text)
-    var recentMsgs     = isCtxQ ? chatStore.getRecentMessages(6) : []
+    var recentMsgs     = chatStore.getRecentMessages(6)
 
     // Keep the retrieval query clean: send the user's original question as message.
     // Context and onboarding preferences are sent separately so they guide the answer
     // without polluting vector retrieval or forcing a fixed response template.
     var clientContext = tourStore.buildClientContext(text, {
-      recentMessages: isCtxQ ? recentMsgs : null,
+      recentMessages: recentMsgs.length ? recentMsgs : (isCtxQ ? [] : null),
     })
     var _DEBUG_PROMPT = false   // set true locally to dump full prompt text
     console.log('[tour] context build', {
@@ -205,6 +205,7 @@ Page({
       token:     token,
       style:     style,
       clientContext: clientContext,
+      conversationHistory: recentMsgs,
       exhibitId: currentExhibit ? currentExhibit.id : undefined,
 
       onChunk: function (chunk) {

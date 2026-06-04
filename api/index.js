@@ -188,6 +188,7 @@ const tourApi = {
    * @param {string}   [opts.exhibitId]  Current exhibit ID
    * @param {object}   [opts.style]      Style preferences object
    * @param {string}   [opts.clientContext] Compact frontend context that should not affect retrieval
+   * @param {Array}    [opts.conversationHistory] Recent user/assistant turns for answer continuity
    * @param {object}   [opts.ttsOptions] TTS options object
    * @param {Function} [opts.onChunk]    (text) => void — content delta
    * @param {Function} [opts.onEvent]    (event) => void — rag_step / thinking
@@ -210,6 +211,14 @@ const tourApi = {
     if (opts.exhibitId) body.exhibit_id = opts.exhibitId
     if (opts.style)     body.style      = opts.style
     if (opts.clientContext) body.client_context = opts.clientContext
+    if (opts.conversationHistory && opts.conversationHistory.length) {
+      body.conversation_history = opts.conversationHistory.slice(-6).map(function (m) {
+        return {
+          role: m.role === 'assistant' ? 'assistant' : 'user',
+          content: String(m.content || '').slice(0, 1000),
+        }
+      }).filter(function (m) { return m.content })
+    }
     // ttsOptions is an object {enabled, voice, autoPlay}; map to bool for backend
     body.tts = !!(opts.ttsOptions && opts.ttsOptions.enabled)
 

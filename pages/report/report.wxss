@@ -2,7 +2,8 @@
 
 .report {
   min-height: 100vh;
-  padding-bottom: 60rpx;
+  padding-bottom: calc(60rpx + constant(safe-area-inset-bottom));
+  padding-bottom: calc(60rpx + env(safe-area-inset-bottom));
 }
 
 .report-scroll {
@@ -302,5 +303,6 @@
 /* ── Actions ──────────────────────────────────────────────────────────────── */
 
 .report-actions {
-  padding: 16rpx 0 60rpx;
+  padding: 16rpx 0 calc(60rpx + constant(safe-area-inset-bottom));
+  padding: 16rpx 0 calc(60rpx + env(safe-area-inset-bottom));
 }
