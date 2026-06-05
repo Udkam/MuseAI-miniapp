@@ -164,14 +164,22 @@ function buildRadarBars(scores) {
 
 function collectHallSlugs(data, events, state) {
   var backendHalls = Array.isArray(data && data.halls_visited) ? data.halls_visited : []
-  var eventHalls = []
+  var explicitEventHalls = []
+  var fallbackEventHalls = []
   events.forEach(function (event) {
     var type = event.event_type || event.eventType
-    if ((type === 'hall_enter' || type === 'hall_leave') && event.hall) eventHalls.push(event.hall)
+    var meta = event.metadata || {}
+    var target = type === 'hall_enter' || type === 'hall_leave' ? explicitEventHalls : fallbackEventHalls
+    if (event.hall) target.push(event.hall)
+    if (meta.hall) target.push(meta.hall)
+    if (meta.hall_slug) target.push(meta.hall_slug)
+    if (meta.hallSlug) target.push(meta.hallSlug)
   })
-  var halls = backendHalls.concat(eventHalls)
-  if (!halls.length && Array.isArray(state.visitedHalls)) halls = halls.concat(state.visitedHalls)
-  if (!halls.length && state.currentHall) halls.push(state.currentHall)
+  var halls = backendHalls.concat(explicitEventHalls)
+  if (halls.length) return unique(halls.map(hallSlug))
+  if (Array.isArray(state.visitedHalls) && state.visitedHalls.length) halls = halls.concat(state.visitedHalls)
+  if (state.currentHall) halls.push(state.currentHall)
+  if (!halls.length) halls = halls.concat(fallbackEventHalls)
   return unique(halls.map(hallSlug))
 }
 
@@ -208,60 +216,17 @@ function buildObservationFindings(personaKey, hallNames, questions, exhibitNames
     findings.push('入口关注点“' + focusText + '”已经成为这份报告的解释角度。')
   }
   if (!hallNames.length && !questions.length && !exhibitNames.length) {
-    findings = ['当前记录还停留在导览入口阶段，报告暂时只能保留身份、路线和基础统计。']
+    findings = []
   }
   return findings.slice(0, 3)
 }
 
 function buildOpenThreads(personaKey, hallSlugs, questions, exhibitNames) {
-  var copy = PERSONA_REPORT_COPY[personaKey] || PERSONA_REPORT_COPY.default
-  var visited = {}
-  hallSlugs.forEach(function (slug) { visited[slug] = true })
-  var unvisitedNames = []
-  banpoHalls.DEFAULT_ORDER.forEach(function (id) {
-    var hall = banpoHalls.getHall(id)
-    if (hall && !visited[hall.backendSlug]) unvisitedNames.push(hall.name)
-  })
-
-  var threads = []
-  if (unvisitedNames.length) {
-    threads.push('尚未纳入记录的常设空间包括：' + unvisitedNames.slice(0, 3).join('、') + (unvisitedNames.length > 3 ? '等' : '') + '。这些部分会影响报告对半坡生活系统的完整度。')
-  }
-  if (!questions.length) {
-    threads.push('问题线索暂为空，因此报告无法判断你最在意的是器物、聚落、社会组织还是精神文化。')
-  }
-  if (!exhibitNames.length) {
-    threads.push('具体展项暂为空，因此单件器物的材料、用途和纹饰解释还没有进入报告。')
-  }
-  if (!threads.length) {
-    threads.push('展厅、提问和展项都已有记录，报告已经具备较完整的复盘依据。')
-  }
-  return threads.concat(copy.next || []).slice(0, 3)
+  return []
 }
 
 function buildReviewChecklist(personaKey, hallNames, questions, exhibitNames) {
-  var hasQuestion = questions.length > 0
-  var hasExhibit = exhibitNames.length > 0
-  return [
-    {
-      label: '展厅依据',
-      text: hallNames.length
-        ? '已记录到访：' + hallNames.join('、') + '。'
-        : '尚未记录到明确到访展厅，当前报告只能依据入口身份和本机状态整理。',
-    },
-    {
-      label: '提问依据',
-      text: hasQuestion
-        ? '已保留 ' + questions.length + ' 条提问，报告会优先围绕这些问题整理。'
-        : '尚未记录到用户提问，因此问题线索暂为空。',
-    },
-    {
-      label: '展项依据',
-      text: hasExhibit
-        ? '已打开展项：' + exhibitNames.join('、') + '。'
-        : '尚未记录到具体展项浏览，展品层面的总结暂不展开。',
-    },
-  ]
+  return []
 }
 
 function matchTopics(text) {
@@ -311,7 +276,7 @@ function buildLocalReflection(data, events, state, personaKey) {
     return {
       initial_assumption: initial.text + '；入场判断是：' + assumptionText,
       observed_focus: '目前只记录到少量提问或深入查看，更多是展厅到访线索。',
-      change_summary: '证据不足，暂时不能判断你的关注点是否发生了明显变化。建议再围绕一个展厅或展项提出至少两个问题。',
+      change_summary: '当前证据还少，关注点变化暂不明显。',
       confidence: 0.35,
       status: 'insufficient',
     }
@@ -507,31 +472,29 @@ Page({
     var hallPart = hallNames.length > 1 ? hallNames.join('、') : firstHall
     var questionPart = questions.length
       ? '你提出的问题集中在“' + questions[0] + '”等线索上。'
-      : '本次没有留下明确提问，报告会更多依赖到访展厅和路线记录。'
+      : ''
     var exhibitPart = exhibitNames.length
       ? '你重点打开过 ' + exhibitNames.join('、') + '。'
-      : '当前没有具体展项记录，单件器物层面的判断暂不展开。'
+      : ''
 
-    var journeySummary = copy.summaryPrefix + ' 本次到访：' + hallPart + '。' + questionPart + exhibitPart
+    var journeySummary = copy.summaryPrefix + (hallNames.length ? ' 本次到访：' + hallPart + '。' : '') + questionPart + exhibitPart
     if (focusText) {
       journeySummary += ' 入口关注点“' + focusText + '”构成了本次报告的解释角度。'
     }
 
     var questionSummary = questions.length
       ? '本次留下 ' + questions.length + ' 条提问，问题已经开始从“看见什么”转向“这些材料说明什么”。'
-      : '本次没有记录到明确提问，因此这一栏只保留为空白事实，不替你生成假问题。'
+      : ''
 
     var highlights = []
     if (hallNames.length) highlights.push('到访展厅：' + hallNames.join('、'))
     if (questions.length) highlights.push('已记录问题：' + questions.length + ' 个')
     if (exhibitNames.length) highlights.push('重点展项：' + exhibitNames.join('、'))
-    if (!highlights.length) highlights.push('导览刚开始，报告会随着展厅访问和提问逐步丰富。')
+    if (!highlights.length) highlights = []
 
     var dataNotice = ''
     if (isLocalFallback) {
       dataNotice = '服务器报告暂不可用，当前内容根据本机游览记录整理。'
-    } else if (!exhibitCount) {
-      dataNotice = '展项记录暂为空：本报告主要依据展厅访问和问答整理，暂不展开单件器物统计。'
     }
 
     return {

@@ -5,10 +5,6 @@
       <text class="ai-badge-text">{{routeSourceLabel}}</text>
     </view>
     <text class="route-title">为你规划的参观路线</text>
-    <text class="route-tagline">{{tagline}}</text>
-    <view wx:if="{{planSummary}}" class="plan-summary">
-      <text class="plan-summary-text">{{planSummary}}</text>
-    </view>
     <text wx:if="{{routeNotice}}" class="route-notice">{{routeNotice}}</text>
   </view>
 
@@ -24,31 +20,8 @@
     </view>
   </view>
 
-  <view class="floor-section">
-    <text class="section-label">展厅顺序示意</text>
-    <view class="floor-map">
-      <view class="floor-hall floor-hall-upcoming">
-        <text class="floor-hall-short">{{floorItems[0].short}}</text>
-      </view>
-      <view class="floor-conn"><view class="floor-conn-line"></view></view>
-      <view class="floor-hall floor-hall-upcoming">
-        <text class="floor-hall-short">{{floorItems[1].short}}</text>
-      </view>
-      <view class="floor-conn"><view class="floor-conn-line"></view></view>
-      <view class="floor-hall floor-hall-upcoming">
-        <text class="floor-hall-short">{{floorItems[2].short}}</text>
-      </view>
-    </view>
-
-    <view class="floor-entrance-row">
-      <view class="floor-entrance-line"></view>
-      <text class="floor-entrance-text">入口</text>
-      <view class="floor-entrance-line"></view>
-    </view>
-  </view>
-
   <view class="steps-section">
-    <text class="section-label">详细顺序</text>
+    <text class="section-label">参观顺序</text>
     <view class="steps-list">
       <view
         wx:for="{{steps}}"

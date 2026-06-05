@@ -3,6 +3,8 @@ const chatStore = require('../../store/chat')
 const tourStore = require('../../store/tour')
 const banpoHalls = require('../../constants/banpo-halls')
 
+const TOUR_TTS_STYLE = '自然明亮、清晰亲切，语速稍快但咬字清楚，句间停顿短一些，不拖长尾音。'
+
 var HALL_WELCOME_COPY = {
   'basic-exhibition-hall': '这里是基本陈列展厅。先把半坡看成一个完整的生活系统：房屋、工具、陶器、装饰品，都在回答同一个问题：六千年前的人怎样组织日常生活。\n你可以从一件器物、一个纹样，或“他们怎么吃住劳动”问起。',
   'site-protection-hall': '这里是遗址保护大厅。这里看的不是单件文物，而是半坡聚落的真实空间：房址、墓葬、壕沟、作坊和灶址之间的关系。\n建议你先观察“什么在一起、什么被分开”，再问我这些空间关系说明了什么。',
@@ -86,6 +88,7 @@ Page({
     currentExhibit:   null,  // set by exhibit-detail goDeeper; null = general tour mode
     guideSuggestions: [],   // array of { id, type, icon, title, actionType, payload }
     showSuggestions:  false,
+    keyboardPanelStyle: '',
     ttsEnabled:       true,
     ttsState: {
       playingMessageId: null,
@@ -107,6 +110,7 @@ Page({
   _ttsAudioCtx:   null,
   _ttsAudioCache: null,
   _ttsRequestSeq: 0,
+  _keyboardHandler: null,
 
   // ── Lifecycle ─────────────────────────────────────────────────────────────
 
@@ -122,7 +126,13 @@ Page({
     var freshEntry = !options.exhibit
     if (freshEntry) {
       chatStore.resetChat()
+      if (exhibit) {
+        tourStore.clearCurrentExhibit()
+        exhibit = null
+      }
     }
+
+    this._setupKeyboardLift()
 
     // URL param takes priority; fallback to saved canonical hall slug.
     var hallFromId = options.hallId ? banpoHalls.getHall(options.hallId) : null
@@ -171,6 +181,7 @@ Page({
     }
     this._stopTtsPlayback()
     this._destroyTtsAudio()
+    this._teardownKeyboardLift()
     // Fire-and-forget: best-effort flush of pending events on page leave
     this._flushEvents(null)
   },
@@ -179,6 +190,42 @@ Page({
 
   onInputChange: function (e) {
     this.setData({ inputText: e.detail.value })
+  },
+
+  onInputFocus: function (e) {
+    var h = e && e.detail ? Number(e.detail.height) || 0 : 0
+    this._applyKeyboardLift(h)
+  },
+
+  onInputBlur: function () {
+    var self = this
+    setTimeout(function () {
+      self._applyKeyboardLift(0)
+    }, 80)
+  },
+
+  _setupKeyboardLift: function () {
+    var self = this
+    if (!wx.onKeyboardHeightChange || this._keyboardHandler) return
+    this._keyboardHandler = function (res) {
+      self._applyKeyboardLift(res && res.height ? Number(res.height) : 0)
+    }
+    wx.onKeyboardHeightChange(this._keyboardHandler)
+  },
+
+  _teardownKeyboardLift: function () {
+    if (wx.offKeyboardHeightChange && this._keyboardHandler) {
+      wx.offKeyboardHeightChange(this._keyboardHandler)
+    }
+    this._keyboardHandler = null
+    this._applyKeyboardLift(0)
+  },
+
+  _applyKeyboardLift: function (height) {
+    var h = Math.max(0, Number(height) || 0)
+    var style = h ? ('transform: translateY(-' + h + 'px);') : ''
+    this.setData({ keyboardPanelStyle: style })
+    if (h) this._scrollToBottom()
   },
 
   // ── Send message ──────────────────────────────────────────────────────────
@@ -460,7 +507,7 @@ Page({
     var prefs = tourStore.getTtsPrefs()
     var persona = tourStore.getBackendPersona()
 
-    api.ttsApi.synthesize(content, prefs.voice || '冰糖', null, persona)
+    api.ttsApi.synthesize(content, prefs.voice || '冰糖', TOUR_TTS_STYLE, persona)
       .then(function (res) {
         if (!res || !res.ok || !res.data || !res.data.audio) {
           throw new Error('TTS synthesize failed')

@@ -120,9 +120,17 @@ function chooseImageFile() {
         sizeType: ['compressed'],
         success: function (res) {
           const file = res.tempFiles && res.tempFiles[0]
-          resolve(file && (file.tempFilePath || file.path))
+          const path = file && (file.tempFilePath || file.path)
+          if (!path) {
+            reject(new Error('NO_IMAGE'))
+            return
+          }
+          resolve(path)
         },
-        fail: reject,
+        fail: function (err) {
+          const msg = err && err.errMsg ? err.errMsg : String(err || '')
+          reject(new Error(msg.indexOf('cancel') >= 0 ? 'USER_CANCEL' : msg || 'CAMERA_FAILED'))
+        },
       })
       return
     }
@@ -131,9 +139,30 @@ function chooseImageFile() {
       sourceType: ['camera'],
       sizeType: ['compressed'],
       success: function (res) {
-        resolve(res.tempFilePaths && res.tempFilePaths[0])
+        const path = res.tempFilePaths && res.tempFilePaths[0]
+        if (!path) {
+          reject(new Error('NO_IMAGE'))
+          return
+        }
+        resolve(path)
       },
-      fail: reject,
+      fail: function (err) {
+        const msg = err && err.errMsg ? err.errMsg : String(err || '')
+        reject(new Error(msg.indexOf('cancel') >= 0 ? 'USER_CANCEL' : msg || 'CAMERA_FAILED'))
+      },
+    })
+  })
+}
+
+function confirmCameraUsage() {
+  return new Promise(function (resolve) {
+    wx.showModal({
+      title: '拍照识别展项',
+      content: '将打开相机拍摄展签或展项名称，照片只用于本次识别匹配。',
+      confirmText: '打开相机',
+      cancelText: '取消',
+      success: function (res) { resolve(!!res.confirm) },
+      fail: function () { resolve(false) },
     })
   })
 }
@@ -233,22 +262,26 @@ Page({
     const self = this
     if (self.data.scanning) return
 
-    self.setData({
-      scanning: true,
-      scanNotice: '识别中…',
-      dataNotice: '',
-      scanResult: null,
-      ocrText: '',
-    })
-
     let selectedPath = ''
-    chooseImageFile()
+    confirmCameraUsage()
+      .then(function (confirmed) {
+        if (!confirmed) throw new Error('USER_CANCEL')
+        return chooseImageFile()
+      })
       .then(function (filePath) {
         if (!filePath) throw new Error('NO_IMAGE')
         selectedPath = filePath
+        self.setData({
+          scanning: true,
+          scanNotice: '识别中…',
+          dataNotice: '',
+          scanResult: null,
+          ocrText: '',
+        })
         return readFileBase64(filePath)
       })
       .then(function (base64) {
+        if (!base64) throw new Error('NO_IMAGE')
         return api.ocrApi.recognizeImage(selectedPath, base64)
       })
       .then(function (res) {
@@ -270,8 +303,8 @@ Page({
       })
       .catch(function (err) {
         const msg = err && err.message ? err.message : String(err || '')
-        if (msg.indexOf('cancel') >= 0) {
-          self.setData({ scanning: false, scanNotice: '' })
+        if (msg === 'USER_CANCEL' || msg === 'NO_IMAGE' || msg.indexOf('cancel') >= 0) {
+          self.setData({ scanning: false, scanNotice: '', ocrText: '' })
           return
         }
         console.warn('[exhibit-scan] photo recognition failed:', err)

@@ -2,10 +2,10 @@ var parseMarkdown = require('../../../utils/markdown').parseMarkdown
 
 function normalizeAssistantContent(content) {
   return String(content || '')
-    .replace(/^(#{1,6}\s*)说明了什么[？?：:]?\s*$/gm, '$1我的分析：')
-    .replace(/^(\s*(?:[-*+]\s*)?)(?:\*\*)?说明了什么[？?：:]?(?:\*\*)?\s*/gm, '$1**我的分析：**\n')
-    .replace(/^(\s*(?:[-*+]\s*)?)(?:\*\*)?为什么重要[？?：:]?(?:\*\*)?\s*/gm, '$1**我的分析：**\n')
+    .replace(/^(#{1,6}\s*)?(?:我的分析|说明了什么|为什么重要|下一步(?:推荐)?观察)[？?：:]?\s*$/gm, '')
+    .replace(/^(\s*(?:[-*+]\s*)?)(?:\*\*)?(?:我的分析|说明了什么|为什么重要)[？?：:]?(?:\*\*)?\s*/gm, '$1可以这样理解：')
     .replace(/^(\s*(?:[-*+]\s*)?)(?:\*\*)?下一步(?:推荐)?观察[？?：:]?(?:\*\*)?\s*/gm, '$1')
+    .replace(/\n{3,}/g, '\n\n')
 }
 
 function toPlainText(content) {

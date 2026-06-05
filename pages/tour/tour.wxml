@@ -84,7 +84,7 @@
   </scroll-view>
 
   <!-- Guide Suggestions Bar -->
-  <view wx:if="{{showSuggestions && guideSuggestions.length > 0}}" class="suggestions-bar">
+  <view wx:if="{{showSuggestions && guideSuggestions.length > 0}}" class="suggestions-bar" style="{{keyboardPanelStyle}}">
     <scroll-view scroll-x class="suggestions-scroll">
       <view class="suggestions-inner">
         <view
@@ -103,7 +103,7 @@
   </view>
 
   <!-- Input bar -->
-  <view class="input-bar">
+  <view class="input-bar" style="{{keyboardPanelStyle}}">
     <view class="exhibit-search-btn" bindtap="goScan" aria-label="搜索展品">
       <text class="exhibit-search-icon">🔎</text>
       <text class="exhibit-search-text">搜展品</text>
@@ -115,7 +115,10 @@
       placeholder="问问 MuseAI…"
       confirm-type="send"
       bindconfirm="sendMessage"
-      adjust-position
+      bindfocus="onInputFocus"
+      bindblur="onInputBlur"
+      cursor-spacing="18"
+      adjust-position="{{false}}"
     />
 
     <!-- Stop button: visible while thinking or streaming -->

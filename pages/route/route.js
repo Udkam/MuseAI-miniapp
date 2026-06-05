@@ -136,6 +136,29 @@ function _normalizeRouteSteps(route) {
   })
 }
 
+function _ensureRouteCoverage(steps) {
+  var out = (steps || []).slice()
+  var seen = {}
+  out.forEach(function (step) {
+    if (step && step.hallSlug) seen[step.hallSlug] = true
+  })
+  var fixed = _buildFixedSteps()
+  for (var i = 0; i < fixed.length && out.length < 6; i++) {
+    var step = fixed[i]
+    if (!step.hallSlug || seen[step.hallSlug]) continue
+    var clone = Object.assign({}, step, {
+      order: out.length + 1,
+      reason: step.reason || '补充这一站，可以让半坡生活、遗址空间和工艺线索更完整。',
+      focus: step.focus || '',
+    })
+    seen[clone.hallSlug] = true
+    out.push(clone)
+  }
+  return out.map(function (step, index) {
+    return Object.assign({}, step, { order: index + 1 })
+  })
+}
+
 function _availableHallSlugs() {
   return DEFAULT_ORDER.map(function (id) {
     var hall = HALLS_MAP[id]
@@ -262,8 +285,8 @@ Page({
 
         var route = res.data.route || {}
         var aiSteps = _normalizeRouteSteps(route)
-        var steps = aiSteps.length ? aiSteps : _buildFixedSteps()
-        var total = Number(route.total_minutes || res.data.available_time) || _totalMinutes(steps)
+        var steps = aiSteps.length ? _ensureRouteCoverage(aiSteps) : _buildFixedSteps()
+        var total = Math.max(Number(route.total_minutes || res.data.available_time) || 0, _totalMinutes(steps))
         var theme = route.theme || 'AI 策展路线'
         var summary = route.summary || res.data.plan || ''
         console.log('[route] plan response', {

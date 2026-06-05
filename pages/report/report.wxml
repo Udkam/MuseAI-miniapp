@@ -67,7 +67,7 @@
     </view>
   </view>
 
-  <view class="card">
+  <view wx:if="{{questionSummary || questionSamples.length > 0}}" class="card">
     <text class="section-label text-clay text-bold">本次问题线索</text>
     <text class="summary-text">{{questionSummary}}</text>
     <view wx:if="{{questionSamples.length > 0}}" class="question-list">

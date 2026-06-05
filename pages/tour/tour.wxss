@@ -276,6 +276,13 @@
   border-top: 2rpx solid #DDD0C0;
   gap: 12rpx;
   flex-shrink: 0;
+  transition: transform 0.18s ease-out;
+  will-change: transform;
+}
+
+.suggestions-bar {
+  transition: transform 0.18s ease-out;
+  will-change: transform;
 }
 
 .exhibit-search-btn {
