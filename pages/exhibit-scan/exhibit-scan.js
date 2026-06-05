@@ -1,6 +1,7 @@
 const tourStore = require('../../store/tour')
 const api = require('../../api/index')
 const banpoHalls = require('../../constants/banpo-halls')
+const recognition = require('../../utils/exhibit-recognition')
 
 const ENABLE_HALL_DISCOVERY_LOG = false
 
@@ -109,13 +110,56 @@ function matchesKeyword(ex, keyword) {
   return text.indexOf(keyword) >= 0
 }
 
+function chooseImageFile() {
+  return new Promise(function (resolve, reject) {
+    if (wx.chooseMedia) {
+      wx.chooseMedia({
+        count: 1,
+        mediaType: ['image'],
+        sourceType: ['camera'],
+        sizeType: ['compressed'],
+        success: function (res) {
+          const file = res.tempFiles && res.tempFiles[0]
+          resolve(file && (file.tempFilePath || file.path))
+        },
+        fail: reject,
+      })
+      return
+    }
+    wx.chooseImage({
+      count: 1,
+      sourceType: ['camera'],
+      sizeType: ['compressed'],
+      success: function (res) {
+        resolve(res.tempFilePaths && res.tempFilePaths[0])
+      },
+      fail: reject,
+    })
+  })
+}
+
+function readFileBase64(filePath) {
+  return new Promise(function (resolve, reject) {
+    wx.getFileSystemManager().readFile({
+      filePath: filePath,
+      encoding: 'base64',
+      success: function (res) { resolve(res.data || '') },
+      fail: reject,
+    })
+  })
+}
+
 Page({
   data: {
     exhibits: [],
     loading: true,
+    scanning: false,
     searchText: '',
     hallHint: '',
     dataNotice: '',
+    scanNotice: '',
+    ocrText: '',
+    scanResult: null,
     empty: false,
   },
 
@@ -185,6 +229,97 @@ Page({
     })
   },
 
+  startPhotoScan: function () {
+    const self = this
+    if (self.data.scanning) return
+
+    self.setData({
+      scanning: true,
+      scanNotice: '识别中…',
+      dataNotice: '',
+      scanResult: null,
+      ocrText: '',
+    })
+
+    let selectedPath = ''
+    chooseImageFile()
+      .then(function (filePath) {
+        if (!filePath) throw new Error('NO_IMAGE')
+        selectedPath = filePath
+        return readFileBase64(filePath)
+      })
+      .then(function (base64) {
+        return api.ocrApi.recognizeImage(selectedPath, base64)
+      })
+      .then(function (res) {
+        if (!res || !res.ok) {
+          const code = res && res.code
+          if (code === 'OCR_NOT_CONFIGURED' || code === 'OCR_UNAVAILABLE') {
+            self.setData({ scanNotice: '当前环境未配置 OCR 服务，可先用文字搜索展项。' })
+          }
+          throw new Error(code || 'OCR_FAILED')
+        }
+        const text = recognition.extractOcrText(res.data)
+        if (!text) throw new Error('NO_TEXT')
+        self.setData({ ocrText: text, searchText: text })
+        return self._matchRecognizedText(text)
+      })
+      .then(function (matched) {
+        if (!matched) throw new Error('NO_MATCH')
+        self._showScanMatch(matched.exhibit, matched.score)
+      })
+      .catch(function (err) {
+        const msg = err && err.message ? err.message : String(err || '')
+        if (msg.indexOf('cancel') >= 0) {
+          self.setData({ scanning: false, scanNotice: '' })
+          return
+        }
+        console.warn('[exhibit-scan] photo recognition failed:', err)
+        wx.showToast({ title: '未识别到展品，请重试', icon: 'none', duration: 2000 })
+        self.setData({
+          scanning: false,
+          scanNotice: self.data.scanNotice || '未识别到展品。可以换个角度重拍，或直接输入展品名称。',
+        })
+      })
+  },
+
+  _candidatePool: function () {
+    return dedupeExhibits((this._cachedAll || []).concat(getFallbackExhibits('')))
+  },
+
+  _matchRecognizedText: function (text) {
+    const self = this
+    const aliases = api.resolveAliases(text)
+    const localRanked = recognition.rankExhibits(self._candidatePool(), text, aliases)
+    if (localRanked.length && localRanked[0].score >= 75) {
+      return Promise.resolve(localRanked[0])
+    }
+
+    return api.exhibitsApi.search(text).then(function (res) {
+      let apiList = []
+      if (res.ok && res.data && Array.isArray(res.data.exhibits)) {
+        apiList = res.data.exhibits.map(api.normalizeExhibit).filter(Boolean)
+      }
+      const ranked = recognition.rankExhibits(dedupeExhibits(apiList.concat(self._candidatePool())), text, aliases)
+      return ranked.length ? ranked[0] : (localRanked[0] || null)
+    }).catch(function () {
+      return localRanked[0] || null
+    })
+  },
+
+  _showScanMatch: function (exhibit, score) {
+    const confidence = score >= 100 ? '高' : (score >= 70 ? '中' : '低')
+    const list = dedupeExhibits([exhibit].concat(this.data.exhibits || []))
+    tourStore.setCurrentScannedExhibit(exhibit)
+    this.setData({
+      scanning: false,
+      scanResult: Object.assign({}, exhibit, { confidence: confidence }),
+      exhibits: list,
+      empty: false,
+      scanNotice: '已匹配到最接近的展项。',
+    })
+  },
+
   _useFallback: function (notice) {
     const list = getFallbackExhibits(this._currentHallSlug)
     this._cachedAll = list
@@ -223,13 +358,17 @@ Page({
     const localMatches = fullNorm.filter(function (ex) {
       return matchesKeyword(ex, keyword) || (ex.name && aliasNames.indexOf(ex.name) >= 0)
     })
+    const rankedMatches = recognition.rankExhibits(fullNorm, keyword, aliasNames).map(function (item) { return item.exhibit })
+    const mergedLocal = dedupeExhibits(rankedMatches.concat(localMatches))
 
     self._cachedAll = fullNorm
     self.setData({
-      exhibits: localMatches,
+      exhibits: mergedLocal,
       loading: false,
-      empty: localMatches.length === 0,
-      dataNotice: localMatches.length ? '' : '本地代表展项未命中，正在尝试从服务器搜索完整清单。',
+      empty: mergedLocal.length === 0,
+      scanResult: null,
+      scanNotice: '',
+      dataNotice: mergedLocal.length ? '' : '本地代表展项未命中，正在尝试从服务器搜索完整清单。',
     })
 
     api.exhibitsApi.search(keyword).then(function (apiRes) {
@@ -238,7 +377,8 @@ Page({
       if (apiRes.ok && apiRes.data && Array.isArray(apiRes.data.exhibits)) {
         apiList = apiRes.data.exhibits.map(api.normalizeExhibit).filter(Boolean)
       }
-      const merged = dedupeExhibits(apiList.concat(localMatches))
+      const apiRanked = recognition.rankExhibits(apiList.concat(fullNorm), keyword, aliasNames).map(function (item) { return item.exhibit })
+      const merged = dedupeExhibits(apiRanked.concat(apiList).concat(mergedLocal))
       merged.sort(function (a, b) { return (b.importance || 0) - (a.importance || 0) })
       self.setData({
         exhibits: merged,
@@ -258,12 +398,21 @@ Page({
   },
 
   clearSearch: function () {
-    this.setData({ searchText: '' })
+    this.setData({ searchText: '', scanResult: null, scanNotice: '', ocrText: '' })
     this._loadExhibits()
+  },
+
+  openScanResult: function () {
+    if (!this.data.scanResult) return
+    this._goExhibitDetail(this.data.scanResult)
   },
 
   selectExhibit: function (e) {
     const ex = e.currentTarget.dataset.exhibit
+    this._goExhibitDetail(ex)
+  },
+
+  _goExhibitDetail: function (ex) {
     let url = '/pages/exhibit-detail/exhibit-detail?name=' + encodeURIComponent(ex.name)
     if (ex.id && ex.id.indexOf('local-') !== 0 && ex.id.indexOf('mock-') !== 0) {
       url += '&id=' + encodeURIComponent(ex.id)

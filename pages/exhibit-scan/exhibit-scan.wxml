@@ -21,6 +21,34 @@
     </view>
   </view>
 
+  <view class="scan-action-card">
+    <view class="scan-action-text">
+      <text class="scan-action-title">拍照识别展项</text>
+      <text class="scan-action-desc">对准展签或展品名称拍照，MuseAI 会尝试匹配最接近的展项。</text>
+    </view>
+    <button class="scan-photo-btn" loading="{{scanning}}" disabled="{{scanning}}" bindtap="startPhotoScan">
+      {{scanning ? '识别中…' : '拍照识别'}}
+    </button>
+  </view>
+
+  <view wx:if="{{scanNotice}}" class="scan-notice">
+    <text>{{scanNotice}}</text>
+  </view>
+
+  <view wx:if="{{scanResult}}" class="scan-result-card" bindtap="openScanResult">
+    <view class="scan-result-top">
+      <text class="scan-result-label">识别结果</text>
+      <text class="scan-result-confidence">匹配度：{{scanResult.confidence}}</text>
+    </view>
+    <text class="scan-result-name">{{scanResult.name}}</text>
+    <text wx:if="{{scanResult.description}}" class="scan-result-desc">{{scanResult.description}}</text>
+    <view class="scan-result-tags">
+      <text wx:if="{{scanResult.hallDisplay}}" class="etag">{{scanResult.hallDisplay}}</text>
+      <text wx:if="{{scanResult.category}}" class="etag">{{scanResult.category}}</text>
+    </view>
+    <text class="scan-result-open">查看详情 ›</text>
+  </view>
+
   <view wx:if="{{dataNotice}}" class="data-notice">
     <text>{{dataNotice}}</text>
   </view>

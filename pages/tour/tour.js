@@ -21,6 +21,56 @@ function buildWelcomeMessage(hallSlug, hallName) {
   return '欢迎来到' + name + '。我会优先围绕你当前看到的展厅回答，不把其他展厅的内容混进来。\n你可以直接问一个展品、一个细节，或让 MuseAI 帮你整理观察重点。'
 }
 
+function plainTextForTts(content) {
+  return String(content || '')
+    .replace(/```[\s\S]*?```/g, function (block) {
+      return block.replace(/```[a-zA-Z0-9_-]*\n?/g, '').replace(/```/g, '')
+    })
+    .replace(/^#{1,6}\s+/gm, '')
+    .replace(/^\s*[-*+]\s+/gm, '')
+    .replace(/^\s*\d+\.\s+/gm, '')
+    .replace(/\*\*([^*]+)\*\*/g, '$1')
+    .replace(/\*([^*]+)\*/g, '$1')
+    .replace(/`([^`]+)`/g, '$1')
+    .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim()
+}
+
+function writeAscii(view, offset, text) {
+  for (var i = 0; i < text.length; i++) {
+    view.setUint8(offset + i, text.charCodeAt(i))
+  }
+}
+
+function pcm16ToWavArrayBuffer(pcmBuffer) {
+  var sampleRate = 24000
+  var channels = 1
+  var bitsPerSample = 16
+  var pcmBytes = new Uint8Array(pcmBuffer)
+  var wavBuffer = new ArrayBuffer(44 + pcmBytes.byteLength)
+  var view = new DataView(wavBuffer)
+  var wavBytes = new Uint8Array(wavBuffer)
+  var byteRate = sampleRate * channels * bitsPerSample / 8
+  var blockAlign = channels * bitsPerSample / 8
+
+  writeAscii(view, 0, 'RIFF')
+  view.setUint32(4, 36 + pcmBytes.byteLength, true)
+  writeAscii(view, 8, 'WAVE')
+  writeAscii(view, 12, 'fmt ')
+  view.setUint32(16, 16, true)
+  view.setUint16(20, 1, true)
+  view.setUint16(22, channels, true)
+  view.setUint32(24, sampleRate, true)
+  view.setUint32(28, byteRate, true)
+  view.setUint16(32, blockAlign, true)
+  view.setUint16(34, bitsPerSample, true)
+  writeAscii(view, 36, 'data')
+  view.setUint32(40, pcmBytes.byteLength, true)
+  wavBytes.set(pcmBytes, 44)
+  return wavBuffer
+}
+
 Page({
   data: {
     hallName:         '展厅',
@@ -36,6 +86,12 @@ Page({
     currentExhibit:   null,  // set by exhibit-detail goDeeper; null = general tour mode
     guideSuggestions: [],   // array of { id, type, icon, title, actionType, payload }
     showSuggestions:  false,
+    ttsEnabled:       true,
+    ttsState: {
+      playingMessageId: null,
+      loadingMessageId: null,
+      audioPath: null,
+    },
   },
 
   // ── Instance vars (non-reactive) ──────────────────────────────────────────
@@ -48,6 +104,9 @@ Page({
   _flushTimer:    null,   // timer ID for scheduled _chunkBuffer flush
   _loadedAt:      0,      // timestamp (ms) of last onLoad/onShow — ghost-tap guard
   _suggestionSeq: 0,      // prevents stale Phase-2 suggestions from overwriting the next hall/exhibit
+  _ttsAudioCtx:   null,
+  _ttsAudioCache: null,
+  _ttsRequestSeq: 0,
 
   // ── Lifecycle ─────────────────────────────────────────────────────────────
 
@@ -55,6 +114,8 @@ Page({
     this._loadedAt = Date.now()
     var state   = tourStore.getTourState()
     var exhibit = state.currentExhibit || null
+    var ttsPrefs = tourStore.getTtsPrefs()
+    if (!this._ttsAudioCache) this._ttsAudioCache = {}
     // Only reset chat on a fresh tour entry (hall page → tour).
     // When coming from exhibit-detail goDeeper(), options.exhibit is set —
     // preserve history so the user can still ask "我们刚才在讨论什么".
@@ -80,13 +141,14 @@ Page({
       hallName = this.data.hallName
     }
     if (freshEntry) {
-      var welcomeMsg = { id: 1, role: 'assistant', content: buildWelcomeMessage(hallSlug, hallName) }
+      var welcomeMsg = { id: 1, role: 'assistant', content: buildWelcomeMessage(hallSlug, hallName), ttsStatus: 'idle' }
       chatStore.setMessages([welcomeMsg])
       patch.messages = [welcomeMsg]
     } else {
       var storedMessages = chatStore.getState().messages
       if (storedMessages && storedMessages.length) patch.messages = storedMessages
     }
+    patch.ttsEnabled = ttsPrefs.enabled !== false
     this.setData(patch)
   },
 
@@ -95,7 +157,8 @@ Page({
     this._loadedAt = Date.now()
     var state = tourStore.getTourState()
     var hallName = state.currentHall ? banpoHalls.getHallDisplayName(state.currentHall) : this.data.hallName
-    this.setData({ currentExhibit: state.currentExhibit || null, sessionId: state.sessionId || null, hallName: hallName })
+    var ttsPrefs = tourStore.getTtsPrefs()
+    this.setData({ currentExhibit: state.currentExhibit || null, sessionId: state.sessionId || null, hallName: hallName, ttsEnabled: ttsPrefs.enabled !== false })
     this._loadSuggestions()
   },
 
@@ -106,6 +169,8 @@ Page({
       this._streamTask.abort()
       this._streamTask = null
     }
+    this._stopTtsPlayback()
+    this._destroyTtsAudio()
     // Fire-and-forget: best-effort flush of pending events on page leave
     this._flushEvents(null)
   },
@@ -268,6 +333,7 @@ Page({
           role:    'assistant',
           content: finalContent,
           traceId: traceId,
+          ttsStatus: 'idle',
         }
         self.setData({
           messages:         self.data.messages.concat(aiMsg),
@@ -345,6 +411,7 @@ Page({
       id:      Date.now(),
       role:    'assistant',
       content: finalContent,
+      ttsStatus: 'idle',
     }
     self.setData({
       messages:         self.data.messages.concat(stoppedMsg),
@@ -355,6 +422,164 @@ Page({
       loadingHint:      '',
     })
     self._scrollToBottom()
+  },
+
+  // ── TTS playback ─────────────────────────────────────────────────────────
+
+  onMessageTtsTap: function (e) {
+    var detail = e.detail || {}
+    var messageId = detail.messageId
+    var status = detail.status || 'idle'
+    var content = plainTextForTts(detail.content)
+
+    if (!messageId || !content) return
+    if (status === 'loading') return
+    if (status === 'playing') {
+      this._stopTtsPlayback()
+      return
+    }
+
+    this._playMessageTts(messageId, content)
+  },
+
+  _playMessageTts: function (messageId, content) {
+    var self = this
+    var cacheKey = String(messageId)
+    if (!self._ttsAudioCache) self._ttsAudioCache = {}
+
+    self._stopTtsPlayback()
+    var seq = ++self._ttsRequestSeq
+
+    var cachedPath = self._ttsAudioCache[cacheKey]
+    if (cachedPath) {
+      self._playTtsFile(messageId, cachedPath)
+      return
+    }
+
+    self._setMessageTtsStatus(messageId, 'loading')
+    var prefs = tourStore.getTtsPrefs()
+    var persona = tourStore.getBackendPersona()
+
+    api.ttsApi.synthesize(content, prefs.voice || '冰糖', null, persona)
+      .then(function (res) {
+        if (!res || !res.ok || !res.data || !res.data.audio) {
+          throw new Error('TTS synthesize failed')
+        }
+        if (res.data.format && res.data.format !== 'pcm16') {
+          throw new Error('Unsupported TTS format: ' + res.data.format)
+        }
+        return self._writePcm16AsWav(messageId, res.data.audio)
+      })
+      .then(function (filePath) {
+        if (seq !== self._ttsRequestSeq) {
+          self._setMessageTtsStatus(messageId, 'idle')
+          return
+        }
+        self._ttsAudioCache[cacheKey] = filePath
+        self._playTtsFile(messageId, filePath)
+      })
+      .catch(function (err) {
+        if (seq !== self._ttsRequestSeq) return
+        console.warn('[tts] synthesize failed', err)
+        self._setMessageTtsStatus(messageId, 'idle')
+        wx.showToast({ title: '语音生成失败', icon: 'none', duration: 2000 })
+      })
+  },
+
+  _writePcm16AsWav: function (messageId, audioBase64) {
+    return new Promise(function (resolve, reject) {
+      try {
+        var pcmBuffer = wx.base64ToArrayBuffer(audioBase64)
+        var wavBuffer = pcm16ToWavArrayBuffer(pcmBuffer)
+        var filePath = wx.env.USER_DATA_PATH + '/museai_tts_' + String(messageId).replace(/[^a-zA-Z0-9_-]/g, '') + '_' + Date.now() + '.wav'
+        wx.getFileSystemManager().writeFile({
+          filePath: filePath,
+          data: wavBuffer,
+          success: function () { resolve(filePath) },
+          fail: reject,
+        })
+      } catch (err) {
+        reject(err)
+      }
+    })
+  },
+
+  _playTtsFile: function (messageId, filePath) {
+    var self = this
+    self._destroyTtsAudio()
+
+    var ctx = wx.createInnerAudioContext()
+    self._ttsAudioCtx = ctx
+    self.setData({
+      ttsState: {
+        playingMessageId: messageId,
+        loadingMessageId: null,
+        audioPath: filePath,
+      },
+    })
+    self._setMessageTtsStatus(messageId, 'playing')
+
+    ctx.src = filePath
+    ctx.onEnded(function () {
+      self._setMessageTtsStatus(messageId, 'idle')
+      self.setData({
+        ttsState: { playingMessageId: null, loadingMessageId: null, audioPath: null },
+      })
+      self._destroyTtsAudio()
+    })
+    ctx.onStop(function () {
+      self._setMessageTtsStatus(messageId, 'idle')
+    })
+    ctx.onError(function (err) {
+      console.warn('[tts] playback failed', err)
+      self._setMessageTtsStatus(messageId, 'idle')
+      self.setData({
+        ttsState: { playingMessageId: null, loadingMessageId: null, audioPath: null },
+      })
+      wx.showToast({ title: '语音播放失败', icon: 'none', duration: 2000 })
+      self._destroyTtsAudio()
+    })
+    ctx.play()
+  },
+
+  _stopTtsPlayback: function () {
+    var currentId = this.data.ttsState && this.data.ttsState.playingMessageId
+    var loadingId = this.data.ttsState && this.data.ttsState.loadingMessageId
+    this._ttsRequestSeq++
+    if (this._ttsAudioCtx) {
+      try { this._ttsAudioCtx.stop() } catch (_) {}
+    }
+    if (currentId) this._setMessageTtsStatus(currentId, 'idle')
+    if (loadingId) this._setMessageTtsStatus(loadingId, 'idle')
+    this.setData({
+      ttsState: { playingMessageId: null, loadingMessageId: null, audioPath: null },
+    })
+  },
+
+  _destroyTtsAudio: function () {
+    if (!this._ttsAudioCtx) return
+    try { this._ttsAudioCtx.destroy() } catch (_) {}
+    this._ttsAudioCtx = null
+  },
+
+  _setMessageTtsStatus: function (messageId, status) {
+    var target = String(messageId)
+    var messages = (this.data.messages || []).map(function (msg) {
+      if (String(msg.id) !== target) {
+        if (status === 'playing' && msg.ttsStatus === 'playing') {
+          return Object.assign({}, msg, { ttsStatus: 'idle' })
+        }
+        return msg
+      }
+      return Object.assign({}, msg, { ttsStatus: status })
+    })
+    var nextState = {
+      playingMessageId: status === 'playing' ? messageId : (this.data.ttsState && this.data.ttsState.playingMessageId),
+      loadingMessageId: status === 'loading' ? messageId : null,
+      audioPath: this.data.ttsState ? this.data.ttsState.audioPath : null,
+    }
+    if (status === 'idle' && String(nextState.playingMessageId) === target) nextState.playingMessageId = null
+    this.setData({ messages: messages, ttsState: nextState })
   },
 
   // ── Guide suggestions ─────────────────────────────────────────────────────
@@ -564,7 +789,7 @@ Page({
         clearInterval(tick)
         self._forceFlush()
         chatStore.finishAssistantMessage({ content: reply })
-        var aiMsg = { id: Date.now(), role: 'assistant', content: reply }
+        var aiMsg = { id: Date.now(), role: 'assistant', content: reply, ttsStatus: 'idle' }
         self.setData({
           messages:         self.data.messages.concat(aiMsg),
           streamingContent: '',

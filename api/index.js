@@ -13,6 +13,15 @@ const banpoHalls = require('../constants/banpo-halls')
 
 const SERVER_ROOT = 'http://122.152.232.190:3000'
 
+const OCR_SERVICE_CONFIG = {
+  // Fill this from app.globalData.ocrServiceConfig or replace here after
+  // enabling a WeChat Service Market OCR capability for the mini-program.
+  service: '',
+  api: 'OcrAllInOne',
+  dataType: 2, // base64 image payload
+  ocrType: 0,
+}
+
 // ─── Helper: strip null/undefined query params ─────────────────────────────
 function _clean(params) {
   var out = {}
@@ -399,6 +408,66 @@ const ttsApi = {
       voice:   voice   || '冰糖',
       style:   style   || null,
       persona: persona || null,
+    }, {
+      timeout: 30000,
+      retries: 0,
+    })
+  },
+}
+
+// ─── OCR / Image Text Recognition ─────────────────────────────────────────
+// Uses WeChat Service Market OCR when configured. This does not call the
+// MuseAI backend and therefore keeps Stage 12B within the existing /exhibits
+// backend contract.
+function _getOcrServiceConfig() {
+  var app = null
+  try {
+    if (typeof getApp === 'function') app = getApp()
+  } catch (_) {}
+  return Object.assign({}, OCR_SERVICE_CONFIG, (app && app.globalData && app.globalData.ocrServiceConfig) || {})
+}
+
+const ocrApi = {
+  getConfig: function() {
+    return _getOcrServiceConfig()
+  },
+
+  isConfigured: function() {
+    var cfg = _getOcrServiceConfig()
+    return !!(cfg.service && typeof wx !== 'undefined' && wx.serviceMarket && wx.serviceMarket.invokeService)
+  },
+
+  recognizeImage: function(filePath, imageBase64) {
+    return new Promise(function(resolve) {
+      var cfg = _getOcrServiceConfig()
+      if (!cfg.service) {
+        resolve({ ok: false, code: 'OCR_NOT_CONFIGURED', data: { text: '' } })
+        return
+      }
+      if (!(typeof wx !== 'undefined' && wx.serviceMarket && wx.serviceMarket.invokeService)) {
+        resolve({ ok: false, code: 'OCR_UNAVAILABLE', data: { text: '' } })
+        return
+      }
+
+      var payload = {
+        data_type: cfg.dataType || 2,
+        ocr_type: cfg.ocrType || 0,
+      }
+      if (imageBase64) payload.img_data = imageBase64
+      else if (filePath) payload.img_url = filePath
+
+      wx.serviceMarket.invokeService({
+        service: cfg.service,
+        api: cfg.api || 'OcrAllInOne',
+        data: payload,
+        client_msg_id: 'museai_ocr_' + Date.now(),
+        success: function(res) {
+          resolve({ ok: true, data: res && (res.data || res) })
+        },
+        fail: function(err) {
+          resolve({ ok: false, code: 'OCR_FAILED', error: err, data: { text: '' } })
+        },
+      })
     })
   },
 }
@@ -496,5 +565,6 @@ module.exports = {
   tourApi,
   exhibitsApi,
   ttsApi,
+  ocrApi,
   curatorApi,
 }

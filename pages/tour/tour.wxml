@@ -30,9 +30,13 @@
       <message-bubble
         wx:for="{{messages}}"
         wx:key="id"
+        message-id="{{item.id}}"
         role="{{item.role}}"
         content="{{item.content}}"
         is-error="{{item.isError}}"
+        tts-status="{{item.ttsStatus}}"
+        show-tts="{{ttsEnabled}}"
+        bind:playtts="onMessageTtsTap"
       />
 
       <!-- ── RAG pipeline progress bar ── -->

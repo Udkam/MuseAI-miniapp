@@ -164,19 +164,33 @@
   animation: cursor-blink 0.8s step-end infinite;
 }
 
-.bubble-copy {
+.bubble-actions {
   margin-top: 14rpx;
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 12rpx;
+}
+
+.bubble-copy {
   display: flex;
   justify-content: flex-end;
 }
 
-.bubble-copy-text {
+.bubble-copy-text,
+.bubble-tts-text {
   font-size: 22rpx;
   color: #9A7458;
   background: #FFF8EF;
   border: 2rpx solid #EAD9C9;
   border-radius: 100rpx;
   padding: 4rpx 18rpx;
+}
+
+.bubble-tts.playing .bubble-tts-text {
+  color: #C4845A;
+  border-color: #E8C4A0;
+  background: #FFF5EE;
 }
 
 @keyframes cursor-blink {

@@ -39,7 +39,7 @@ const DEFAULT_STYLE_PREFS = {
 
 const DEFAULT_TTS_PREFS = {
   voice:    '冰糖',
-  autoPlay: true,
+  autoPlay: false,
   enabled:  true,
 }
 
@@ -129,6 +129,9 @@ function _makeEmptyTour() {
     currentHall:       null,
     currentExhibitId:  null,
     currentExhibit:    null,   // full exhibit object; set by exhibit-detail before goDeeper
+    currentScannedExhibitId: null,
+    currentScannedExhibitName: null,
+    lastScanTimestamp: null,
     aiConversationCount: 0,
     visitedHalls:      [],
     visitedExhibitIds: [],
@@ -420,6 +423,20 @@ function clearCurrentExhibit() {
 /** @returns {object|null} shallow copy of currentExhibit, or null */
 function getCurrentExhibit() {
   return _tour.currentExhibit ? Object.assign({}, _tour.currentExhibit) : null
+}
+
+function setCurrentScannedExhibit(exhibit) {
+  _tour.currentScannedExhibitId = exhibit && exhibit.id ? exhibit.id : null
+  _tour.currentScannedExhibitName = exhibit && exhibit.name ? exhibit.name : null
+  _tour.lastScanTimestamp = exhibit ? Date.now() : null
+}
+
+function getCurrentScannedExhibit() {
+  return {
+    currentScannedExhibitId: _tour.currentScannedExhibitId,
+    currentScannedExhibitName: _tour.currentScannedExhibitName,
+    lastScanTimestamp: _tour.lastScanTimestamp,
+  }
 }
 
 // ─── Event buffering ───────────────────────────────────────────────────────
@@ -1134,6 +1151,8 @@ module.exports = {
   setCurrentExhibit,
   clearCurrentExhibit,
   getCurrentExhibit,
+  setCurrentScannedExhibit,
+  getCurrentScannedExhibit,
 
   // Event buffer
   addTourEvent,

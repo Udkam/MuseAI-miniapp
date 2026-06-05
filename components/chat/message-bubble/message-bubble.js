@@ -30,6 +30,9 @@ Component({
     content:     { type: String,  value: ''      },
     isError:     { type: Boolean, value: false   },
     isStreaming: { type: Boolean, value: false   },
+    messageId:   { type: String,  value: ''      },
+    ttsStatus:   { type: String,  value: 'idle'  },
+    showTts:     { type: Boolean, value: false   },
   },
 
   data: {
@@ -50,6 +53,15 @@ Component({
   },
 
   methods: {
+    requestTts: function () {
+      if (this.properties.isStreaming || this.properties.isError || !this.properties.content) return
+      this.triggerEvent('playtts', {
+        messageId: this.properties.messageId,
+        content: this.properties.content,
+        status: this.properties.ttsStatus,
+      })
+    },
+
     copyContent: function () {
       var text = toPlainText(this.properties.content)
       if (!text) return
