@@ -1,8 +1,15 @@
 <view class="page-wrap route-page" wx:if="{{loaded}}">
 
   <view class="route-header">
-    <text class="route-title">固定参观路线</text>
+    <view class="ai-badge">
+      <text class="ai-badge-text">{{routeSourceLabel}}</text>
+    </view>
+    <text class="route-title">为你规划的参观路线</text>
     <text class="route-tagline">{{tagline}}</text>
+    <view wx:if="{{planSummary}}" class="plan-summary">
+      <text class="plan-summary-text">{{planSummary}}</text>
+    </view>
+    <text wx:if="{{routeNotice}}" class="route-notice">{{routeNotice}}</text>
   </view>
 
   <view class="stats-row">

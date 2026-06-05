@@ -39,6 +39,7 @@
   font-size: 26rpx;
   color: #8B6B55;
   display: block;
+  line-height: 1.6;
 }
 
 .plan-summary {
@@ -53,6 +54,13 @@
   font-size: 24rpx;
   line-height: 1.65;
   color: #5A3E2B;
+}
+
+.route-notice {
+  display: inline-block;
+  margin-top: 16rpx;
+  font-size: 22rpx;
+  color: #B08060;
 }
 
 /* ── Loading / skeleton ────────────────────────────────────────────────────── */

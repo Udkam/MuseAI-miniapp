@@ -431,6 +431,7 @@ function _buildPlanTourPayload(availableTime, interests) {
   var nextInterests = Array.isArray(input.interests) ? input.interests.slice() : []
   var currentHallSlug = input.currentHall ? hallNameToSlug(input.currentHall) : null
   var preferredHallSlugs = _normalizeHallList(input.preferredHallOrder)
+  var availableHallSlugs = _normalizeHallList(input.availableHalls)
   var persona = input.persona || input.backendPersona || ''
 
   _pushInterest(nextInterests, 'persona', persona)
@@ -446,6 +447,9 @@ function _buildPlanTourPayload(availableTime, interests) {
   _pushInterest(nextInterests, '当前展厅', currentHallSlug)
   if (preferredHallSlugs.length) {
     _pushInterest(nextInterests, '优先展厅', preferredHallSlugs.join(','))
+  }
+  if (availableHallSlugs.length) {
+    _pushInterest(nextInterests, '可选展厅', availableHallSlugs.join(','))
   }
 
   return {
