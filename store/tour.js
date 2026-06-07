@@ -38,7 +38,7 @@ const DEFAULT_STYLE_PREFS = {
 }
 
 const DEFAULT_TTS_PREFS = {
-  voice:    '冰糖',
+  voice:    null,
   autoPlay: false,
   enabled:  true,
 }

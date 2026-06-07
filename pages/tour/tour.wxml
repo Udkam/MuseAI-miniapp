@@ -20,6 +20,7 @@
   <!-- Message list -->
   <scroll-view
     class="msg-list"
+    style="{{messageListStyle}}"
     scroll-y
     scroll-into-view="{{scrollTarget}}"
     scroll-with-animation
@@ -84,7 +85,7 @@
   </scroll-view>
 
   <!-- Guide Suggestions Bar -->
-  <view wx:if="{{showSuggestions && guideSuggestions.length > 0}}" class="suggestions-bar" style="{{keyboardPanelStyle}}">
+  <view wx:if="{{showSuggestions && guideSuggestions.length > 0}}" class="suggestions-bar" style="{{suggestionsPanelStyle}}">
     <scroll-view scroll-x class="suggestions-scroll">
       <view class="suggestions-inner">
         <view
@@ -103,7 +104,7 @@
   </view>
 
   <!-- Input bar -->
-  <view class="input-bar" style="{{keyboardPanelStyle}}">
+  <view class="input-bar" style="{{inputPanelStyle}}">
     <view class="exhibit-search-btn" bindtap="goScan" aria-label="搜索展品">
       <text class="exhibit-search-icon">🔎</text>
       <text class="exhibit-search-text">搜展品</text>

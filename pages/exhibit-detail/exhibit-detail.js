@@ -139,7 +139,7 @@ Page({
     }
 
     if (!state.sessionId) {
-      // No session — create a quick-start one so tour doesn't show "请先完成问卷"
+      // No session: create a quick-start one before entering the tour page.
       var guestId = 'miniapp_guest_' + Date.now()
       tourStore.setStylePrefs({ answerLength: 'balanced', depth: 'standard', terminology: 'plain' })
       tourStore.createLocalTourState({ interestType: 'B', persona: 'B', assumption: 'D', personaId: 'student' })

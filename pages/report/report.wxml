@@ -36,9 +36,14 @@
     </view>
   </view>
 
-  <view class="card summary-card">
-    <text class="section-label text-clay text-bold">本次游览总结</text>
-    <text class="summary-text">{{journeySummary}}</text>
+  <view wx:if="{{visitedHallCards.length > 0}}" class="card">
+    <text class="section-label text-clay text-bold">到访展厅</text>
+    <view class="hall-card-list">
+      <view wx:for="{{visitedHallCards}}" wx:key="name" class="hall-summary-row">
+        <text class="hall-summary-name">{{item.name}}</text>
+        <text class="hall-summary-note">{{item.note}}</text>
+      </view>
+    </view>
   </view>
 
   <view wx:if="{{reflection}}" class="card reflection-card">
@@ -57,60 +62,15 @@
     </view>
   </view>
 
-  <view wx:if="{{visitedHallCards.length > 0}}" class="card">
-    <text class="section-label text-clay text-bold">到访展厅</text>
-    <view class="hall-card-list">
-      <view wx:for="{{visitedHallCards}}" wx:key="name" class="hall-summary-row">
-        <text class="hall-summary-name">{{item.name}}</text>
-        <text class="hall-summary-note">{{item.note}}</text>
-      </view>
-    </view>
-  </view>
-
-  <view wx:if="{{questionSummary || questionSamples.length > 0}}" class="card">
-    <text class="section-label text-clay text-bold">本次问题线索</text>
-    <text class="summary-text">{{questionSummary}}</text>
-    <view wx:if="{{questionSamples.length > 0}}" class="question-list">
-      <view wx:for="{{questionSamples}}" wx:key="*this" class="question-row">
-        <text class="question-mark">问</text>
-        <text class="question-text">{{item}}</text>
-      </view>
-    </view>
-  </view>
-
-  <view wx:if="{{takeaways.length > 0}}" class="card">
-    <text class="section-label text-clay text-bold">本次观察</text>
-    <view class="highlight-list">
-      <view wx:for="{{takeaways}}" wx:key="*this" class="highlight-row">
-        <text class="highlight-dot text-gold">◆</text>
-        <text class="highlight-text">{{item}}</text>
-      </view>
-    </view>
-  </view>
-
-  <view wx:if="{{nextSuggestions.length > 0}}" class="card">
-    <text class="section-label text-clay text-bold">仍未展开的线索</text>
-    <view class="highlight-list">
-      <view wx:for="{{nextSuggestions}}" wx:key="*this" class="highlight-row">
-        <text class="highlight-dot text-gold">◆</text>
-        <text class="highlight-text">{{item}}</text>
-      </view>
-    </view>
-  </view>
-
-  <view wx:if="{{reviewChecklist.length > 0}}" class="card">
-    <text class="section-label text-clay text-bold">报告依据</text>
-    <view class="review-list">
-      <view wx:for="{{reviewChecklist}}" wx:key="label" class="review-row">
-        <text class="review-label">{{item.label}}</text>
-        <text class="review-text">{{item.text}}</text>
-      </view>
-    </view>
-  </view>
-
-  <view wx:if="{{highlights.length > 0}}" class="card compact-card">
+  <view wx:if="{{recordNotes.length > 0 || questionSamples.length > 0 || highlights.length > 0}}" class="card compact-card">
     <text class="section-label text-clay text-bold">记录摘要</text>
-    <view class="highlight-list">
+    <view wx:if="{{recordNotes.length > 0}}" class="record-note-list">
+      <view wx:for="{{recordNotes}}" wx:key="question" class="record-note">
+        <text class="record-question">问：{{item.question}}</text>
+        <text class="record-point">记：{{item.point}}</text>
+      </view>
+    </view>
+    <view wx:elif="{{highlights.length > 0}}" class="highlight-list">
       <view wx:for="{{highlights}}" wx:key="*this" class="highlight-row">
         <text class="highlight-dot text-gold">◆</text>
         <text class="highlight-text">{{item}}</text>

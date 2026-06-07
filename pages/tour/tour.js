@@ -3,7 +3,9 @@ const chatStore = require('../../store/chat')
 const tourStore = require('../../store/tour')
 const banpoHalls = require('../../constants/banpo-halls')
 
-const TOUR_TTS_STYLE = '自然明亮、清晰亲切，语速稍快但咬字清楚，句间停顿短一些，不拖长尾音。'
+const TOUR_TTS_STYLE = '请用清晰、自然、亲切的博物馆导览语气朗读；语速稍快，比常规讲解更利落，句间停顿短一些，尾音不要拖长。不要额外补充文字，只朗读给定内容。'
+const TTS_SEGMENT_MAX_CHARS = 72
+const TTS_SEGMENT_MAX_COUNT = 10
 
 var HALL_WELCOME_COPY = {
   'basic-exhibition-hall': '这里是基本陈列展厅。先把半坡看成一个完整的生活系统：房屋、工具、陶器、装饰品，都在回答同一个问题：六千年前的人怎样组织日常生活。\n你可以从一件器物、一个纹样，或“他们怎么吃住劳动”问起。',
@@ -37,6 +39,33 @@ function plainTextForTts(content) {
     .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1')
     .replace(/\n{3,}/g, '\n\n')
     .trim()
+}
+
+function splitTextForTts(content) {
+  var text = plainTextForTts(content)
+    .replace(/\s+/g, ' ')
+    .replace(/([。！？；])\s*/g, '$1\n')
+    .trim()
+  if (!text) return []
+
+  var lines = text.split(/\n+/).map(function (item) { return item.trim() }).filter(Boolean)
+  var out = []
+  var cur = ''
+
+  lines.forEach(function (line) {
+    if ((cur + line).length <= TTS_SEGMENT_MAX_CHARS) {
+      cur = cur ? cur + ' ' + line : line
+      return
+    }
+    if (cur) out.push(cur)
+    while (line.length > TTS_SEGMENT_MAX_CHARS) {
+      out.push(line.slice(0, TTS_SEGMENT_MAX_CHARS))
+      line = line.slice(TTS_SEGMENT_MAX_CHARS)
+    }
+    cur = line
+  })
+  if (cur) out.push(cur)
+  return out.slice(0, TTS_SEGMENT_MAX_COUNT)
 }
 
 function writeAscii(view, offset, text) {
@@ -88,7 +117,9 @@ Page({
     currentExhibit:   null,  // set by exhibit-detail goDeeper; null = general tour mode
     guideSuggestions: [],   // array of { id, type, icon, title, actionType, payload }
     showSuggestions:  false,
-    keyboardPanelStyle: '',
+    inputPanelStyle: '',
+    suggestionsPanelStyle: '',
+    messageListStyle: '',
     ttsEnabled:       true,
     ttsState: {
       playingMessageId: null,
@@ -109,8 +140,10 @@ Page({
   _suggestionSeq: 0,      // prevents stale Phase-2 suggestions from overwriting the next hall/exhibit
   _ttsAudioCtx:   null,
   _ttsAudioCache: null,
+  _ttsQueue:      null,
   _ttsRequestSeq: 0,
   _keyboardHandler: null,
+  _safeAreaBottom: 0,
 
   // ── Lifecycle ─────────────────────────────────────────────────────────────
 
@@ -120,6 +153,7 @@ Page({
     var exhibit = state.currentExhibit || null
     var ttsPrefs = tourStore.getTtsPrefs()
     if (!this._ttsAudioCache) this._ttsAudioCache = {}
+    this._initSafeArea()
     // Only reset chat on a fresh tour entry (hall page → tour).
     // When coming from exhibit-detail goDeeper(), options.exhibit is set —
     // preserve history so the user can still ask "我们刚才在讨论什么".
@@ -213,6 +247,19 @@ Page({
     wx.onKeyboardHeightChange(this._keyboardHandler)
   },
 
+  _initSafeArea: function () {
+    try {
+      var info = wx.getSystemInfoSync ? wx.getSystemInfoSync() : null
+      if (info && info.safeArea && info.screenHeight) {
+        this._safeAreaBottom = Math.max(0, info.screenHeight - info.safeArea.bottom)
+      } else {
+        this._safeAreaBottom = 0
+      }
+    } catch (_) {
+      this._safeAreaBottom = 0
+    }
+  },
+
   _teardownKeyboardLift: function () {
     if (wx.offKeyboardHeightChange && this._keyboardHandler) {
       wx.offKeyboardHeightChange(this._keyboardHandler)
@@ -223,8 +270,18 @@ Page({
 
   _applyKeyboardLift: function (height) {
     var h = Math.max(0, Number(height) || 0)
-    var style = h ? ('transform: translateY(-' + h + 'px);') : ''
-    this.setData({ keyboardPanelStyle: style })
+    // WeChat keyboard height is already the visual keyboard height on iOS/Android.
+    // Subtracting safe-area here causes under-lift on real iPhones.
+    var lift = h
+    var inputStyle = lift ? ('transform: translateY(-' + lift + 'px);') : ''
+    var suggestionsLift = lift ? lift + 56 : 0
+    var suggestionsStyle = suggestionsLift ? ('transform: translateY(-' + suggestionsLift + 'px);') : ''
+    var messageListStyle = lift ? ('padding-bottom:' + Math.ceil(lift + 150) + 'px;') : ''
+    this.setData({
+      inputPanelStyle: inputStyle,
+      suggestionsPanelStyle: suggestionsStyle,
+      messageListStyle: messageListStyle,
+    })
     if (h) this._scrollToBottom()
   },
 
@@ -238,6 +295,15 @@ Page({
     var state = tourStore.getTourState()
     var id    = state.sessionId
     var token = state.sessionToken
+
+    if (!id) {
+      self._ensureTourSession().then(function (created) {
+        if (!created) return
+        self.setData({ inputText: text })
+        self.sendMessage()
+      })
+      return
+    }
 
     // ── Performance clock ──────────────────────────────────────────────────
     var now = Date.now()
@@ -269,14 +335,6 @@ Page({
         self.setData({ loadingHint: '资料较多，AI 正在整理讲解…' })
       }
     }, 8000)
-
-    // No session — demo mode
-    if (!id) {
-      self._clearHintTimers()
-      self.setData({ loadingHint: '' })
-      self._mockReply('未检测到导览会话，请先完成首页问卷。当前为演示模式。')
-      return
-    }
 
     // ── Record exhibit_question event ──────────────────────────────────────
     tourStore.addTourEvent({
@@ -374,6 +432,15 @@ Page({
         var traceId = payload.trace_id || null
         chatStore.finishAssistantMessage({ content: finalContent, traceId: traceId })
         tourStore.incrementAiConversationCount()
+        tourStore.addTourEvent({
+          eventType: 'assistant_answer',
+          hall:      state.currentHall || banpoHalls.normalizeHallToSlug(self.data.hallName) || '',
+          metadata: {
+            question: text.slice(0, 200),
+            answer:   plainTextForTts(finalContent).slice(0, 600),
+            trace_id: traceId,
+          },
+        })
 
         var aiMsg = {
           id:      Date.now(),
@@ -497,17 +564,39 @@ Page({
     self._stopTtsPlayback()
     var seq = ++self._ttsRequestSeq
 
-    var cachedPath = self._ttsAudioCache[cacheKey]
-    if (cachedPath) {
-      self._playTtsFile(messageId, cachedPath)
+    var cached = self._ttsAudioCache[cacheKey]
+    if (cached && cached.paths && cached.paths[0]) {
+      self._startTtsQueue(messageId, cacheKey, cached.segments || splitTextForTts(content), cached.paths, seq)
       return
     }
 
+    var segments = splitTextForTts(content)
+    if (!segments.length) return
+    self._ttsAudioCache[cacheKey] = { segments: segments, paths: [] }
     self._setMessageTtsStatus(messageId, 'loading')
-    var prefs = tourStore.getTtsPrefs()
     var persona = tourStore.getBackendPersona()
+    var voice = self._getTtsVoiceOverride()
 
-    api.ttsApi.synthesize(content, prefs.voice || '冰糖', TOUR_TTS_STYLE, persona)
+    self._synthesizeTtsSegment(messageId, segments[0], 0, voice, persona)
+      .then(function (res) {
+        if (seq !== self._ttsRequestSeq) {
+          self._setMessageTtsStatus(messageId, 'idle')
+          return
+        }
+        self._ttsAudioCache[cacheKey].paths[0] = res
+        self._startTtsQueue(messageId, cacheKey, segments, self._ttsAudioCache[cacheKey].paths, seq)
+      })
+      .catch(function (err) {
+        if (seq !== self._ttsRequestSeq) return
+        console.warn('[tts] synthesize failed', err)
+        self._setMessageTtsStatus(messageId, 'idle')
+        wx.showToast({ title: '语音生成失败', icon: 'none', duration: 2000 })
+      })
+  },
+
+  _synthesizeTtsSegment: function (messageId, segmentText, index, voice, persona) {
+    var self = this
+    return api.ttsApi.synthesize(segmentText, voice || null, TOUR_TTS_STYLE, persona)
       .then(function (res) {
         if (!res || !res.ok || !res.data || !res.data.audio) {
           throw new Error('TTS synthesize failed')
@@ -515,21 +604,7 @@ Page({
         if (res.data.format && res.data.format !== 'pcm16') {
           throw new Error('Unsupported TTS format: ' + res.data.format)
         }
-        return self._writePcm16AsWav(messageId, res.data.audio)
-      })
-      .then(function (filePath) {
-        if (seq !== self._ttsRequestSeq) {
-          self._setMessageTtsStatus(messageId, 'idle')
-          return
-        }
-        self._ttsAudioCache[cacheKey] = filePath
-        self._playTtsFile(messageId, filePath)
-      })
-      .catch(function (err) {
-        if (seq !== self._ttsRequestSeq) return
-        console.warn('[tts] synthesize failed', err)
-        self._setMessageTtsStatus(messageId, 'idle')
-        wx.showToast({ title: '语音生成失败', icon: 'none', duration: 2000 })
+        return self._writePcm16AsWav(messageId + '_' + index, res.data.audio)
       })
   },
 
@@ -551,8 +626,91 @@ Page({
     })
   },
 
-  _playTtsFile: function (messageId, filePath) {
+  _startTtsQueue: function (messageId, cacheKey, segments, paths, seq) {
+    this._ttsQueue = {
+      messageId: messageId,
+      cacheKey: cacheKey,
+      segments: segments,
+      paths: paths,
+      index: 0,
+      seq: seq,
+      preloading: {},
+    }
+    this._playTtsQueueIndex(0)
+    this._preloadNextTtsSegment()
+  },
+
+  _playTtsQueueIndex: function (index) {
+    var q = this._ttsQueue
+    if (!q || index >= q.segments.length) {
+      if (q && q.messageId) this._setMessageTtsStatus(q.messageId, 'idle')
+      this.setData({ ttsState: { playingMessageId: null, loadingMessageId: null, audioPath: null } })
+      this._destroyTtsAudio()
+      this._ttsQueue = null
+      return
+    }
+    q.index = index
+    if (q.paths[index]) {
+      this._playTtsFile(q.messageId, q.paths[index], { queued: true })
+      this._preloadNextTtsSegment()
+      return
+    }
+    this._setMessageTtsStatus(q.messageId, 'loading')
+    this._ensureTtsSegmentPath(index).then(function () {
+      if (!q || q.seq !== this._ttsRequestSeq) return
+      this._playTtsQueueIndex(index)
+    }.bind(this)).catch(function (err) {
+      console.warn('[tts] queued synthesize failed', err)
+      this._setMessageTtsStatus(q.messageId, 'idle')
+      wx.showToast({ title: '语音生成失败', icon: 'none', duration: 2000 })
+      this._ttsQueue = null
+    }.bind(this))
+  },
+
+  _preloadNextTtsSegment: function () {
+    var q = this._ttsQueue
+    if (!q) return
+    var next = q.index + 1
+    if (next >= q.segments.length || q.paths[next] || q.preloading[next]) return
+    this._ensureTtsSegmentPath(next).catch(function (err) {
+      console.warn('[tts] preload failed', err)
+      if (q && q.preloading) delete q.preloading[next]
+    })
+  },
+
+  _ensureTtsSegmentPath: function (index) {
+    var q = this._ttsQueue
+    if (!q) return Promise.reject(new Error('No TTS queue'))
+    if (q.paths[index]) return Promise.resolve(q.paths[index])
+    if (q.preloading[index]) return q.preloading[index]
     var self = this
+    var persona = tourStore.getBackendPersona()
+    var voice = self._getTtsVoiceOverride()
+    q.preloading[index] = self._synthesizeTtsSegment(q.messageId, q.segments[index], index, voice, persona)
+      .then(function (path) {
+        if (!self._ttsAudioCache[q.cacheKey]) self._ttsAudioCache[q.cacheKey] = { segments: q.segments, paths: [] }
+        self._ttsAudioCache[q.cacheKey].paths[index] = path
+        q.paths[index] = path
+        return path
+      })
+      .catch(function (err) {
+        if (q && q.preloading) delete q.preloading[index]
+        throw err
+      })
+    return q.preloading[index]
+  },
+
+  _getTtsVoiceOverride: function () {
+    var prefs = tourStore.getTtsPrefs()
+    // Older local storage may still contain the old default "冰糖".
+    // Treat it as no explicit override so backend persona voices can take effect.
+    if (!prefs || !prefs.voice || prefs.voice === '冰糖') return null
+    return prefs.voice
+  },
+
+  _playTtsFile: function (messageId, filePath, options) {
+    var self = this
+    var opts = options || {}
     self._destroyTtsAudio()
 
     var ctx = wx.createInnerAudioContext()
@@ -568,6 +726,10 @@ Page({
 
     ctx.src = filePath
     ctx.onEnded(function () {
+      if (opts.queued && self._ttsQueue && String(self._ttsQueue.messageId) === String(messageId)) {
+        self._playTtsQueueIndex(self._ttsQueue.index + 1)
+        return
+      }
       self._setMessageTtsStatus(messageId, 'idle')
       self.setData({
         ttsState: { playingMessageId: null, loadingMessageId: null, audioPath: null },
@@ -593,6 +755,7 @@ Page({
     var currentId = this.data.ttsState && this.data.ttsState.playingMessageId
     var loadingId = this.data.ttsState && this.data.ttsState.loadingMessageId
     this._ttsRequestSeq++
+    this._ttsQueue = null
     if (this._ttsAudioCtx) {
       try { this._ttsAudioCtx.stop() } catch (_) {}
     }
@@ -820,6 +983,37 @@ Page({
     if (status >= 500) return '服务器暂时繁忙，请稍后再试。'
     if (status >= 400 && status < 500) return '请求参数有误，请重试或刷新页面。'
     return '连接 AI 导览员失败，请检查网络后重试。'
+  },
+
+  _ensureTourSession: function () {
+    var self = this
+    var state = tourStore.getTourState()
+    if (state.sessionId) return Promise.resolve(true)
+
+    wx.showLoading({ title: '正在连接导览…', mask: false })
+    var persona = tourStore.getBackendPersona ? tourStore.getBackendPersona() : 'B'
+    return api.tourApi.createSession({
+      interest_type: state.interestType || persona || 'B',
+      persona: persona || 'B',
+      assumption: state.assumption || state.assumptionText || 'default',
+      guest_id: 'wechat-mini',
+    }).then(function (res) {
+      wx.hideLoading()
+      if (!res || !res.ok || !res.data) throw new Error('create session failed')
+      var d = res.data
+      tourStore.setTourSession({
+        sessionId: d.id || d.session_id,
+        sessionToken: d.session_token || null,
+      })
+      if (state.currentHall) tourStore.updateTourState({ currentHall: state.currentHall })
+      self.setData({ sessionId: d.id || d.session_id || null })
+      return !!(d.id || d.session_id)
+    }).catch(function (err) {
+      wx.hideLoading()
+      console.warn('[tour] auto create session failed', err)
+      wx.showToast({ title: '连接导览失败，请检查网络', icon: 'none', duration: 2200 })
+      return false
+    })
   },
 
   // ── Demo-mode mock reply (no session) ─────────────────────────────────────

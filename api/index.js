@@ -405,11 +405,11 @@ const ttsApi = {
   synthesize: function(text, voice, style, persona) {
     return req.post('/tts/synthesize', {
       text:    text,
-      voice:   voice   || '冰糖',
+      voice:   voice   || null,
       style:   style   || null,
       persona: persona || null,
     }, {
-      timeout: 30000,
+      timeout: 18000,
       retries: 0,
     })
   },

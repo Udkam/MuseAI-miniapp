@@ -1,5 +1,6 @@
 const api       = require('../../api/index')
 const tourStore = require('../../store/tour')
+const chatStore = require('../../store/chat')
 const banpoHalls = require('../../constants/banpo-halls')
 
 var RADAR_LABELS = {
@@ -200,6 +201,121 @@ function collectExhibitNames(events) {
   }).filter(Boolean))
 }
 
+function stripMarkdown(text) {
+  return String(text || '')
+    .replace(/```[\s\S]*?```/g, '')
+    .replace(/^#{1,6}\s+/gm, '')
+    .replace(/^\s*[-*+]\s+/gm, '')
+    .replace(/^\s*\d+\.\s+/gm, '')
+    .replace(/\*\*([^*]+)\*\*/g, '$1')
+    .replace(/\*([^*]+)\*/g, '$1')
+    .replace(/`([^`]+)`/g, '$1')
+    .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1')
+    .replace(/\s+/g, ' ')
+    .trim()
+}
+
+function compactText(text, maxLen) {
+  var value = stripMarkdown(text)
+  if (!value) return ''
+  var sentence = value.split(/[。！？；]/)[0] || value
+  if (sentence.length < 18 && value.length > sentence.length) {
+    sentence = value.slice(0, maxLen || 80)
+  }
+  if (sentence.length > (maxLen || 80)) sentence = sentence.slice(0, maxLen || 80) + '…'
+  return sentence
+}
+
+function extractKnowledgePoint(answer) {
+  var text = stripMarkdown(answer)
+  if (!text) return ''
+  var markers = ['说明', '反映', '表明', '意味着', '关键在于', '可以看出', '直接证据']
+  var sentences = text.split(/[。！？；]/).map(function (item) { return item.trim() }).filter(Boolean)
+  for (var i = 0; i < sentences.length; i++) {
+    for (var j = 0; j < markers.length; j++) {
+      if (sentences[i].indexOf(markers[j]) >= 0) return compactText(sentences[i], 86)
+    }
+  }
+  return compactText(sentences[0] || text, 86)
+}
+
+function inferQuestionRecordPoint(question, events) {
+  var q = stripMarkdown(question)
+  if (!q) return ''
+  var scores = { craft: 0, settlement: 0, social: 0, spiritual: 0, life: 0, evidence: 0 }
+  matchTopics(q).forEach(function (topic) { scores[topic] += 3 })
+  collectHallSlugs({}, events || [], tourStore.getTourState()).forEach(function (slug) {
+    var weights = HALL_TOPIC_WEIGHTS[slug] || {}
+    Object.keys(weights).forEach(function (topic) { scores[topic] += weights[topic] })
+  })
+  var top = 'evidence'
+  Object.keys(scores).forEach(function (topic) {
+    if (scores[topic] > scores[top]) top = topic
+  })
+  if (top === 'craft') return '器物工艺线索：记录材料、器形、制作痕迹和使用场景之间的关系。'
+  if (top === 'settlement') return '聚落空间线索：记录房址、壕沟、墓葬或作坊如何组织在一起。'
+  if (top === 'social') return '社会组织线索：记录分工、协作和公共生活如何被遗存说明。'
+  if (top === 'spiritual') return '精神文化线索：记录图案、形象和仪式解释背后的证据边界。'
+  if (top === 'life') return '日常生活线索：记录食物、居住、劳动和工具如何相互关联。'
+  return '证据整理线索：记录问题对应的展厅、展项和可核对细节。'
+}
+
+function buildRecordNotes(messages, questions, events) {
+  var notes = []
+  var list = Array.isArray(messages) ? messages : []
+  for (var i = 0; i < list.length; i++) {
+    var msg = list[i]
+    if (!msg || msg.role !== 'user' || !msg.content) continue
+    var answer = ''
+    for (var j = i + 1; j < list.length; j++) {
+      if (list[j].role === 'assistant' && !list[j].isError && list[j].content) {
+        answer = list[j].content
+        break
+      }
+      if (list[j].role === 'user') break
+    }
+    if (!answer) continue
+    notes.push({
+      question: compactText(msg.content, 54),
+      point: extractKnowledgePoint(answer),
+    })
+    if (notes.length >= 4) break
+  }
+
+  if (!notes.length && Array.isArray(events)) {
+    events.forEach(function (event) {
+      var type = event.event_type || event.eventType
+      var meta = event.metadata || {}
+      if (type !== 'assistant_answer' || !meta.question || !meta.answer) return
+      notes.push({
+        question: compactText(meta.question, 54),
+        point: extractKnowledgePoint(meta.answer),
+      })
+    })
+    notes = notes.slice(0, 4)
+  }
+
+  if (!notes.length && questions.length) {
+    notes = questions.slice(0, 4).map(function (question) {
+      return {
+        question: compactText(question, 54),
+        point: inferQuestionRecordPoint(question, events),
+      }
+    })
+  }
+
+  if (!notes.length && events && events.length) {
+    var hallSlugs = collectHallSlugs({}, events, tourStore.getTourState())
+    notes = hallSlugs.slice(0, 3).map(function (slug) {
+      return {
+        question: hallDisplay(slug),
+        point: HALL_NOTES[slug] || '本次记录已留下该展厅的到访线索。',
+      }
+    })
+  }
+  return notes
+}
+
 function buildObservationFindings(personaKey, hallNames, questions, exhibitNames, focusText) {
   var copy = PERSONA_REPORT_COPY[personaKey] || PERSONA_REPORT_COPY.default
   var findings = copy.takeaways.slice(0, 1)
@@ -333,6 +449,7 @@ Page({
 
     radarBars: [],
     highlights: [],
+    recordNotes: [],
   },
 
   onLoad: function () {
@@ -440,6 +557,7 @@ Page({
       dataNotice: experience.dataNotice,
       radarBars: radarBars,
       highlights: experience.highlights,
+      recordNotes: experience.recordNotes,
       reportTitle: tourStore.getReportThemeTitle() || this.data.reportTitle,
       persona: tourStore.getPersonaLabel() || this.data.persona,
     })
@@ -453,6 +571,7 @@ Page({
     var hallNames = unique(hallSlugs.map(hallDisplay).filter(Boolean))
     var questions = collectQuestions(events)
     var exhibitNames = collectExhibitNames(events)
+    var chatMessages = (chatStore.getState().messages || [])
     var questionCount = data.total_questions != null ? Number(data.total_questions) : questions.length
     var exhibitCount = data.total_exhibits_viewed != null ? Number(data.total_exhibits_viewed) : exhibitNames.length
     var hallCount = hallNames.length
@@ -487,10 +606,11 @@ Page({
       : ''
 
     var highlights = []
-    if (hallNames.length) highlights.push('到访展厅：' + hallNames.join('、'))
     if (questions.length) highlights.push('已记录问题：' + questions.length + ' 个')
     if (exhibitNames.length) highlights.push('重点展项：' + exhibitNames.join('、'))
     if (!highlights.length) highlights = []
+
+    var recordNotes = buildRecordNotes(chatMessages, questions, events)
 
     var dataNotice = ''
     if (isLocalFallback) {
@@ -514,6 +634,7 @@ Page({
       reflection: buildLocalReflection(data, events, state, personaKey),
       dataNotice: dataNotice,
       highlights: highlights,
+      recordNotes: recordNotes,
     }
   },
 
@@ -550,6 +671,7 @@ Page({
       dataNotice: experience.dataNotice,
       radarBars: FALLBACK_RADAR.slice(),
       highlights: experience.highlights,
+      recordNotes: experience.recordNotes,
     })
   },
 

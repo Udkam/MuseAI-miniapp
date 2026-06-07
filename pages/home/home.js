@@ -23,8 +23,7 @@ Page({
     wx.navigateTo({ url: '/pages/onboarding/onboarding' })
   },
 
-  // Skip all onboarding — use default persona, create a real backend session.
-  // This prevents the "请先完成首页问卷" message in tour.js by providing a sessionId.
+  // Skip all onboarding: use the default persona and create a backend session.
   goQuickStart: function () {
     if (this.data.starting) return
     var self = this
