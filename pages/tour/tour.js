@@ -117,6 +117,7 @@ Page({
     currentExhibit:   null,  // set by exhibit-detail goDeeper; null = general tour mode
     guideSuggestions: [],   // array of { id, type, icon, title, actionType, payload }
     showSuggestions:  false,
+    keyboardVisible:  false,
     inputPanelStyle: '',
     suggestionsPanelStyle: '',
     messageListStyle: '',
@@ -151,6 +152,7 @@ Page({
     this._loadedAt = Date.now()
     var state   = tourStore.getTourState()
     var exhibit = state.currentExhibit || null
+    var exhibitNameFromQuery = options && options.exhibit ? decodeURIComponent(options.exhibit) : ''
     var ttsPrefs = tourStore.getTtsPrefs()
     if (!this._ttsAudioCache) this._ttsAudioCache = {}
     this._initSafeArea()
@@ -164,6 +166,18 @@ Page({
         tourStore.clearCurrentExhibit()
         exhibit = null
       }
+    }
+
+    if (!exhibit && exhibitNameFromQuery) {
+      var fallbackHall = state.currentHall || (options.hall ? decodeURIComponent(options.hall) : '')
+      tourStore.setCurrentExhibit({
+        id: exhibitNameFromQuery,
+        name: exhibitNameFromQuery,
+        hall: fallbackHall ? banpoHalls.normalizeHallToSlug(fallbackHall) : '',
+        hallDisplay: fallbackHall ? banpoHalls.getHallDisplayName(fallbackHall) : '',
+        objectKind: '展项',
+      })
+      exhibit = tourStore.getCurrentExhibit ? tourStore.getCurrentExhibit() : tourStore.getTourState().currentExhibit || null
     }
 
     this._setupKeyboardLift()
@@ -270,17 +284,17 @@ Page({
 
   _applyKeyboardLift: function (height) {
     var h = Math.max(0, Number(height) || 0)
-    // WeChat keyboard height is already the visual keyboard height on iOS/Android.
-    // Subtracting safe-area here causes under-lift on real iPhones.
-    var lift = h
-    var inputStyle = lift ? ('transform: translateY(-' + lift + 'px);') : ''
-    var suggestionsLift = lift ? lift + 56 : 0
-    var suggestionsStyle = suggestionsLift ? ('transform: translateY(-' + suggestionsLift + 'px);') : ''
-    var messageListStyle = lift ? ('padding-bottom:' + Math.ceil(lift + 150) + 'px;') : ''
+    // True-device keyboard height already includes the visible keyboard area.
+    // Keep only the input bar above the keyboard; hide suggestions while typing
+    // so iOS candidate bars and safe area do not stack into a large blank gap.
+    var lift = h ? Math.max(0, h - (this._safeAreaBottom || 0)) : 0
+    var inputStyle = lift ? ('transform: translate3d(0,-' + lift + 'px,0);') : ''
+    var messageListStyle = lift ? ('padding-bottom:' + Math.ceil(lift + 128) + 'px;') : ''
     this.setData({
       inputPanelStyle: inputStyle,
-      suggestionsPanelStyle: suggestionsStyle,
+      suggestionsPanelStyle: '',
       messageListStyle: messageListStyle,
+      keyboardVisible: !!lift,
     })
     if (h) this._scrollToBottom()
   },
@@ -596,16 +610,41 @@ Page({
 
   _synthesizeTtsSegment: function (messageId, segmentText, index, voice, persona) {
     var self = this
-    return api.ttsApi.synthesize(segmentText, voice || null, TOUR_TTS_STYLE, persona)
+    return api.ttsApi.synthesize(segmentText, '冰糖', TOUR_TTS_STYLE, persona)
       .then(function (res) {
         if (!res || !res.ok || !res.data || !res.data.audio) {
           throw new Error('TTS synthesize failed')
         }
-        if (res.data.format && res.data.format !== 'pcm16') {
+        var format = String(res.data.format || 'pcm16').toLowerCase()
+        if (format === 'wav') {
+          return self._writeBase64AudioFile(messageId + '_' + index, res.data.audio, 'wav')
+        }
+        if (format === 'mp3') {
+          return self._writeBase64AudioFile(messageId + '_' + index, res.data.audio, 'mp3')
+        }
+        if (format !== 'pcm16') {
           throw new Error('Unsupported TTS format: ' + res.data.format)
         }
         return self._writePcm16AsWav(messageId + '_' + index, res.data.audio)
       })
+  },
+
+  _writeBase64AudioFile: function (messageId, audioBase64, ext) {
+    return new Promise(function (resolve, reject) {
+      try {
+        var audioBuffer = wx.base64ToArrayBuffer(audioBase64)
+        var suffix = ext || 'wav'
+        var filePath = wx.env.USER_DATA_PATH + '/museai_tts_' + String(messageId).replace(/[^a-zA-Z0-9_-]/g, '') + '_' + Date.now() + '.' + suffix
+        wx.getFileSystemManager().writeFile({
+          filePath: filePath,
+          data: audioBuffer,
+          success: function () { resolve(filePath) },
+          fail: reject,
+        })
+      } catch (err) {
+        reject(err)
+      }
+    })
   },
 
   _writePcm16AsWav: function (messageId, audioBase64) {
@@ -701,11 +740,7 @@ Page({
   },
 
   _getTtsVoiceOverride: function () {
-    var prefs = tourStore.getTtsPrefs()
-    // Older local storage may still contain the old default "冰糖".
-    // Treat it as no explicit override so backend persona voices can take effect.
-    if (!prefs || !prefs.voice || prefs.voice === '冰糖') return null
-    return prefs.voice
+    return '冰糖'
   },
 
   _playTtsFile: function (messageId, filePath, options) {

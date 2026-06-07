@@ -157,9 +157,9 @@ function chooseImageFile() {
 function confirmCameraUsage() {
   return new Promise(function (resolve) {
     wx.showModal({
-      title: '拍照识别展项',
-      content: '将打开相机拍摄展签或展项名称，照片只用于本次识别匹配。',
-      confirmText: '打开相机',
+      title: '开始拍摄',
+      content: '将打开相机拍摄展签或展项名称',
+      confirmText: '确认',
       cancelText: '取消',
       success: function (res) { resolve(!!res.confirm) },
       fail: function () { resolve(false) },

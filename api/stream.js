@@ -19,7 +19,7 @@
 
 var storage = require('../utils/storage')
 
-var BASE_URL = 'http://122.152.232.190:3000/api/v1'
+var BASE_URL = 'https://api.banpo-museai.xyz/api/v1'
 
 // ─── Header builder ────────────────────────────────────────────────────────
 

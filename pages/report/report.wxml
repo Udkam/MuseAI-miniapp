@@ -66,8 +66,8 @@
     <text class="section-label text-clay text-bold">记录摘要</text>
     <view wx:if="{{recordNotes.length > 0}}" class="record-note-list">
       <view wx:for="{{recordNotes}}" wx:key="question" class="record-note">
-        <text class="record-question">问：{{item.question}}</text>
-        <text class="record-point">记：{{item.point}}</text>
+        <text class="record-question">{{item.question}}</text>
+        <text class="record-point">{{item.point}}</text>
       </view>
     </view>
     <view wx:elif="{{highlights.length > 0}}" class="highlight-list">

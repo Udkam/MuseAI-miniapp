@@ -143,6 +143,7 @@ Page({
       var guestId = 'miniapp_guest_' + Date.now()
       tourStore.setStylePrefs({ answerLength: 'balanced', depth: 'standard', terminology: 'plain' })
       tourStore.createLocalTourState({ interestType: 'B', persona: 'B', assumption: 'D', personaId: 'student' })
+      tourStore.setCurrentExhibit(exhibit)
       api.tourApi.createSession({ interest_type: 'B', persona: 'B', assumption: 'D', guest_id: guestId })
         .then(function (res) {
           var newId = null

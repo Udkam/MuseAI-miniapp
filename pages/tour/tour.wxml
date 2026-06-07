@@ -85,7 +85,7 @@
   </scroll-view>
 
   <!-- Guide Suggestions Bar -->
-  <view wx:if="{{showSuggestions && guideSuggestions.length > 0}}" class="suggestions-bar" style="{{suggestionsPanelStyle}}">
+  <view wx:if="{{showSuggestions && guideSuggestions.length > 0 && !keyboardVisible}}" class="suggestions-bar" style="{{suggestionsPanelStyle}}">
     <scroll-view scroll-x class="suggestions-scroll">
       <view class="suggestions-inner">
         <view

@@ -239,6 +239,61 @@ function extractKnowledgePoint(answer) {
   return compactText(sentences[0] || text, 86)
 }
 
+function collectRecordTerms(question, answer, limit) {
+  var text = stripMarkdown([question, answer].join(' '))
+  var terms = []
+  function add(value) {
+    var v = String(value || '').trim()
+    if (!v || v.length < 2 || v.length > 14) return
+    if (terms.indexOf(v) === -1) terms.push(v)
+  }
+
+  ;(String(question || '') + ' ' + String(answer || '')).replace(/《([^》]{2,14})》/g, function (_, item) { add(item); return _ })
+  Object.keys(TOPIC_KEYWORDS).forEach(function (topic) {
+    TOPIC_KEYWORDS[topic].forEach(function (keyword) {
+      if (text.indexOf(keyword) >= 0) add(keyword)
+    })
+  })
+  return terms.slice(0, limit || 4)
+}
+
+function inferTopTopicFromText(question, answer, events) {
+  var scores = { craft: 0, settlement: 0, social: 0, spiritual: 0, life: 0, evidence: 0 }
+  matchTopics([question, answer].join(' ')).forEach(function (topic) { scores[topic] += 3 })
+  collectHallSlugs({}, events || [], tourStore.getTourState()).forEach(function (slug) {
+    var weights = HALL_TOPIC_WEIGHTS[slug] || {}
+    Object.keys(weights).forEach(function (topic) { scores[topic] += weights[topic] })
+  })
+  var top = 'evidence'
+  Object.keys(scores).forEach(function (topic) {
+    if (scores[topic] > scores[top]) top = topic
+  })
+  return top
+}
+
+function buildIntegratedRecordNote(question, answer, events) {
+  var q = compactText(question, 42)
+  var top = inferTopTopicFromText(question, answer, events)
+  var topicLabel = REFLECTION_TOPIC_LABELS[top] || '证据线索'
+  var terms = collectRecordTerms(question, answer, 4)
+  var termText = terms.length ? '围绕' + terms.join('、') + '，' : ''
+  var evidence = extractKnowledgePoint(answer)
+  var topicCopy = {
+    craft: '这条记录把器物形态、制作痕迹和使用场景放在一起，可继续核对它们怎样支持生产与生活判断。',
+    settlement: '这条记录把可见遗迹、空间布局和功能推断连在一起，重点是区分现场证据与合理解释。',
+    social: '这条记录把分工、协作和公共生活放入讨论，适合继续追问半坡社会如何被遗存说明。',
+    spiritual: '这条记录把图案、形象和观念解释联系起来，需要同时保留证据边界和多种可能性。',
+    life: '这条记录把食物、居住、劳动和工具联系起来，更适合还原日常生活的具体环节。',
+    evidence: '这条记录适合整理为证据链：先说明能直接看到什么，再说明哪些属于推断。',
+  }
+  var point = termText + (topicCopy[top] || topicCopy.evidence)
+  if (evidence) point += ' 其中较清楚的依据是：' + compactText(evidence, 58) + '。'
+  return {
+    question: '围绕：' + (q || topicLabel),
+    point: point,
+  }
+}
+
 function inferQuestionRecordPoint(question, events) {
   var q = stripMarkdown(question)
   if (!q) return ''
@@ -275,10 +330,7 @@ function buildRecordNotes(messages, questions, events) {
       if (list[j].role === 'user') break
     }
     if (!answer) continue
-    notes.push({
-      question: compactText(msg.content, 54),
-      point: extractKnowledgePoint(answer),
-    })
+    notes.push(buildIntegratedRecordNote(msg.content, answer, events))
     if (notes.length >= 4) break
   }
 
@@ -287,10 +339,7 @@ function buildRecordNotes(messages, questions, events) {
       var type = event.event_type || event.eventType
       var meta = event.metadata || {}
       if (type !== 'assistant_answer' || !meta.question || !meta.answer) return
-      notes.push({
-        question: compactText(meta.question, 54),
-        point: extractKnowledgePoint(meta.answer),
-      })
+      notes.push(buildIntegratedRecordNote(meta.question, meta.answer, events))
     })
     notes = notes.slice(0, 4)
   }

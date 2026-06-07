@@ -1,8 +1,8 @@
 /**
  * MuseAI Mini Program — API layer
  *
- * BASE_URL: http://122.152.232.190:3000/api/v1  (set in utils/request.js)
- * Health endpoint hits the server root directly (not /api/v1).
+ * BASE_URL: https://api.banpo-museai.xyz/api/v1  (set in utils/request.js)
+ * Health endpoint is under /api/v1.
  * Streaming endpoints use api/stream.js (wx.request enableChunked).
  */
 
@@ -11,7 +11,7 @@ const stream = require('./stream')
 const storage = require('../utils/storage')
 const banpoHalls = require('../constants/banpo-halls')
 
-const SERVER_ROOT = 'http://122.152.232.190:3000'
+const SERVER_ROOT = 'https://api.banpo-museai.xyz'
 
 const OCR_SERVICE_CONFIG = {
   // Fill this from app.globalData.ocrServiceConfig or replace here after
@@ -32,30 +32,10 @@ function _clean(params) {
 }
 
 // ─── Health ────────────────────────────────────────────────────────────────
-// GET /health  (server root, not under /api/v1)
+// GET /health  (under /api/v1 via utils/request.js)
 const healthApi = {
   check: function() {
-    return new Promise(function(resolve) {
-      wx.request({
-        url:     SERVER_ROOT + '/health',
-        method:  'GET',
-        timeout: 5000,
-        success: function(res) {
-          resolve({
-            ok:     res.statusCode >= 200 && res.statusCode < 300,
-            status: res.statusCode,
-            data:   res.data || {},
-          })
-        },
-        fail: function(err) {
-          resolve({
-            ok: false,
-            status: 0,
-            data: { detail: (err && err.errMsg) || '网络不可达' },
-          })
-        },
-      })
-    })
+    return req.get('/health', { timeout: 5000, retries: 0 })
   },
 }
 
@@ -405,7 +385,7 @@ const ttsApi = {
   synthesize: function(text, voice, style, persona) {
     return req.post('/tts/synthesize', {
       text:    text,
-      voice:   voice   || null,
+      voice:   '冰糖',
       style:   style   || null,
       persona: persona || null,
     }, {
