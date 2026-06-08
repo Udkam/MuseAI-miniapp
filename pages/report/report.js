@@ -140,6 +140,15 @@ function unique(list) {
   return out
 }
 
+var VISITED_HALL_EVENT_TYPES = {
+  hall_enter: true,
+  hall_leave: true,
+  exhibit_question: true,
+  assistant_answer: true,
+  exhibit_view: true,
+  exhibit_deep_dive: true,
+}
+
 function hallDisplay(value) {
   return value ? banpoHalls.getHallDisplayName(value) : ''
 }
@@ -165,22 +174,20 @@ function buildRadarBars(scores) {
 
 function collectHallSlugs(data, events, state) {
   var backendHalls = Array.isArray(data && data.halls_visited) ? data.halls_visited : []
-  var explicitEventHalls = []
-  var fallbackEventHalls = []
+  var eventHalls = []
   events.forEach(function (event) {
     var type = event.event_type || event.eventType
+    if (!VISITED_HALL_EVENT_TYPES[type]) return
     var meta = event.metadata || {}
-    var target = type === 'hall_enter' || type === 'hall_leave' ? explicitEventHalls : fallbackEventHalls
-    if (event.hall) target.push(event.hall)
-    if (meta.hall) target.push(meta.hall)
-    if (meta.hall_slug) target.push(meta.hall_slug)
-    if (meta.hallSlug) target.push(meta.hallSlug)
+    if (event.hall) eventHalls.push(event.hall)
+    if (meta.hall) eventHalls.push(meta.hall)
+    if (meta.hall_slug) eventHalls.push(meta.hall_slug)
+    if (meta.hallSlug) eventHalls.push(meta.hallSlug)
   })
-  var halls = backendHalls.concat(explicitEventHalls)
+  var halls = backendHalls.concat(eventHalls)
   if (halls.length) return unique(halls.map(hallSlug))
   if (Array.isArray(state.visitedHalls) && state.visitedHalls.length) halls = halls.concat(state.visitedHalls)
   if (state.currentHall) halls.push(state.currentHall)
-  if (!halls.length) halls = halls.concat(fallbackEventHalls)
   return unique(halls.map(hallSlug))
 }
 
@@ -363,6 +370,31 @@ function buildRecordNotes(messages, questions, events) {
     })
   }
   return notes
+}
+
+function normalizeRecordNotes(notes) {
+  if (!Array.isArray(notes)) return []
+  return notes.map(function (item) {
+    return {
+      question: compactText(item && item.question, 60),
+      point: compactText(item && item.point, 120),
+    }
+  }).filter(function (item) {
+    return item.question && item.point
+  })
+}
+
+function mergeRecordNotes(primary, secondary) {
+  var merged = []
+  var seen = {}
+  ;(primary || []).concat(secondary || []).forEach(function (item) {
+    if (!item || !item.question || !item.point) return
+    var key = item.question
+    if (seen[key]) return
+    seen[key] = true
+    merged.push(item)
+  })
+  return merged.slice(0, 4)
 }
 
 function buildObservationFindings(personaKey, hallNames, questions, exhibitNames, focusText) {
@@ -659,7 +691,10 @@ Page({
     if (exhibitNames.length) highlights.push('重点展项：' + exhibitNames.join('、'))
     if (!highlights.length) highlights = []
 
-    var recordNotes = buildRecordNotes(chatMessages, questions, events)
+    var recordNotes = mergeRecordNotes(
+      buildRecordNotes(chatMessages, questions, events),
+      normalizeRecordNotes(data.record_notes)
+    )
 
     var dataNotice = ''
     if (isLocalFallback) {

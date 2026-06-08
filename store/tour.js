@@ -43,6 +43,15 @@ const DEFAULT_TTS_PREFS = {
   enabled:  true,
 }
 
+const VISITED_HALL_EVENT_TYPES = {
+  hall_enter: true,
+  hall_leave: true,
+  exhibit_question: true,
+  assistant_answer: true,
+  exhibit_view: true,
+  exhibit_deep_dive: true,
+}
+
 // ─── Persona definitions ───────────────────────────────────────────────────
 // personaId: frontend ID used to look up prompt prefix + display name.
 // backendPersona: 'A'|'B'|'C'|'D' sent to createSession (backend system prompt).
@@ -459,7 +468,7 @@ function addTourEvent(event) {
     duration_seconds: event.durationSeconds  || event.duration_seconds  || null,
     metadata:         event.metadata         || {},
   }
-  if (eventType === 'hall_enter' && hallSlug && _tour.visitedHalls.indexOf(hallSlug) === -1) {
+  if (VISITED_HALL_EVENT_TYPES[eventType] && hallSlug && _tour.visitedHalls.indexOf(hallSlug) === -1) {
     _tour.visitedHalls = _tour.visitedHalls.concat(hallSlug)
   }
   _tour.pendingEvents = _tour.pendingEvents.concat(entry)

@@ -57,8 +57,8 @@ var mixedEvents = [
 var mixedExperience = reportPage._buildExperience({}, mixedEvents, false)
 assert.deepStrictEqual(
   hallNames(mixedExperience),
-  ['基本陈列展厅'],
-  'report should not count stale local visitedHalls, currentHall, or question.hall when a real hall_enter exists'
+  ['基本陈列展厅', '史前工坊'],
+  'report should merge explicit hall visits with halls that have question/answer activity'
 )
 
 resetTour()
@@ -68,22 +68,35 @@ var fallbackExperience = reportPage._buildExperience({}, [
 ], false)
 assert.deepStrictEqual(
   hallNames(fallbackExperience),
-  ['史前工坊'],
-  'report may fall back to currentHall only when there is no explicit visit evidence'
+  ['基本陈列展厅'],
+  'report should count a hall once the visitor asks a question there'
+)
+
+var backendNoteExperience = reportPage._buildExperience({
+  record_notes: [
+    { question: '围绕：半坡的石器用途', point: '石器磨损和穿孔痕迹说明工具已有明确分工。' },
+  ],
+}, [], false)
+assert.deepStrictEqual(
+  backendNoteExperience.recordNotes,
+  [
+    { question: '围绕：半坡的石器用途', point: '石器磨损和穿孔痕迹说明工具已有明确分工' },
+  ],
+  'report should use backend record_notes when local chat/events are unavailable'
 )
 
 resetTour()
 tourStore.addTourEvent({ eventType: 'exhibit_question', hall: 'prehistoric-workshop' })
 assert.deepStrictEqual(
   tourStore.getTourState().visitedHalls,
-  [],
-  'non-visit events should not update local visitedHalls'
+  ['prehistoric-workshop'],
+  'question events should update local visitedHalls for report fallback'
 )
 tourStore.addTourEvent({ eventType: 'hall_enter', hall: 'basic-exhibition-hall' })
 assert.deepStrictEqual(
   tourStore.getTourState().visitedHalls,
-  ['basic-exhibition-hall'],
-  'hall_enter should update local visitedHalls'
+  ['prehistoric-workshop', 'basic-exhibition-hall'],
+  'hall_enter should append to question-derived visitedHalls'
 )
 
 console.log('report stat checks passed')
