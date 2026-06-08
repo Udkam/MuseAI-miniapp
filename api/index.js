@@ -11,7 +11,8 @@ const stream = require('./stream')
 const storage = require('../utils/storage')
 const banpoHalls = require('../constants/banpo-halls')
 
-const SERVER_ROOT = 'https://api.banpo-museai.xyz'
+const SERVER_ROOT = 'http://122.152.232.190:3000/api/v1'
+// const SERVER_ROOT = 'https://api.banpo-museai.xyz'
 
 const OCR_SERVICE_CONFIG = {
   // Fill this from app.globalData.ocrServiceConfig or replace here after

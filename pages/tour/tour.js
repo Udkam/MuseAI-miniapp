@@ -1097,25 +1097,6 @@ Page({
     }, 80)
   },
 
-  // ── Health check ──────────────────────────────────────────────────────────
-
-  checkHealth: function () {
-    var self = this
-    wx.showLoading({ title: '检测中…', mask: false })
-    api.healthApi.check().then(function (res) {
-      wx.hideLoading()
-      if (res.ok) {
-        var status = (res.data && res.data.status) || 'ok'
-        wx.showToast({ title: '后端正常 · ' + status, icon: 'success', duration: 2000 })
-      } else {
-        wx.showToast({ title: '后端返回 ' + res.status, icon: 'none', duration: 2500 })
-      }
-    }).catch(function (err) {
-      wx.hideLoading()
-      wx.showToast({ title: (err && err.message) || '连接失败', icon: 'none', duration: 2500 })
-    })
-  },
-
   // ── Exhibit context ───────────────────────────────────────────────────────
 
   clearExhibitContext: function () {

@@ -5,8 +5,6 @@
     <text class="topbar-hall">{{hallName}}</text>
     <view class="topbar-actions">
       <text class="topbar-btn" bindtap="goReport">报告</text>
-      <text class="topbar-sep">|</text>
-      <text class="topbar-btn topbar-btn-ping" bindtap="checkHealth">连接</text>
     </view>
   </view>
 

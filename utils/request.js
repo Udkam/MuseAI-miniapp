@@ -1,6 +1,7 @@
 const storage = require('./storage')
 
-const BASE_URL = 'https://api.banpo-museai.xyz/api/v1'
+const BASE_URL = 'http://122.152.232.190:3000/api/v1'
+// const BASE_URL = 'https://api.banpo-museai.xyz/api/v1'
 
 const DEFAULT_TIMEOUT   = 10000
 const DEFAULT_RETRIES   = 2
