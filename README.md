@@ -1,42 +1,64 @@
 # MuseAI 微信小程序前端
 
-MuseAI 前端是面向西安半坡博物馆导览体验的微信小程序。当前以“小程序上线”为第一交付目标，围绕个性化问卷、导览身份、AI 策展路线、展厅对话、文字搜展品、展品详情讨论和游览报告形成闭环。
-
 English version: [README_EN.md](./README_EN.md)
+
+MuseAI 前端是面向西安半坡博物馆导览体验的微信小程序。当前交付目标是先让真机完整跑通“问卷 -> 身份 -> 路线 -> 展厅导览 -> 展品识别/搜索 -> 语音播放 -> 报告”的闭环，再进入正式上线流程。
 
 ## 当前阶段
 
-当前处于 Stage 12B 的拍照/OCR 展项识别 MVP 阶段。已完成 Stage 12A 的 TTS 手动播放闭环，并开始在搜展品页补齐小程序端拍照识别、文字匹配和详情跳转能力。
+当前处于 **Stage 13 上线前闭环验证与发布准备**。
+
+代码层面的 MVP 已覆盖主要闭环，但正式发布还没有完成，主要阻断项包括：
+
+- 小程序备案主体尚未最终确认。
+- `api.banpo-museai.xyz` 已配置 DNS/SSL/Nginx，但未备案前无法稳定作为微信正式 request 合法域名使用。
+- 当前开发/真机调试仍可能使用 `http://122.152.232.190:3000/api/v1`。
+- OCR、TTS、键盘适配、报告统计仍需多机型真机复测。
 
 ## 已实现能力
 
 - 首页入口：个性化导览、默认游客导览、继续上次导览。
+- 继续上次导览触发规则：只有达到有效 AI 互动条件后才保留并展示。
 - 三步问卷：追问方向、初始判断、导览节奏。
 - 四类身份：
   - 考古研究员，对应后端 persona `A`
   - 研学记录员，对应后端 persona `B`
   - 历史追问者，对应后端 persona `C`
   - 器物研究员，对应后端 persona `D`
-- 身份揭示页：展示导览视角和后续流程。
-- AI 策展路线页：调用后端 `/curator/plan-tour`，失败时保持可用。
-- 展厅选择页：按照常开放展厅优先、临展厅靠后的固定顺序展示。
-- 展厅导览页：SSE 流式 AI 回答、建议条、Markdown 渲染、复制纯文本。
-- TTS 手动播放 MVP：AI 回复完成后可点击“播放”生成语音，播放中可停止；同一时间只播放一条。
-- 搜展品：支持文字搜索；拍照识别已接入小程序端 OCR 抽象、展项 fuzzy matching、识别摘要和详情跳转。未配置 OCR 服务时会回退到文字搜索。
-- 展品详情页：支持围绕器物、遗迹、空间或资料继续与 AI 讨论。
-- 游览报告页：统计访问、互动、提问线索、复盘清单和认知变化。
-- 会话缓存：至少与 AI 对话达到保留条件后，首页才显示“继续上次导览”。
-- 移动端适配：底部操作区和聊天输入栏已加入 safe-area 处理。
+- 身份揭示页：展示当前导览视角和后续路线入口。
+- AI 策展路线页：调用后端 `/curator/plan-tour`，失败时保持页面可用。
+- 展厅选择页：按常开放展厅优先、临展厅靠后的顺序展示。
+- 展厅导览页：
+  - SSE 流式 AI 回答
+  - 建议条
+  - Markdown 渲染
+  - AI 回答纯文本复制
+  - 手动 TTS 播放
+- 展品识别/搜索：
+  - 文字搜索展品
+  - 拍照识别 MVP
+  - OCR 不可用时回退到文字搜索
+  - 匹配结果可跳转展品详情
+- 展品详情页：围绕展项继续与 AI 讨论。
+- 游览报告页：
+  - 到访展厅
+  - 认知变化
+  - 记录摘要
+  - 基础统计
+- 移动端适配：
+  - safe-area 处理
+  - 底部输入区键盘抬升处理
+  - 不同屏幕尺寸的基础布局兼容
 
-## 尚未完成
+## 尚未完成或仍需复测
 
-- 高精度拍照识别和多角度图像理解。
-- OCR 后端代理链路。
-- 语音输入。
-- 自动连续语音播报。
-- 后台播放。
-- 官方室内地图、定位和展品点位导航。
-- 馆方授权的完整展品图像与空间位置数据。
+- 正式小程序备案、体验版上传和测试成员分发。
+- 微信后台 request/uploadFile/downloadFile 合法域名配置。
+- OCR 服务 ID 和真机拍照识别稳定性确认。
+- TTS 声线、语速、生成耗时和真机播放稳定性复测。
+- iOS 键盘高度、刘海屏、大字号模式和 Android 多分辨率复测。
+- 官方馆方展品图片、地图、点位和完整展厅数据接入。
+- 隐私政策、用户协议和相机/语音相关权限说明。
 
 ## 技术栈
 
@@ -48,58 +70,111 @@ English version: [README_EN.md](./README_EN.md)
 | 网络请求 | `utils/request.js` |
 | 流式响应 | `api/stream.js` 基于 `wx.request enableChunked` |
 | 本地缓存 | `utils/storage.js` |
+| Markdown | `utils/markdown.js` |
 | 测试 | Node 脚本 |
 
 ## 目录结构
 
 ```text
 frontend/
-├─ app.js / app.json / app.wxss
-├─ api/
-│  ├─ index.js          # REST API 封装
-│  └─ stream.js         # SSE/分块响应解析
-├─ components/
-│  ├─ chat/
-│  ├─ common/
-│  ├─ exhibit/
-│  └─ persona/
-├─ constants/
-│  └─ banpo-halls.js    # 展厅 slug、中文名、顺序、别名
-├─ pages/
-│  ├─ home/
-│  ├─ onboarding/
-│  ├─ persona-reveal/
-│  ├─ route/
-│  ├─ hall/
-│  ├─ tour/
-│  ├─ exhibit-scan/
-│  ├─ exhibit-detail/
-│  └─ report/
-├─ store/
-│  ├─ tour.js
-│  └─ chat.js
-├─ utils/
-└─ scripts/
+├── app.js / app.json / app.wxss
+├── api/
+│   ├── index.js          # REST API 封装、TTS、OCR、展品与路线 API
+│   └── stream.js         # SSE/分块响应解析
+├── components/
+│   ├── chat/
+│   ├── common/
+│   ├── exhibit/
+│   └── persona/
+├── constants/
+│   └── banpo-halls.js    # 展厅 slug、中文名、顺序、别名
+├── pages/
+│   ├── home/
+│   ├── onboarding/
+│   ├── persona-reveal/
+│   ├── route/
+│   ├── hall/
+│   ├── tour/
+│   ├── exhibit-scan/
+│   ├── exhibit-detail/
+│   └── report/
+├── store/
+│   ├── tour.js
+│   └── chat.js
+├── utils/
+└── scripts/
 ```
 
 ## 本地运行
-
-1. 安装依赖：
 
 ```bash
 cd frontend
 npm install
 ```
 
-2. 用微信开发者工具打开 `frontend/`。
+然后用微信开发者工具打开 `frontend/`。
 
-3. 检查 `api/index.js` 中的 API 基地址，开发环境通常指向：
+## API 地址配置
+
+当前小程序请求地址分散在 3 个文件中，切换环境时必须同时检查：
+
+| 文件 | 用途 |
+| --- | --- |
+| `utils/request.js` | 普通 REST 请求 |
+| `api/stream.js` | SSE 流式导览请求 |
+| `api/index.js` | 部分直连 API、TTS、OCR、展品/路线封装 |
+
+开发调试可使用：
 
 ```text
-http://127.0.0.1:8000/api/v1
+http://122.152.232.190:3000/api/v1
 ```
 
-真机或远程服务器测试时，需改为可访问的 HTTPS 域名或开发工具允许的调试地址。
+正式上线应切换到：
+
+```text
+https://api.banpo-museai.xyz/api/v1
+```
+
+但正式域名必须同时满足：
+
+- 域名备案通过。
+- HTTPS 证书有效。
+- 微信公众平台已配置 request/uploadFile/downloadFile 合法域名。
+- 开发者工具关闭“不校验合法域名、web-view、TLS 版本以及 HTTPS 证书”后仍能正常请求。
+
+## TTS 说明
+
+当前 TTS 是手动播放 MVP：
+
+- 只在 assistant 消息上显示播放按钮。
+- 默认不自动播放，避免博物馆公共空间突然外放。
+- 同一时间只播放一条语音。
+- 离开 tour 页面时停止并销毁音频上下文。
+- 当前默认声线为“冰糖”，前后端都应保持一致。
+
+仍需真机确认：
+
+- 声线是否符合预期。
+- 语速是否自然。
+- 生成是否超时。
+- 长回答分段播放是否稳定。
+
+## OCR 说明
+
+当前拍照识别是小程序端 MVP：
+
+- 用户点击拍照识别后调用相机。
+- 获取图片后调用微信 OCR 能力或本地回退逻辑。
+- OCR 文本会与现有 `/exhibits` 列表做 fuzzy matching。
+- 未识别时回退到文字搜索。
+
+需要配置和验证：
+
+- 微信 OCR 服务 ID。
+- 相机权限提示。
+- 用户取消拍摄时不得继续识别。
+- 真机拍摄展签、展品名、弱光环境的识别率。
 
 ## 常用测试
 
@@ -110,69 +185,28 @@ npm run test:suggestions
 npm run test:report
 npm run test:all
 node --check api/index.js
+node --check api/stream.js
 node --check store/tour.js
 node --check pages/tour/tour.js
+node --check pages/route/route.js
+node --check pages/report/report.js
+node --check pages/exhibit-scan/exhibit-scan.js
 ```
 
-## 与后端契约
+## 真机测试重点
 
-关键接口：
+- iOS 输入框和键盘是否遮挡。
+- Android 不同分辨率下底部操作区是否错位。
+- 建议条是否串展厅或串展品。
+- AI 回答是否能复制纯文本。
+- TTS 播放、停止、切换、离页销毁是否正常。
+- OCR 拍照取消后是否停止识别。
+- 报告中的到访展厅、认知变化、记录摘要是否与实际事件一致。
 
-- `POST /api/v1/tour/sessions`
-- `PATCH /api/v1/tour/sessions/{id}`
-- `POST /api/v1/tour/sessions/{id}/chat/stream`
-- `GET /api/v1/tour/halls`
-- `GET /api/v1/exhibits`
-- `GET /api/v1/exhibits/{id}`
-- `POST /api/v1/tour/sessions/{id}/report`
-- `POST /api/v1/curator/plan-tour`
-- `POST /api/v1/tts/synthesize`
+## 上线前注意
 
-当前前端会向导览流接口额外传递：
-
-- `client_context`：当前展厅、问卷、当前讨论对象等轻量上下文。
-- `conversation_history`：最近几轮用户和 AI 对话，用于改善连续追问的相关性。
-
-检索 query 仍保持用户当前输入，避免旧对话污染 RAG 检索。
-
-## TTS 播放 MVP
-
-当前 TTS 是手动播放能力：
-
-- 只在 assistant 回复完成后显示播放按钮。
-- 用户点击后调用 `POST /api/v1/tts/synthesize`。
-- 后端当前返回 `audio` 和 `format`，其中 `format=pcm16`，前端会把 base64 PCM16 封装成临时 WAV 文件后播放。
-- 默认不自动播放，即使本地旧偏好里存在 `autoPlay=true`，tour 页也不会在回复完成后自动外放。
-- 不支持语音输入。
-- 不支持后台播放。
-- 不支持播放列表或自动连续播报。
-- 页面离开时会停止当前音频。
-
-## 拍照/OCR 识别 MVP
-
-当前拍照识别只在 `pages/exhibit-scan/exhibit-scan` 内实现：
-
-- 点击“拍照识别”后调用小程序相机拍照，并读取图片 base64。
-- 前端通过 `api.ocrApi.recognizeImage()` 调用小程序端 OCR 能力；默认未配置 OCR 服务 ID，不会请求 MuseAI 后端。
-- OCR 返回文本后，前端用展品名称、别名、类别、描述和编辑距离做 fuzzy matching。
-- 命中后显示识别摘要卡片，点击可进入 `exhibit-detail`。
-- 未命中、OCR 未配置或 OCR 失败时提示“未识别到展品，请重试”，并保留文字搜索 fallback。
-- 不新增数据库表，不新增后端 API，不新增 LLM 调用。
-
-如要启用真实 OCR，需要在小程序侧配置可用的 OCR 服务，并向 `app.globalData.ocrServiceConfig` 写入：
-
-```js
-ocrServiceConfig: {
-  service: '你的 OCR 服务 ID',
-  api: 'OcrAllInOne',
-  dataType: 2,
-  ocrType: 0,
-}
-```
-
-## 发布注意事项
-
-- 未完成能力不要在 UI 中展示为可用功能。
-- 小程序正式上线必须使用 HTTPS 域名，并在微信公众平台配置 request 合法域名。
-- 真机测试时重点检查 iPhone 刘海屏、Home Indicator、安卓小屏和大字号模式。
-- `project.private.config.json` 属于本地开发配置，不应作为团队环境契约。
+- 测试号不能等价于正式小程序发布环境。
+- 需要正式 AppID、开发者权限、体验版上传权限和测试成员。
+- 若使用中国大陆服务器和自有域名，正式小程序通常需要完成备案并配置合法域名。
+- 曾暴露过的 AppSecret、API key 必须重置。
+- 发布前应补齐隐私政策、用户协议、相机权限说明和 AI 生成内容提示。
