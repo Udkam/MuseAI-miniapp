@@ -505,6 +505,35 @@ function _compactRecordText(value, maxLen) {
   return text
 }
 
+function _pushRecordKeyword(list, value) {
+  var text = String(value || '').trim()
+  if (text && list.indexOf(text) === -1) list.push(text)
+}
+
+function _recordSummaryPhrases(questionText, answerText) {
+  var text = String([questionText, answerText].join(' '))
+  var focus = []
+  var knowledge = []
+  if (/石器|骨器|工具|用途/.test(text)) _pushRecordKeyword(focus, '石器骨器用途')
+  if (/文物|类型|展示|展厅/.test(text)) _pushRecordKeyword(focus, '文物类型')
+  if (/动手|体验|技术|制作|步骤/.test(text)) _pushRecordKeyword(focus, '动手体验与技术理解')
+  if (/陶|彩陶|陶器|器形|纹饰|工艺|烧制/.test(text)) _pushRecordKeyword(focus, '器物工艺')
+  if (/房屋|聚落|遗址|壕沟|布局|半地穴/.test(text)) _pushRecordKeyword(focus, '聚落空间')
+  if (/人面|鱼纹|图案|信仰|仪式|观念/.test(text)) _pushRecordKeyword(focus, '图案与观念')
+  if (/生活|先民|日常|生产|定居/.test(text)) _pushRecordKeyword(focus, '半坡生活方式')
+
+  if (/石器|骨器|工具/.test(answerText)) _pushRecordKeyword(knowledge, '石器、骨器和工具可对应加工、制作与生产分工')
+  if (/陶|彩陶|陶器|器形|纹饰|烧制/.test(answerText)) _pushRecordKeyword(knowledge, '陶器可从器形、纹饰和制作痕迹理解用途')
+  if (/房屋|聚落|遗址|壕沟|半地穴|布局/.test(answerText)) _pushRecordKeyword(knowledge, '房屋、壕沟等遗迹能说明聚落布局')
+  if (/人面|鱼纹|图案|信仰|仪式|观念/.test(answerText)) _pushRecordKeyword(knowledge, '人面鱼纹等图案关联审美、仪式与观念')
+  if (/动手|体验|技术|制作|步骤|材料/.test(answerText)) _pushRecordKeyword(knowledge, '动手体验能把材料、步骤和工具关系具体化')
+  if (/生活|定居|生产|日常|先民/.test(answerText)) _pushRecordKeyword(knowledge, '出土文物反映定居、生产和日常生活方式')
+
+  if (!focus.length) _pushRecordKeyword(focus, '证据线索')
+  if (!knowledge.length) _pushRecordKeyword(knowledge, '相关判断需要回到展品、展签和遗迹位置核对')
+  return { focus: focus.slice(0, 4), knowledge: knowledge.slice(0, 3) }
+}
+
 function _extractMessagePairs(messages) {
   var pairs = []
   var list = Array.isArray(messages) ? messages : []
@@ -531,20 +560,15 @@ function summarizeCurrentHallRecord(messages) {
   if (!pairs.length) return getRecordSummaryNotes()
 
   var hallName = banpoHalls.getHallDisplayName(hall)
-  var samples = pairs.map(function (pair) {
-    return _compactRecordText(pair.question, 46)
-  }).filter(Boolean).slice(0, 4)
+  var questionText = pairs.map(function (pair) { return pair.question }).join(' ')
   var answerText = pairs.map(function (pair) { return pair.answer }).join(' ')
-  var evidence = _compactRecordText(answerText, 420)
+  var phrases = _recordSummaryPhrases(questionText, answerText)
   var personaName = getPersonaLabel() || '导览记录者'
   var point = '以' + personaName + '的视角看，这段游览围绕' + hallName + '展开。'
-  if (samples.length) {
-    point += '你提出的问题包括“' + samples.join('”“') + '”，这些问题把展厅观察转化成了可继续复盘的线索。'
-  }
-  if (evidence) {
-    point += '回答中值得保留的依据是：' + evidence + '。'
-  }
-  point += '后续生成报告时，这段记录会和其他展厅摘要继续合并成一段游览报告，而不是按单个问题重复罗列。'
+  point += '关注点：' + phrases.focus.join('、') + '。'
+  point += '知识点：' + phrases.knowledge.join('；') + '。'
+  point += '后续可按展品、展签和遗迹位置核对这些判断。'
+  point = _compactRecordText(point, 300)
 
   var note = {
     hall: hall,

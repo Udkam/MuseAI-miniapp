@@ -144,13 +144,18 @@ assert.strictEqual(
   'record summary should be a narrative report title'
 )
 assert.ok(
-  eventSummaryExperience.recordNotes[0].point.indexOf('出土文物') >= 0
-    && eventSummaryExperience.recordNotes[0].point.indexOf('石器和骨器') >= 0,
-  'record summary should include both question topics'
+  eventSummaryExperience.recordNotes[0].point.indexOf('文物类型') >= 0
+    && eventSummaryExperience.recordNotes[0].point.indexOf('石器骨器用途') >= 0,
+  'record summary should include both question topics as focus keywords'
 )
 assert.ok(
-  eventSummaryExperience.recordNotes[0].point.length > 140,
-  'record summary should keep a report-length narrative'
+  eventSummaryExperience.recordNotes[0].point.indexOf('关注点：') >= 0
+    && eventSummaryExperience.recordNotes[0].point.indexOf('知识点：') >= 0,
+  'record summary should use keyword-compressed sections'
+)
+assert.ok(
+  eventSummaryExperience.recordNotes[0].point.length <= 300,
+  'record summary should stay within 300 characters'
 )
 
 resetTour()
