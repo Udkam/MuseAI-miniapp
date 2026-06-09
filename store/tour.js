@@ -44,8 +44,6 @@ const DEFAULT_TTS_PREFS = {
 }
 
 const VISITED_HALL_EVENT_TYPES = {
-  hall_enter: true,
-  hall_leave: true,
   exhibit_question: true,
   assistant_answer: true,
   exhibit_view: true,

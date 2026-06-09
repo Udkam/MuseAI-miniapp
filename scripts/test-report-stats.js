@@ -57,8 +57,8 @@ var mixedEvents = [
 var mixedExperience = reportPage._buildExperience({}, mixedEvents, false)
 assert.deepStrictEqual(
   hallNames(mixedExperience),
-  ['基本陈列展厅', '史前工坊'],
-  'report should merge explicit hall visits with halls that have question/answer activity'
+  ['史前工坊'],
+  'report should ignore hall_enter and count only halls with question/answer activity'
 )
 
 resetTour()
@@ -95,8 +95,8 @@ assert.deepStrictEqual(
 tourStore.addTourEvent({ eventType: 'hall_enter', hall: 'basic-exhibition-hall' })
 assert.deepStrictEqual(
   tourStore.getTourState().visitedHalls,
-  ['prehistoric-workshop', 'basic-exhibition-hall'],
-  'hall_enter should append to question-derived visitedHalls'
+  ['prehistoric-workshop'],
+  'hall_enter should not append to question-derived visitedHalls'
 )
 
 console.log('report stat checks passed')

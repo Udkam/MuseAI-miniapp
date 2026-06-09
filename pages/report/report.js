@@ -141,8 +141,6 @@ function unique(list) {
 }
 
 var VISITED_HALL_EVENT_TYPES = {
-  hall_enter: true,
-  hall_leave: true,
   exhibit_question: true,
   assistant_answer: true,
   exhibit_view: true,
@@ -185,9 +183,6 @@ function collectHallSlugs(data, events, state) {
     if (meta.hallSlug) eventHalls.push(meta.hallSlug)
   })
   var halls = backendHalls.concat(eventHalls)
-  if (halls.length) return unique(halls.map(hallSlug))
-  if (Array.isArray(state.visitedHalls) && state.visitedHalls.length) halls = halls.concat(state.visitedHalls)
-  if (state.currentHall) halls.push(state.currentHall)
   return unique(halls.map(hallSlug))
 }
 
@@ -301,6 +296,49 @@ function buildIntegratedRecordNote(question, answer, events) {
   }
 }
 
+function buildAggregatedRecordNotes(pairs, events) {
+  if (pairs.length <= 4) {
+    return pairs.map(function (pair) {
+      return buildIntegratedRecordNote(pair.question, pair.answer, events)
+    })
+  }
+
+  var questionHalls = []
+  ;(events || []).forEach(function (event) {
+    var type = event.event_type || event.eventType
+    if (type !== 'exhibit_question') return
+    questionHalls.push(hallSlug(event.hall || (event.metadata && (event.metadata.hall || event.metadata.hall_slug || event.metadata.hallSlug)) || ''))
+  })
+
+  var groups = []
+  pairs.forEach(function (pair, index) {
+    var slug = questionHalls[index] || 'summary'
+    var group = groups.find(function (item) { return item.slug === slug })
+    if (!group) {
+      group = { slug: slug, pairs: [] }
+      groups.push(group)
+    }
+    group.pairs.push(pair)
+  })
+
+  return groups.slice(0, 4).map(function (group) {
+    var questionsText = group.pairs.map(function (pair) {
+      return compactText(pair.question, 26)
+    }).filter(Boolean).slice(0, 3).join('；')
+    var topic = inferTopTopicFromText(
+      group.pairs.map(function (pair) { return pair.question }).join(' '),
+      group.pairs.map(function (pair) { return pair.answer }).join(' '),
+      events
+    )
+    var topicLabel = REFLECTION_TOPIC_LABELS[topic] || '证据线索'
+    var title = group.slug && group.slug !== 'summary' ? hallDisplay(group.slug) : '记录摘要'
+    return {
+      question: title + '：' + group.pairs.length + '组问答',
+      point: '已合并为' + topicLabel + '线索。代表问题包括：' + questionsText + '。后续可回到对应展厅核对可见证据。',
+    }
+  })
+}
+
 function inferQuestionRecordPoint(question, events) {
   var q = stripMarkdown(question)
   if (!q) return ''
@@ -323,7 +361,7 @@ function inferQuestionRecordPoint(question, events) {
 }
 
 function buildRecordNotes(messages, questions, events) {
-  var notes = []
+  var pairs = []
   var list = Array.isArray(messages) ? messages : []
   for (var i = 0; i < list.length; i++) {
     var msg = list[i]
@@ -337,18 +375,19 @@ function buildRecordNotes(messages, questions, events) {
       if (list[j].role === 'user') break
     }
     if (!answer) continue
-    notes.push(buildIntegratedRecordNote(msg.content, answer, events))
-    if (notes.length >= 4) break
+    pairs.push({ question: msg.content, answer: answer })
   }
+  var notes = pairs.length ? buildAggregatedRecordNotes(pairs, events) : []
 
   if (!notes.length && Array.isArray(events)) {
+    var eventPairs = []
     events.forEach(function (event) {
       var type = event.event_type || event.eventType
       var meta = event.metadata || {}
       if (type !== 'assistant_answer' || !meta.question || !meta.answer) return
-      notes.push(buildIntegratedRecordNote(meta.question, meta.answer, events))
+      eventPairs.push({ question: meta.question, answer: meta.answer })
     })
-    notes = notes.slice(0, 4)
+    notes = eventPairs.length ? buildAggregatedRecordNotes(eventPairs, events) : []
   }
 
   if (!notes.length && questions.length) {
@@ -457,7 +496,6 @@ function buildLocalReflection(data, events, state, personaKey) {
     if (type === 'exhibit_question') { questionCount += 1; weight = 3 }
     else if (type === 'exhibit_deep_dive') { deepDiveCount += 1; weight = 3 }
     else if (type === 'exhibit_view') weight = 1
-    else if (type === 'hall_enter' || type === 'hall_leave') weight = 0.75
 
     var hallWeights = HALL_TOPIC_WEIGHTS[hall] || {}
     Object.keys(hallWeights).forEach(function (topic) {
@@ -589,20 +627,19 @@ Page({
       return
     }
 
-    // Do not block report generation on analytics/event upload. On weak networks
-    // wx.request can hit the 10s timeout, making the report button appear dead.
     api.tourApi.recordEvents(id, events, token)
       .then(function (res) {
         if (!res || !res.ok) {
           console.warn('[report] flush events returned non-ok, restoring:', res && res.status)
           tourStore.restorePendingEvents(events)
         }
+        _generate()
       })
       .catch(function (err) {
         console.warn('[report] flush events failed, restoring:', err)
         tourStore.restorePendingEvents(events)
+        _generate()
       })
-    _generate()
   },
 
   _applyReport: function (data, localEvents) {
@@ -656,13 +693,7 @@ Page({
     var questionCount = data.total_questions != null ? Number(data.total_questions) : questions.length
     var exhibitCount = data.total_exhibits_viewed != null ? Number(data.total_exhibits_viewed) : exhibitNames.length
     var hallCount = hallNames.length
-    var currentHallName = state.currentHall ? hallDisplay(state.currentHall) : ''
     var focusText = state.focusTitle || state.intentText || ''
-
-    if (!hallNames.length && currentHallName) {
-      hallNames.push(currentHallName)
-      hallCount = hallNames.length
-    }
 
     var visitedHallCards = hallSlugs.map(function (slug) {
       return { name: hallDisplay(slug), note: HALL_NOTES[slug] || '记录该展厅中的关键展项和现场问题。' }

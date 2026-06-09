@@ -101,6 +101,15 @@ var LEGACY_HALL_SLUGS = {
   'civilization-spark-hall': 'basic-exhibition-hall',
   'site-hall': 'site-protection-hall',
   'site-archaeology-hall': 'site-protection-hall',
+  'bronze-a': 'basic-exhibition-hall',
+  'bronze-b': 'basic-exhibition-hall',
+  ceramics: 'kiln-hall',
+  'painting-a': 'basic-exhibition-hall',
+  'painting-b': 'basic-exhibition-hall',
+  jade: 'basic-exhibition-hall',
+  'gold-silver': 'basic-exhibition-hall',
+  sculpture: 'banpo-girl-sculpture',
+  special: 'temporary-hall-1',
 }
 var HALL_SLUG_NAMES = {}
 var HALL_NAME_SLUGS = {}
