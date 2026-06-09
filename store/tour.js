@@ -180,6 +180,10 @@ function _normalizeHallForStorage(hall) {
   return banpoHalls.normalizeHallToSlug(hall)
 }
 
+function _makeClientEventId() {
+  return String(Date.now()) + '-' + Math.random().toString(36).slice(2, 10)
+}
+
 function _getCurrentHallDisplayName() {
   return _tour.currentHall ? banpoHalls.getHallDisplayName(_tour.currentHall) : ''
 }
@@ -433,12 +437,16 @@ function addTourEvent(event) {
   var hall = event.hall || _tour.currentHall || null
   var eventType = event.eventType || event.event_type || 'unknown'
   var hallSlug = hall ? _normalizeHallForStorage(hall) : null
+  var metadata = Object.assign({}, event.metadata || {})
+  if (!metadata.client_event_id) {
+    metadata.client_event_id = _makeClientEventId()
+  }
   var entry = {
     event_type:       eventType,
     exhibit_id:       event.exhibitId        || event.exhibit_id        || null,
     hall:             hallSlug,
     duration_seconds: event.durationSeconds  || event.duration_seconds  || null,
-    metadata:         event.metadata         || {},
+    metadata:         metadata,
   }
   if (VISITED_HALL_EVENT_TYPES[eventType] && hallSlug && _tour.visitedHalls.indexOf(hallSlug) === -1) {
     _tour.visitedHalls = _tour.visitedHalls.concat(hallSlug)

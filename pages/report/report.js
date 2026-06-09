@@ -134,6 +134,19 @@ function unique(list) {
   return out
 }
 
+function recordDedupeKey(parts) {
+  return (parts || [])
+    .map(function (item) { return stripMarkdown(item || '') })
+    .join('|')
+    .replace(/\s+/g, '')
+    .slice(0, 260)
+}
+
+function eventClientKey(event, fallbackParts) {
+  var meta = event && event.metadata ? event.metadata : {}
+  return meta.client_event_id || recordDedupeKey(fallbackParts)
+}
+
 var VISITED_HALL_EVENT_TYPES = {
   exhibit_question: true,
   assistant_answer: true,
@@ -181,14 +194,20 @@ function collectHallSlugs(data, events, state) {
 }
 
 function collectQuestions(events) {
-  return events
-    .filter(function (event) { return event.event_type === 'exhibit_question' || event.eventType === 'exhibit_question' })
-    .map(function (event) {
-      return event.metadata && (event.metadata.message || event.metadata.question)
-        ? (event.metadata.message || event.metadata.question)
-        : ''
-    })
-    .filter(Boolean)
+  var seen = {}
+  var out = []
+  events.forEach(function (event) {
+    var type = event.event_type || event.eventType
+    if (type !== 'exhibit_question') return
+    var meta = event.metadata || {}
+    var question = meta.message || meta.question || ''
+    if (!question) return
+    var key = eventClientKey(event, [type, event.hall || meta.hall || '', question])
+    if (seen[key]) return
+    seen[key] = true
+    out.push(question)
+  })
+  return out
 }
 
 function collectExhibitNames(events) {
@@ -291,12 +310,6 @@ function buildIntegratedRecordNote(question, answer, events) {
 }
 
 function buildAggregatedRecordNotes(pairs, events) {
-  if (pairs.length <= 4) {
-    return pairs.map(function (pair) {
-      return buildIntegratedRecordNote(pair.question, pair.answer, events)
-    })
-  }
-
   var questionHalls = []
   ;(events || []).forEach(function (event) {
     var type = event.event_type || event.eventType
@@ -306,7 +319,7 @@ function buildAggregatedRecordNotes(pairs, events) {
 
   var groups = []
   pairs.forEach(function (pair, index) {
-    var slug = questionHalls[index] || 'summary'
+    var slug = pair.hall || questionHalls[index] || tourStore.getTourState().currentHall || 'summary'
     var group = groups.find(function (item) { return item.slug === slug })
     if (!group) {
       group = { slug: slug, pairs: [] }
@@ -326,11 +339,32 @@ function buildAggregatedRecordNotes(pairs, events) {
     )
     var topicLabel = REFLECTION_TOPIC_LABELS[topic] || '证据线索'
     var title = group.slug && group.slug !== 'summary' ? hallDisplay(group.slug) : '记录摘要'
+    var evidence = compactText(group.pairs.map(function (pair) { return pair.answer }).join(' '), 96)
     return {
       question: title + '：' + group.pairs.length + '组问答',
-      point: '已合并为' + topicLabel + '线索。代表问题包括：' + questionsText + '。后续可回到对应展厅核对可见证据。',
+      point: '已合并为' + topicLabel + '线索。代表问题包括：' + questionsText + '。'
+        + (evidence ? '可复盘线索：' + evidence + '。' : '后续可回到对应展厅核对可见证据。'),
     }
   })
+}
+
+function collectEventAnswerPairs(events) {
+  var seen = {}
+  var pairs = []
+  ;(events || []).forEach(function (event) {
+    var type = event.event_type || event.eventType
+    if (type !== 'assistant_answer') return
+    var meta = event.metadata || {}
+    var question = meta.question || meta.message || ''
+    var answer = meta.answer || ''
+    if (!question || !answer) return
+    var hall = hallSlug(event.hall || meta.hall || meta.hall_slug || meta.hallSlug || '')
+    var key = eventClientKey(event, [type, hall, question, answer])
+    if (seen[key]) return
+    seen[key] = true
+    pairs.push({ question: question, answer: answer, hall: hall })
+  })
+  return pairs
 }
 
 function inferQuestionRecordPoint(question, events) {
@@ -357,6 +391,7 @@ function inferQuestionRecordPoint(question, events) {
 function buildRecordNotes(messages, questions, events) {
   var pairs = []
   var list = Array.isArray(messages) ? messages : []
+  var currentHall = tourStore.getTourState().currentHall || ''
   for (var i = 0; i < list.length; i++) {
     var msg = list[i]
     if (!msg || msg.role !== 'user' || !msg.content) continue
@@ -369,28 +404,23 @@ function buildRecordNotes(messages, questions, events) {
       if (list[j].role === 'user') break
     }
     if (!answer) continue
-    pairs.push({ question: msg.content, answer: answer })
+    pairs.push({ question: msg.content, answer: answer, hall: currentHall })
   }
   var notes = pairs.length ? buildAggregatedRecordNotes(pairs, events) : []
 
   if (!notes.length && Array.isArray(events)) {
-    var eventPairs = []
-    events.forEach(function (event) {
-      var type = event.event_type || event.eventType
-      var meta = event.metadata || {}
-      if (type !== 'assistant_answer' || !meta.question || !meta.answer) return
-      eventPairs.push({ question: meta.question, answer: meta.answer })
-    })
+    var eventPairs = collectEventAnswerPairs(events)
     notes = eventPairs.length ? buildAggregatedRecordNotes(eventPairs, events) : []
   }
 
   if (!notes.length && questions.length) {
-    notes = questions.slice(0, 4).map(function (question) {
-      return {
-        question: compactText(question, 54),
-        point: inferQuestionRecordPoint(question, events),
-      }
-    })
+    var fallbackHall = tourStore.getTourState().currentHall || 'summary'
+    notes = buildAggregatedRecordNotes(
+      questions.map(function (question) {
+        return { question: question, answer: inferQuestionRecordPoint(question, events), hall: fallbackHall }
+      }),
+      events
+    )
   }
 
   if (!notes.length && events && events.length) {
@@ -422,7 +452,7 @@ function mergeRecordNotes(primary, secondary) {
   var seen = {}
   ;(primary || []).concat(secondary || []).forEach(function (item) {
     if (!item || !item.question || !item.point) return
-    var key = item.question
+    var key = recordDedupeKey([item.question])
     if (seen[key]) return
     seen[key] = true
     merged.push(item)
@@ -716,13 +746,14 @@ Page({
     if (exhibitNames.length) highlights.push('重点展项：' + exhibitNames.join('、'))
     if (!highlights.length) highlights = []
 
-    var recordNotes = mergeRecordNotes(
+    var backendRecordNotes = normalizeRecordNotes(data.record_notes)
+    var localEventRecordNotes = buildRecordNotes([], questions, events)
+    var authoritativeRecordNotes = mergeRecordNotes(backendRecordNotes, localEventRecordNotes)
+    var fallbackRecordNotes = mergeRecordNotes(
       normalizeRecordNotes(tourStore.getRecordSummaryNotes()),
-      mergeRecordNotes(
-        buildRecordNotes(chatMessages, questions, events),
-        normalizeRecordNotes(data.record_notes)
-      )
+      buildRecordNotes(chatMessages, questions, [])
     )
+    var recordNotes = authoritativeRecordNotes.length ? authoritativeRecordNotes : fallbackRecordNotes
 
     var dataNotice = ''
     if (isLocalFallback) {

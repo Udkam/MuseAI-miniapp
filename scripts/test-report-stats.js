@@ -23,10 +23,12 @@ global.Page = function (config) {
 }
 
 const tourStore = require('../store/tour')
+const chatStore = require('../store/chat')
 require('../pages/report/report')
 
 function resetTour() {
   tourStore.clearTour()
+  chatStore.resetChat()
   tourStore.createLocalTourState({
     interestType: 'B',
     persona: 'B',
@@ -97,6 +99,93 @@ assert.deepStrictEqual(
   tourStore.getTourState().visitedHalls,
   ['prehistoric-workshop'],
   'hall_enter should not append to question-derived visitedHalls'
+)
+
+resetTour()
+tourStore.updateTourState({ currentHall: 'basic-exhibition-hall' })
+var eventSummaryExperience = reportPage._buildExperience({}, [
+  {
+    event_type: 'exhibit_question',
+    hall: 'basic-exhibition-hall',
+    metadata: { client_event_id: 'q1', message: '这些出土文物反映了半坡先民怎样的生活？' },
+  },
+  {
+    event_type: 'assistant_answer',
+    hall: 'basic-exhibition-hall',
+    metadata: {
+      client_event_id: 'a1',
+      question: '这些出土文物反映了半坡先民怎样的生活？',
+      answer: '这些出土文物说明半坡先民已经形成了稳定的定居、生产和日常生活方式。',
+    },
+  },
+  {
+    event_type: 'exhibit_question',
+    hall: 'basic-exhibition-hall',
+    metadata: { client_event_id: 'q2', message: '半坡的石器和骨器是做什么用的？' },
+  },
+  {
+    event_type: 'assistant_answer',
+    hall: 'basic-exhibition-hall',
+    metadata: {
+      client_event_id: 'a2',
+      question: '半坡的石器和骨器是做什么用的？',
+      answer: '石器、骨器和工具可用于加工食物、制作器物，也能帮助判断生产分工。',
+    },
+  },
+], false)
+assert.strictEqual(
+  eventSummaryExperience.recordNotes.length,
+  1,
+  'event Q&A should be summarized by hall instead of one card per question'
+)
+assert.strictEqual(
+  eventSummaryExperience.recordNotes[0].question,
+  '基本陈列展厅：2组问答',
+  'hall summary should count Q&A pairs once'
+)
+
+resetTour()
+tourStore.updateTourState({ currentHall: 'basic-exhibition-hall' })
+chatStore.setMessages([
+  { role: 'user', content: '这些出土文物反映了半坡先民怎样的生活？' },
+  { role: 'assistant', content: '这些出土文物说明半坡先民已经形成了稳定的定居、生产和日常生活方式。' },
+])
+var backendPreferredExperience = reportPage._buildExperience({
+  record_notes: [
+    {
+      question: '基本陈列展厅：1组问答',
+      point: '本展厅对话已合并整理，代表问题包括：这些出土文物反映了半坡先民怎样的生活。',
+    },
+  ],
+}, [], false)
+assert.deepStrictEqual(
+  backendPreferredExperience.recordNotes,
+  [
+    {
+      question: '基本陈列展厅：1组问答',
+      point: '本展厅对话已合并整理，代表问题包括：这些出土文物反映了半坡先民怎样的生活',
+    },
+  ],
+  'backend record_notes should not be duplicated by current in-memory chat notes'
+)
+
+resetTour()
+var duplicateQuestionExperience = reportPage._buildExperience({}, [
+  {
+    event_type: 'exhibit_question',
+    hall: 'basic-exhibition-hall',
+    metadata: { client_event_id: 'same-question', message: '半坡的石器和骨器是做什么用的？' },
+  },
+  {
+    event_type: 'exhibit_question',
+    hall: 'basic-exhibition-hall',
+    metadata: { client_event_id: 'same-question', message: '半坡的石器和骨器是做什么用的？' },
+  },
+], false)
+assert.strictEqual(
+  duplicateQuestionExperience.questionCount,
+  1,
+  'duplicate question events should only count once in local report stats'
 )
 
 console.log('report stat checks passed')
