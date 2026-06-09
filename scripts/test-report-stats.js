@@ -136,12 +136,17 @@ var eventSummaryExperience = reportPage._buildExperience({}, [
 assert.strictEqual(
   eventSummaryExperience.recordNotes.length,
   1,
-  'event Q&A should be summarized by hall instead of one card per question'
+  'event Q&A should be summarized into one narrative note'
 )
 assert.strictEqual(
   eventSummaryExperience.recordNotes[0].question,
-  '基本陈列展厅：2组问答',
-  'hall summary should count Q&A pairs once'
+  '游览记录摘要',
+  'record summary should be a narrative report title'
+)
+assert.ok(
+  eventSummaryExperience.recordNotes[0].point.indexOf('出土文物') >= 0
+    && eventSummaryExperience.recordNotes[0].point.indexOf('石器和骨器') >= 0,
+  'record summary should include both question topics'
 )
 
 resetTour()
@@ -153,8 +158,8 @@ chatStore.setMessages([
 var backendPreferredExperience = reportPage._buildExperience({
   record_notes: [
     {
-      question: '基本陈列展厅：1组问答',
-      point: '本展厅对话已合并整理，代表问题包括：这些出土文物反映了半坡先民怎样的生活。',
+      question: '游览记录摘要',
+      point: '以研学记录员的视角看，本次游览主要围绕基本陈列展厅展开，关注点落在日常生活。你提出的问题包括“这些出土文物反映了半坡先民怎样的生活”。',
     },
   ],
 }, [], false)
@@ -162,8 +167,8 @@ assert.deepStrictEqual(
   backendPreferredExperience.recordNotes,
   [
     {
-      question: '基本陈列展厅：1组问答',
-      point: '本展厅对话已合并整理，代表问题包括：这些出土文物反映了半坡先民怎样的生活',
+      question: '游览记录摘要',
+      point: '以研学记录员的视角看，本次游览主要围绕基本陈列展厅展开，关注点落在日常生活',
     },
   ],
   'backend record_notes should not be duplicated by current in-memory chat notes'

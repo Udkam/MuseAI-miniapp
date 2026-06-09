@@ -310,59 +310,82 @@ function buildIntegratedRecordNote(question, answer, events) {
 }
 
 function buildAggregatedRecordNotes(pairs, events) {
-  var questionHalls = []
-  ;(events || []).forEach(function (event) {
-    var type = event.event_type || event.eventType
-    if (type !== 'exhibit_question') return
-    questionHalls.push(hallSlug(event.hall || (event.metadata && (event.metadata.hall || event.metadata.hall_slug || event.metadata.hallSlug)) || ''))
-  })
-
-  var groups = []
-  pairs.forEach(function (pair, index) {
-    var slug = pair.hall || questionHalls[index] || tourStore.getTourState().currentHall || 'summary'
-    var group = groups.find(function (item) { return item.slug === slug })
-    if (!group) {
-      group = { slug: slug, pairs: [] }
-      groups.push(group)
+  var uniquePairs = []
+  var seen = {}
+  ;(pairs || []).forEach(function (pair) {
+    if (!pair || !pair.question) return
+    var slug = pair.hall || tourStore.getTourState().currentHall || ''
+    var key = recordDedupeKey([slug, pair.question])
+    if (seen[key]) {
+      if (!seen[key].answer && pair.answer) seen[key].answer = pair.answer
+      return
     }
-    group.pairs.push(pair)
-  })
-
-  return groups.slice(0, 4).map(function (group) {
-    var questionsText = group.pairs.map(function (pair) {
-      return compactText(pair.question, 26)
-    }).filter(Boolean).slice(0, 3).join('；')
-    var topic = inferTopTopicFromText(
-      group.pairs.map(function (pair) { return pair.question }).join(' '),
-      group.pairs.map(function (pair) { return pair.answer }).join(' '),
-      events
-    )
-    var topicLabel = REFLECTION_TOPIC_LABELS[topic] || '证据线索'
-    var title = group.slug && group.slug !== 'summary' ? hallDisplay(group.slug) : '记录摘要'
-    var evidence = compactText(group.pairs.map(function (pair) { return pair.answer }).join(' '), 96)
-    return {
-      question: title + '：' + group.pairs.length + '组问答',
-      point: '已合并为' + topicLabel + '线索。代表问题包括：' + questionsText + '。'
-        + (evidence ? '可复盘线索：' + evidence + '。' : '后续可回到对应展厅核对可见证据。'),
+    var item = {
+      question: pair.question,
+      answer: pair.answer || '',
+      hall: slug,
     }
+    seen[key] = item
+    uniquePairs.push(item)
   })
+  if (!uniquePairs.length) return []
+
+  var state = tourStore.getTourState()
+  var personaKey = normalizePersonaKey(state)
+  var copy = PERSONA_REPORT_COPY[personaKey] || PERSONA_REPORT_COPY.default
+  var personaName = tourStore.getPersonaLabel() || (copy.tags && copy.tags[0]) || '导览记录者'
+  var hallNames = unique(uniquePairs.map(function (pair) {
+    return pair.hall ? hallDisplay(pair.hall) : ''
+  }).filter(Boolean))
+  var hallText = hallNames.length ? hallNames.join('、') : '半坡遗址'
+  var questionSamples = uniquePairs.map(function (pair) {
+    return compactText(pair.question, 34)
+  }).filter(Boolean).slice(0, 4)
+  var answerText = uniquePairs.map(function (pair) { return pair.answer }).filter(Boolean).join(' ')
+  var topic = inferTopTopicFromText(
+    uniquePairs.map(function (pair) { return pair.question }).join(' '),
+    answerText,
+    events
+  )
+  var topicLabel = REFLECTION_TOPIC_LABELS[topic] || '证据线索'
+  var evidence = compactText(answerText, 110)
+  var personaFrame = {
+    A: '这段记录更像一份考古观察：它把问题压回到可核对的遗迹、材料和推断边界上。',
+    B: '这段记录更像一份研学笔记：它把展厅见闻整理成后续还能复盘的学习线索。',
+    C: '这段记录更像一次历史追问：它把展厅内容和半坡社会、共同生活的问题连接起来。',
+    D: '这段记录更像一份器物观察：它从材料、器形、用途和工艺痕迹进入半坡生活。',
+    default: '这段记录把展厅、问题和回答整理成了后续可继续追问的游览线索。',
+  }
+  var point = '以' + personaName + '的视角看，本次游览主要围绕' + hallText + '展开，关注点落在' + topicLabel + '。'
+  if (questionSamples.length) {
+    point += '你提出的问题包括“' + questionSamples.join('”“') + '”，这些问题已经不只是记录到访，而是在尝试把现场材料转化为判断线索。'
+  }
+  if (evidence) {
+    point += '从回答内容看，最值得保留的复盘线索是：' + evidence + '。'
+  }
+  point += personaFrame[personaKey] || personaFrame.default
+  return [{ question: '游览记录摘要', point: point }]
 }
 
-function collectEventAnswerPairs(events) {
+function collectEventRecordPairs(events) {
   var seen = {}
   var pairs = []
   ;(events || []).forEach(function (event) {
     var type = event.event_type || event.eventType
-    if (type !== 'assistant_answer') return
+    if (type !== 'assistant_answer' && type !== 'exhibit_question') return
     var meta = event.metadata || {}
     var question = meta.question || meta.message || ''
-    var answer = meta.answer || ''
-    if (!question || !answer) return
+    var answer = type === 'assistant_answer' ? (meta.answer || '') : ''
+    if (!question) return
     var hall = hallSlug(event.hall || meta.hall || meta.hall_slug || meta.hallSlug || '')
-    var key = eventClientKey(event, [type, hall, question, answer])
-    if (seen[key]) return
-    seen[key] = true
-    pairs.push({ question: question, answer: answer, hall: hall })
+    var key = recordDedupeKey([hall, question])
+    if (seen[key]) {
+      if (!seen[key].answer && answer) seen[key].answer = answer
+      return
+    }
+    var item = { question: question, answer: answer, hall: hall }
+    seen[key] = item
+    pairs.push(item)
   })
   return pairs
 }
@@ -389,7 +412,7 @@ function inferQuestionRecordPoint(question, events) {
 }
 
 function buildRecordNotes(messages, questions, events) {
-  var pairs = []
+  var pairs = collectEventRecordPairs(events)
   var list = Array.isArray(messages) ? messages : []
   var currentHall = tourStore.getTourState().currentHall || ''
   for (var i = 0; i < list.length; i++) {
@@ -407,11 +430,6 @@ function buildRecordNotes(messages, questions, events) {
     pairs.push({ question: msg.content, answer: answer, hall: currentHall })
   }
   var notes = pairs.length ? buildAggregatedRecordNotes(pairs, events) : []
-
-  if (!notes.length && Array.isArray(events)) {
-    var eventPairs = collectEventAnswerPairs(events)
-    notes = eventPairs.length ? buildAggregatedRecordNotes(eventPairs, events) : []
-  }
 
   if (!notes.length && questions.length) {
     var fallbackHall = tourStore.getTourState().currentHall || 'summary'

@@ -532,16 +532,22 @@ function summarizeCurrentHallRecord(messages) {
 
   var hallName = banpoHalls.getHallDisplayName(hall)
   var samples = pairs.map(function (pair) {
-    return _compactRecordText(pair.question, 28)
-  }).filter(Boolean).slice(0, 3)
+    return _compactRecordText(pair.question, 34)
+  }).filter(Boolean).slice(0, 4)
   var answerText = pairs.map(function (pair) { return pair.answer }).join(' ')
-  var point = '已合并本展厅对话，代表问题包括：' + samples.join('；') + '。'
-  var evidence = _compactRecordText(answerText, 84)
-  if (evidence) point += ' 可复盘线索：' + evidence
+  var evidence = _compactRecordText(answerText, 110)
+  var personaName = getPersonaLabel() || '导览记录者'
+  var point = '以' + personaName + '的视角看，这段游览围绕' + hallName + '展开。'
+  if (samples.length) {
+    point += '你提出的问题包括“' + samples.join('”“') + '”，这些问题把展厅观察转化成了可继续复盘的线索。'
+  }
+  if (evidence) {
+    point += '回答中值得保留的依据是：' + evidence + '。'
+  }
 
   var note = {
     hall: hall,
-    question: hallName + '：' + pairs.length + '组问答',
+    question: '游览记录摘要',
     point: point,
     updatedAt: Date.now(),
   }
