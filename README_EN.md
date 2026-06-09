@@ -41,9 +41,9 @@ The code-level MVP covers the main product flow, but formal release is not compl
   - matched result can open exhibit detail
 - Exhibit detail page with follow-up AI discussion.
 - Visit report page:
-  - visited halls
+  - visited halls counted from real feature-use events, not from merely entering a hall
   - reflection
-  - record summary
+  - hall-level record summary
   - basic stats
 - Mobile adaptation:
   - safe-area handling
@@ -87,7 +87,7 @@ frontend/
 │   ├── exhibit/
 │   └── persona/
 ├── constants/
-│   └── banpo-halls.js    # Hall slugs, names, order, aliases
+│   └── banpo-halls.js    # Nine canonical hall slugs, names, and order
 ├── pages/
 │   ├── home/
 │   ├── onboarding/
@@ -177,6 +177,21 @@ Needs configuration and validation:
 - no OCR call after the user cancels shooting;
 - real-device recognition under exhibit labels, names, and low-light conditions.
 
+## Report Statistics Notes
+
+The report page uses backend report fields first and merges local unsynced tour events to reduce gaps caused by page switches or network failure.
+
+Visited halls are counted from:
+
+- `exhibit_question`
+- `assistant_answer`
+- `exhibit_view`
+- `exhibit_deep_dive`
+
+Simply entering a hall is not enough. The user must actually use a feature in that hall, such as asking a question, tapping a suggestion that asks a question, viewing an exhibit, or starting a deep dive. The frontend uses only the nine canonical hall slugs from the Banpo hall contract and converts them to Chinese names for display.
+
+Record summary data comes from hall-level local summaries saved when leaving a hall or opening the report, the current hall's latest local chat, and backend `record_notes`. The page keeps short hall-level notes instead of rendering every question as a separate summary item.
+
 ## Common Tests
 
 ```bash
@@ -203,11 +218,13 @@ node --check pages/exhibit-scan/exhibit-scan.js
 - TTS play, stop, switch, and page-leave cleanup.
 - OCR should not run after the user cancels shooting.
 - Report visited halls, reflection, and record summary should match actual events.
+  In particular, entering a hall without using a feature should not count as a visited hall; asking, viewing, or deep-diving should count.
 
 ## Launch Notes
 
 - A test account is not equivalent to a formal mini-program release environment.
 - Formal release needs a real AppID, developer permissions, upload permissions, and test members.
 - If using a mainland China server and custom domain, formal WeChat mini-program release usually requires filing and legal-domain configuration.
+- Current server resource budget is 2 CPU cores / 8 GB RAM. Real-device testing should watch streaming answer latency, TTS waits, and report fallback behavior under weak networks.
 - Any exposed AppSecret or API key must be rotated.
 - Privacy policy, user agreement, camera permission notice, and AI-generated-content notice should be ready before release.

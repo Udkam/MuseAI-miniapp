@@ -81,35 +81,28 @@ const HALLS = [
   '牡丹园',
   '临展厅一',
   '临展厅二',
-  '出土文物陈列区',
-  '半坡聚落复原区',
-  '专题文化展区',
 ]
 const PRIMARY_HALLS = HALLS.slice(0, 9)
 const HALL_SLUGS = [
   'basic-exhibition-hall',
   'site-protection-hall',
   'kiln-hall',
-  'temporary-hall-1',
-  'temporary-hall-2',
-  'banpo-girl-sculpture',
   'prehistoric-workshop',
+  'banpo-girl-sculpture',
   'education-center',
   'peony-garden',
-  'pottery-spirit-hall',
-  'site-archaeology-hall',
-  'civilization-spark-hall',
+  'temporary-hall-1',
+  'temporary-hall-2',
 ]
-const PERSONAS = ['default', 'student', 'A', 'B', 'historian', 'C', 'artifact', 'D']
-const PRIMARY_PERSONAS = ['student', 'A', 'historian', 'artifact']
+const PERSONAS = ['default', 'A', 'B', 'C', 'D']
+const PRIMARY_PERSONAS = ['A', 'B', 'C', 'D']
 const HALL_MODE_FORBIDDEN = ['这件', '它', '这个展品', '该展品', '此展品', '彩陶盆上的']
 
 function resetTour(personaId, hall) {
-  const backendPersona = { student: 'B', historian: 'C', artifact: 'D' }[personaId] || personaId
   tourStore.clearTour()
   tourStore.updateTourState({
     personaId: personaId,
-    persona: ['A', 'B', 'C', 'D'].indexOf(backendPersona) >= 0 ? backendPersona : 'B',
+    persona: ['A', 'B', 'C', 'D'].indexOf(personaId) >= 0 ? personaId : 'B',
     assumption: 'A',
     currentHall: hall,
     currentExhibit: null,
@@ -188,17 +181,17 @@ PRIMARY_HALLS.forEach(function (hall) {
   })
 })
 
-resetTour('default', '出土文物陈列区')
+resetTour('default', '基本陈列展厅')
 const exhibit = {
   id: 'ceramic-1',
   name: '人面网纹彩陶盆',
   category: '彩陶',
-  hall: 'pottery-spirit-hall',
-  hallDisplay: '出土文物陈列区',
+  hall: 'basic-exhibition-hall',
+  hallDisplay: '基本陈列展厅',
 }
 tourStore.setCurrentExhibit(exhibit)
 const exhibitSuggestions = askSuggestions(tourStore.generateGuideSuggestions({
-  currentHall: '出土文物陈列区',
+  currentHall: '基本陈列展厅',
   currentExhibit: exhibit,
   exhibits: [{ id: 'other-1', name: '鹿纹彩陶盆', importance: 8 }],
 }))
@@ -210,7 +203,7 @@ assert.ok(
   'exhibit-mode ceramic prompt should name the selected exhibit'
 )
 
-resetTour('student', '遗址保护大厅')
+resetTour('B', '遗址保护大厅')
 const siteObject = {
   id: 'local-site-1',
   name: '地面圆形房屋遗迹',
@@ -239,7 +232,7 @@ const sitePrompt = tourStore.buildStyledPrompt('这个说明什么？', { recent
 assert.ok(sitePrompt.indexOf('[当前讨论对象上下文') >= 0, 'styled prompt should use neutral object context')
 assert.ok(sitePrompt.indexOf('对象类型是：遗迹') >= 0, 'styled prompt should infer site object kind')
 
-resetTour('artifact', HALLS[0])
+resetTour('D', HALLS[0])
 tourStore.setOnboardingExtras({
   focusTitle: '器物细节观察',
   focusPrompt: '请优先从材料、器形、纹饰和工艺解释问题。',

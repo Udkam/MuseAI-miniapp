@@ -16,8 +16,8 @@ var PERSONA_MAP = {
       { title: '辨推断' },
     ],
   },
-  student: {
-    key:    'student',
+  B: {
+    key:    'B',
     label:  '研学记录员',
     icon:   '📝',
     title:  '你是 研学记录员',
@@ -30,8 +30,8 @@ var PERSONA_MAP = {
       { title: '成笔记' },
     ],
   },
-  historian: {
-    key:    'historian',
+  C: {
+    key:    'C',
     label:  '历史追问者',
     icon:   '🧭',
     title:  '你是 历史追问者',
@@ -44,8 +44,8 @@ var PERSONA_MAP = {
       { title: '连今天' },
     ],
   },
-  artifact: {
-    key:    'artifact',
+  D: {
+    key:    'D',
     label:  '器物研究员',
     icon:   '🏺',
     title:  '你是 器物研究员',
@@ -59,12 +59,6 @@ var PERSONA_MAP = {
     ],
   },
 }
-PERSONA_MAP.B = PERSONA_MAP.student
-PERSONA_MAP.C = PERSONA_MAP.historian
-PERSONA_MAP.D = PERSONA_MAP.artifact
-PERSONA_MAP.resident = PERSONA_MAP.student
-PERSONA_MAP.community = PERSONA_MAP.historian
-PERSONA_MAP.artisan = PERSONA_MAP.artifact
 
 Page({
   data: {
@@ -81,9 +75,10 @@ Page({
 
   onLoad: function (options) {
     var state = tourStore.getTourState()
-    var p     = options.persona    || state.personaId || state.persona || 'student'
+    var p     = options.persona || state.personaId || state.persona || 'B'
+    if (!PERSONA_MAP[p]) p = 'B'
 
-    var info = PERSONA_MAP[p] || PERSONA_MAP.student
+    var info = PERSONA_MAP[p] || PERSONA_MAP.B
 
     this.setData({
       persona: info,

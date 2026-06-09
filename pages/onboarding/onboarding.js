@@ -2,10 +2,10 @@ var tourStore = require('../../store/tour')
 var api       = require('../../api/index')
 
 var PERSONA_NAMES = {
-  student: '研学记录员',
   A: '考古研究员',
-  historian: '历史追问者',
-  artifact: '器物研究员',
+  B: '研学记录员',
+  C: '历史追问者',
+  D: '器物研究员',
 }
 
 var FOCUS_OPTIONS = [
@@ -15,7 +15,7 @@ var FOCUS_OPTIONS = [
     title: '带着任务研学',
     desc: '边看边记，把展厅整理成可复盘的笔记',
     persona: 'B',
-    personaId: 'student',
+    personaId: 'B',
     prompt: '请优先给出观察任务、记录要点和适合研学汇报的清晰小结。',
     preferredHallOrder: ['site', 'basic', 'education'],
   },
@@ -35,17 +35,17 @@ var FOCUS_OPTIONS = [
     title: '历史问题追问',
     desc: '把半坡放进更大的史前中国和今天来理解',
     persona: 'C',
-    personaId: 'historian',
+    personaId: 'C',
     prompt: '请优先围绕文明起源、社会变化、公共生活和今天的关系展开追问。',
     preferredHallOrder: ['basic', 'site', 'education'],
   },
   {
-    id: 'artifact',
+    id: 'object-study',
     icon: '🏺',
     title: '器物细节观察',
     desc: '从材料、器形、纹饰和工艺读懂文物',
     persona: 'D',
-    personaId: 'artifact',
+    personaId: 'D',
     prompt: '请优先从材料、器形、纹饰、制作工艺和使用痕迹解释问题。',
     preferredHallOrder: ['basic', 'kiln', 'workshop'],
   },

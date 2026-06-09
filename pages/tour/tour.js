@@ -230,6 +230,7 @@ Page({
     this._stopTtsPlayback()
     this._destroyTtsAudio()
     this._teardownKeyboardLift()
+    tourStore.summarizeCurrentHallRecord(chatStore.getState().messages)
     // Fire-and-forget: best-effort flush of pending events on page leave
     this._flushEvents(null)
   },
@@ -1119,6 +1120,7 @@ Page({
     if (self.data.isThinking || self.data.isStreaming) {
       self.stopStream()
     }
+    tourStore.summarizeCurrentHallRecord(chatStore.getState().messages)
 
     // Navigate first so a slow/cancelled event upload never makes the button feel dead.
     wx.navigateTo({

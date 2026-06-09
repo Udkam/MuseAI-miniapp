@@ -10,13 +10,14 @@ const KEYS = {
   TOUR_CACHE_SCHEMA_VERSION: 'tour_cache_schema_version',
   TOUR_CURRENT_HALL:     'tour_current_hall',
   TOUR_PENDING_EVENTS:   'tour_pending_events',
+  TOUR_RECORD_SUMMARY:   'tour_record_summary',
   TOUR_UI_PREFS:         'tour_workbench_ui_prefs',
   TOUR_STYLE_PREFS:      'tour_workbench_style_prefs',
   TOUR_TTS_PREFS:        'tour_workbench_tts_prefs',
 }
 
 const TOUR_SESSION_SCHEMA_VERSION = 'tour-session-v3'
-const TOUR_CACHE_SCHEMA_VERSION = 'tour-cache-v3'
+const TOUR_CACHE_SCHEMA_VERSION = 'tour-cache-v4'
 
 function get(key, defaultValue) {
   try {
@@ -108,6 +109,7 @@ function clearAuth() {
     KEYS.TOUR_CACHE_SCHEMA_VERSION,
     KEYS.TOUR_CURRENT_HALL,
     KEYS.TOUR_PENDING_EVENTS,
+    KEYS.TOUR_RECORD_SUMMARY,
   ].forEach(remove)
 }
 
@@ -121,6 +123,7 @@ function clearTour() {
     KEYS.TOUR_AI_CONVERSATION_COUNT,
     KEYS.TOUR_CURRENT_HALL,
     KEYS.TOUR_PENDING_EVENTS,
+    KEYS.TOUR_RECORD_SUMMARY,
   ].forEach(remove)
 }
 

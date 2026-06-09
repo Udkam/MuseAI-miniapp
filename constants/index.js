@@ -36,6 +36,7 @@ const STORAGE_KEYS = {
   TOUR_AI_CONVERSATION_COUNT: 'tour_ai_conversation_count',
   TOUR_CACHE_SCHEMA_VERSION: 'tour_cache_schema_version',
   TOUR_PENDING_EVENTS:   'tour_pending_events',
+  TOUR_RECORD_SUMMARY:   'tour_record_summary',
   TOUR_CURRENT_HALL:     'tour_current_hall',
   TOUR_UI_PREFS:         'tour_workbench_ui_prefs',
   TOUR_STYLE_PREFS:      'tour_workbench_style_prefs',

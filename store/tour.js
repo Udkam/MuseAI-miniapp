@@ -51,9 +51,16 @@ const VISITED_HALL_EVENT_TYPES = {
 }
 
 // ─── Persona definitions ───────────────────────────────────────────────────
-// personaId: frontend ID used to look up prompt prefix + display name.
+// personaId: canonical frontend/backend ID used to look up prompt prefix + display name.
 // backendPersona: 'A'|'B'|'C'|'D' sent to createSession (backend system prompt).
 // promptPrefix: prepended to every user message for extra persona flavour.
+function normalizePersonaId(value) {
+  var raw = String(value || '').trim()
+  if (!raw) return 'default'
+  if (raw === 'default' || raw === 'A' || raw === 'B' || raw === 'C' || raw === 'D') return raw
+  return 'default'
+}
+
 var PERSONA_DEFS = {
   'default': {
     id:             'default',
@@ -66,18 +73,6 @@ var PERSONA_DEFS = {
     name:           '考古研究员',
     backendPersona: 'A',
     promptPrefix:   '',   // backend system prompt fully handles persona A
-  },
-  'student': {
-    id:             'student',
-    name:           '研学记录员',
-    backendPersona: 'B',
-    promptPrefix:   '[研学记录员视角：回答要方便边看边记，把观察任务、证据要点和解释自然融入内容；不要每次都套固定栏目。]',
-  },
-  'resident': {
-    id:             'resident',
-    name:           '研学记录员',
-    backendPersona: 'B',
-    promptPrefix:   '[研学记录员视角：回答要方便边看边记，把观察任务、证据要点和解释自然融入内容；不要每次都套固定栏目。]',
   },
   'B': {
     id:             'B',
@@ -97,30 +92,6 @@ var PERSONA_DEFS = {
     backendPersona: 'D',
     promptPrefix:   '',   // backend system prompt fully handles persona D
   },
-  'historian': {
-    id:             'historian',
-    name:           '历史追问者',
-    backendPersona: 'C',
-    promptPrefix:   '[历史追问者视角：请把半坡遗址放进史前中国、文明起源和今天的公共生活中追问，重视问题意识，不要写成课堂讲稿。]',
-  },
-  'artifact': {
-    id:             'artifact',
-    name:           '器物研究员',
-    backendPersona: 'D',
-    promptPrefix:   '[器物研究员视角：请优先从材料、器形、纹饰、制作工艺和使用痕迹解释问题，明确区分可观察事实与推测。]',
-  },
-  'artisan': {
-    id:             'artisan',
-    name:           '器物研究员',
-    backendPersona: 'D',
-    promptPrefix:   '[器物研究员视角：请优先从材料、器形、纹饰、制作工艺和使用痕迹解释问题，明确区分可观察事实与推测。]',
-  },
-  'community': {
-    id:             'community',
-    name:           '历史追问者',
-    backendPersona: 'C',
-    promptPrefix:   '[历史追问者视角：请把半坡遗址放进史前中国、文明起源和今天的公共生活中追问，重视问题意识，不要写成课堂讲稿。]',
-  },
 }
 
 // ─── Runtime state ─────────────────────────────────────────────────────────
@@ -131,7 +102,7 @@ function _makeEmptyTour() {
     status:            TOUR_STATUS.ONBOARDING,
     interestType:      null,
     persona:           null,
-    personaId:         null,   // 'default'|'A'|'B'|'C'|'D'|'student'|'historian'|'artifact'
+    personaId:         null,   // 'default'|'A'|'B'|'C'|'D'
     assumption:        null,
     currentHall:       null,
     currentExhibitId:  null,
@@ -255,7 +226,7 @@ function createLocalTourState(opts) {
   _tour.interestType = o.interestType || null
   _tour.persona      = o.persona      || null
   _tour.assumption   = o.assumption   || null
-  _tour.personaId    = o.personaId    || o.persona || null
+  _tour.personaId    = normalizePersonaId(o.personaId || o.persona || null)
 
   // Recover any events that were buffered before a forced page restart
   var stored = storage.get(STORAGE_KEYS.TOUR_PENDING_EVENTS, null)
@@ -328,6 +299,9 @@ function setOnboardingExtras(opts) {
 function updateTourState(patch) {
   if (patch && patch.currentHall !== undefined) {
     patch = Object.assign({}, patch, { currentHall: _normalizeHallForStorage(patch.currentHall) })
+  }
+  if (patch && patch.personaId !== undefined) {
+    patch = Object.assign({}, patch, { personaId: normalizePersonaId(patch.personaId) })
   }
   Object.assign(_tour, patch)
   if (patch.sessionId !== undefined || patch.sessionToken !== undefined) {
@@ -507,6 +481,76 @@ function clearTour() {
   storage.clearTour()
 }
 
+// ─── Record summary ───────────────────────────────────────────────────────
+
+function _compactRecordText(value, maxLen) {
+  var text = String(value || '')
+    .replace(/```[\s\S]*?```/g, '')
+    .replace(/^#{1,6}\s+/gm, '')
+    .replace(/^\s*[-*+]\s+/gm, '')
+    .replace(/\*\*([^*]+)\*\*/g, '$1')
+    .replace(/`([^`]+)`/g, '$1')
+    .replace(/\s+/g, ' ')
+    .trim()
+  var limit = maxLen || 80
+  if (text.length > limit) return text.slice(0, limit).replace(/[，。；、\s]+$/g, '') + '…'
+  return text
+}
+
+function _extractMessagePairs(messages) {
+  var pairs = []
+  var list = Array.isArray(messages) ? messages : []
+  for (var i = 0; i < list.length; i++) {
+    var msg = list[i]
+    if (!msg || msg.role !== 'user' || !msg.content) continue
+    var answer = ''
+    for (var j = i + 1; j < list.length; j++) {
+      if (list[j].role === 'assistant' && !list[j].isError && list[j].content) {
+        answer = list[j].content
+        break
+      }
+      if (list[j].role === 'user') break
+    }
+    if (answer) pairs.push({ question: msg.content, answer: answer })
+  }
+  return pairs
+}
+
+function summarizeCurrentHallRecord(messages) {
+  var hall = _tour.currentHall ? _normalizeHallForStorage(_tour.currentHall) : null
+  if (!hall) return []
+  var pairs = _extractMessagePairs(messages)
+  if (!pairs.length) return getRecordSummaryNotes()
+
+  var hallName = banpoHalls.getHallDisplayName(hall)
+  var samples = pairs.map(function (pair) {
+    return _compactRecordText(pair.question, 28)
+  }).filter(Boolean).slice(0, 3)
+  var answerText = pairs.map(function (pair) { return pair.answer }).join(' ')
+  var point = '已合并本展厅对话，代表问题包括：' + samples.join('；') + '。'
+  var evidence = _compactRecordText(answerText, 84)
+  if (evidence) point += ' 可复盘线索：' + evidence
+
+  var note = {
+    hall: hall,
+    question: hallName + '：' + pairs.length + '组问答',
+    point: point,
+    updatedAt: Date.now(),
+  }
+  var notes = getRecordSummaryNotes().filter(function (item) {
+    return item && item.hall !== hall
+  })
+  notes.push(note)
+  notes.sort(function (a, b) { return (a.updatedAt || 0) - (b.updatedAt || 0) })
+  storage.set(STORAGE_KEYS.TOUR_RECORD_SUMMARY, notes.slice(-6))
+  return notes.slice(-6)
+}
+
+function getRecordSummaryNotes() {
+  var notes = storage.get(STORAGE_KEYS.TOUR_RECORD_SUMMARY, [])
+  return Array.isArray(notes) ? notes : []
+}
+
 // ─── API header helper ─────────────────────────────────────────────────────
 
 /**
@@ -549,7 +593,7 @@ var _HALL_SUGGEST_TEMPLATES = {
       { type: 'hall_intro',      icon: '💡', title: '文物种类', prompt: '这个展厅主要展示哪些类型的文物？' },
       { type: 'observation_task',icon: '🔎', title: '透物见人', prompt: '这些出土文物反映了半坡先民怎样的生活？' },
     ],
-    artisan: [
+    D: [
       { type: 'hall_intro',      icon: '🛠', title: '工具用途', prompt: '半坡的石器和骨器是做什么用的？' },
       { type: 'observation_task',icon: '🏺', title: '器物种类', prompt: '这个展厅主要展示哪些类型的文物？' },
     ],
@@ -572,7 +616,7 @@ var _HALL_SUGGEST_TEMPLATES = {
       { type: 'hall_intro',      icon: '💡', title: '聚落布局', prompt: '半坡聚落的整体布局是怎样的？' },
       { type: 'observation_task',icon: '🍚', title: '食物来源', prompt: '半坡先民主要靠什么获取食物？' },
     ],
-    artisan: [
+    D: [
       { type: 'hall_intro',      icon: '🛠', title: '房屋建造', prompt: '半坡先民的房屋是怎么建造的？' },
       { type: 'observation_task',icon: '🏠', title: '居所样貌', prompt: '半坡先民居住的房子是什么样的？' },
     ],
@@ -595,7 +639,7 @@ var _HALL_SUGGEST_TEMPLATES = {
       { type: 'hall_intro',      icon: '🏆', title: '遗址价值', prompt: '半坡遗址为什么这么重要？' },
       { type: 'observation_task',icon: '🔎', title: '先民审美', prompt: '半坡人有自己的艺术或审美吗？' },
     ],
-    artisan: [
+    D: [
       { type: 'hall_intro',      icon: '🎨', title: '艺术审美', prompt: '半坡人有自己的艺术或审美吗？' },
       { type: 'observation_task',icon: '🏛', title: '考古发现', prompt: '半坡遗址的考古发现说明了什么？' },
     ],
@@ -621,7 +665,7 @@ _HALL_SUGGEST_TEMPLATES['陶窑展厅'] = {
     { type: 'hall_intro', icon: '💡', title: '生产分工', prompt: '陶窑和制陶活动能反映半坡社会怎样的分工？' },
     { type: 'observation_task', icon: '🔎', title: '流程观察', prompt: '从制陶流程可以看出半坡人有哪些技术经验？' },
   ],
-  artisan: [
+  D: [
     { type: 'hall_intro', icon: '🛠', title: '工艺步骤', prompt: '半坡陶器从选泥、成型到入窑烧成有哪些关键步骤？' },
     { type: 'observation_task', icon: '🔥', title: '火候判断', prompt: '半坡工匠可能怎样判断陶器烧制的火候？' },
   ],
@@ -667,7 +711,7 @@ _HALL_SUGGEST_TEMPLATES['临展厅一'] = {
     { type: 'hall_intro', icon: '💡', title: '临展追问', prompt: '临展和常设展有什么不同？临展通常会借一个主题提出怎样的新问题？' },
     { type: 'observation_task', icon: '🧭', title: '叙事线索', prompt: '怎样从临展的开头、单元和结尾看出策展人想引导我们追问什么？' },
   ],
-  artisan: [
+  D: [
     { type: 'hall_intro', icon: '🏺', title: '器物看法', prompt: '在临展厅里观察器物时，怎样先看材料、器形、说明牌和展柜组合？' },
     { type: 'observation_task', icon: '🔎', title: '现场细节', prompt: '如果不知道临展当期清单，我应该如何从现场展签判断哪些器物值得细看？' },
   ],
@@ -695,7 +739,7 @@ function generateGuideSuggestions(opts) {
   var options  = opts || {}
   var hall     = options.currentHall    !== undefined ? options.currentHall    : (_tour.currentHall    || null)
   var exhibit  = options.currentExhibit !== undefined ? options.currentExhibit : (_tour.currentExhibit || null)
-  var persona  = _tour.personaId || 'default'
+  var persona  = normalizePersonaId(_tour.personaId || _tour.persona || 'default')
   var exhibits = options.exhibits || []
   var hallDisplay = hall ? banpoHalls.getHallDisplayName(hall) : null
 
@@ -765,16 +809,7 @@ function generateGuideSuggestions(opts) {
   var hallTpls = _HALL_SUGGEST_TEMPLATES[hallDisplay] || _HALL_SUGGEST_TEMPLATES[hall]
   if (!hallTpls) return []
 
-  var personaFallback = {
-    student: 'B',
-    resident: 'B',
-    historian: 'C',
-    community: 'C',
-    artifact: 'artisan',
-    artisan: 'D',
-    D: 'artisan',
-  }
-  var personaTpls = hallTpls[persona] || hallTpls[personaFallback[persona]] || hallTpls['default'] || []
+  var personaTpls = hallTpls[persona] || hallTpls['default'] || []
   for (var i = 0; i < personaTpls.length; i++) {
     var tpl = personaTpls[i]
     suggestions.push({
@@ -833,7 +868,7 @@ function isContextQuestion(text) {
 function buildClientContext(rawInput, opts) {
   var options = opts || {}
   var recentMessages = options.recentMessages || null
-  var def = PERSONA_DEFS[_tour.personaId] || PERSONA_DEFS['default']
+  var def = PERSONA_DEFS[normalizePersonaId(_tour.personaId || _tour.persona)] || PERSONA_DEFS['default']
   var ex = _tour.currentExhibit || null
   var lines = []
 
@@ -913,7 +948,7 @@ function buildStyledPrompt(rawInput, opts) {
   }
 
   var style  = styleOverride || getStylePrefs()
-  var def    = PERSONA_DEFS[_tour.personaId] || PERSONA_DEFS['default']
+  var def    = PERSONA_DEFS[normalizePersonaId(_tour.personaId || _tour.persona)] || PERSONA_DEFS['default']
   var parts  = []
   var ex     = _tour.currentExhibit || null
   var hasEx  = !!ex
@@ -1038,17 +1073,11 @@ function buildStyledPrompt(rawInput, opts) {
   var PERSONA_TONE_MAP = {
     'default':  '中立、亲切、专业，不要过度拟人化。',
     'A':        '像研究员一样引用证据和推断，但用对话语气表达，不要写成论文报告。',
-    'student':  '像研学记录员一样帮助用户知道看什么、怎么记、这些证据如何形成解释；需要归纳时用自然过渡句连接，不要固定套“观察任务/笔记要点”栏目。',
-    'resident': '像研学记录员一样帮助用户知道看什么、怎么记、这些证据如何形成解释；需要归纳时用自然过渡句连接，不要固定套“观察任务/笔记要点”栏目。',
     'B':        '像研学记录员一样帮助用户知道看什么、怎么记、这些证据如何形成解释；需要归纳时用自然过渡句连接，不要固定套“观察任务/笔记要点”栏目。',
     'C':        '像历史爱好者一样追问大问题，联系史前中国和今天；追问要自然出现，不要每段都反问。',
-    'historian':'像历史爱好者一样追问大问题，联系史前中国和今天；追问要自然出现，不要每段都反问。',
-    'community':'像历史爱好者一样追问大问题，联系史前中国和今天；追问要自然出现，不要每段都反问。',
     'D':        '从材料、器形、纹饰和使用痕迹切入，明确区分观察事实与推测，但不要机械分栏。',
-    'artifact': '从材料、器形、纹饰和使用痕迹切入，明确区分观察事实与推测，但不要机械分栏。',
-    'artisan':  '从材料、器形、纹饰和使用痕迹切入，明确区分观察事实与推测，但不要机械分栏。',
   }
-  var toneHint = PERSONA_TONE_MAP[_tour.personaId] || PERSONA_TONE_MAP['default']
+  var toneHint = PERSONA_TONE_MAP[normalizePersonaId(_tour.personaId || _tour.persona)] || PERSONA_TONE_MAP['default']
   parts.push([
     '[对话语气约束]',
     '你正在和一名手机小程序用户进行一对一博物馆导览对话。',
@@ -1099,12 +1128,12 @@ function buildStyledPrompt(rawInput, opts) {
 
 /** Return the persona definition for the current session. */
 function getPersonaDef() {
-  return PERSONA_DEFS[_tour.personaId] || PERSONA_DEFS['default']
+  return PERSONA_DEFS[normalizePersonaId(_tour.personaId || _tour.persona)] || PERSONA_DEFS['default']
 }
 
 /**
  * Return the backend persona letter ('A'|'B'|'C'|'D') for createSession calls.
- * default maps to 'B'; artisan maps to 'D'.
+ * default maps to 'B'.
  */
 function getBackendPersona() {
   return getPersonaDef().backendPersona || 'B'
@@ -1116,7 +1145,7 @@ function getBackendPersona() {
  * @returns {string} Display label for the current session's persona, e.g. '考古研究员'
  */
 function getPersonaLabel() {
-  var def = PERSONA_DEFS[_tour.personaId]
+  var def = PERSONA_DEFS[normalizePersonaId(_tour.personaId || _tour.persona)]
   if (def && def.name) return def.name
   var map = { A: '考古研究员', B: '研学记录员', C: '历史追问者', D: '器物研究员' }
   return map[_tour.persona] || ''
@@ -1127,16 +1156,13 @@ function getPersonaLabel() {
  */
 function getReportThemeTitle() {
   var idMap = {
-    student: '半坡研学记录报告',
-    resident: '半坡研学记录报告',
     A: '半坡考古研究报告',
-    historian: '半坡历史追问报告',
-    community: '半坡历史追问报告',
+    B: '半坡研学记录报告',
+    C: '半坡历史追问报告',
     D: '半坡器物观察报告',
-    artifact: '半坡器物观察报告',
-    artisan: '半坡器物观察报告',
   }
-  if (_tour.personaId && idMap[_tour.personaId]) return idMap[_tour.personaId]
+  var id = normalizePersonaId(_tour.personaId || _tour.persona)
+  if (idMap[id]) return idMap[id]
   var map = { A: '半坡考古研究报告', B: '半坡研学记录报告', C: '半坡历史追问报告', D: '半坡器物观察报告' }
   return map[_tour.persona] || ''
 }
@@ -1165,6 +1191,8 @@ module.exports = {
   addTourEvent,
   drainPendingEvents,
   restorePendingEvents,
+  summarizeCurrentHallRecord,
+  getRecordSummaryNotes,
 
   // API helpers
   getTourHeader,

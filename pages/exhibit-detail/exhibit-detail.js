@@ -142,7 +142,7 @@ Page({
       // No session: create a quick-start one before entering the tour page.
       var guestId = 'miniapp_guest_' + Date.now()
       tourStore.setStylePrefs({ answerLength: 'balanced', depth: 'standard', terminology: 'plain' })
-      tourStore.createLocalTourState({ interestType: 'B', persona: 'B', assumption: 'D', personaId: 'student' })
+      tourStore.createLocalTourState({ interestType: 'B', persona: 'B', assumption: 'D', personaId: 'B' })
       tourStore.setCurrentExhibit(exhibit)
       api.tourApi.createSession({ interest_type: 'B', persona: 'B', assumption: 'D', guest_id: guestId })
         .then(function (res) {

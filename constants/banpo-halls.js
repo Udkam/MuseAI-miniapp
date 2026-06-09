@@ -95,22 +95,6 @@ var HALLS_MAP = {
 }
 
 var DEFAULT_ORDER = ['basic', 'site', 'kiln', 'workshop', 'banpoGirl', 'education', 'peony', 'temp1', 'temp2']
-var LEGACY_HALL_SLUGS = {
-  'relic-hall': 'basic-exhibition-hall',
-  'pottery-spirit-hall': 'basic-exhibition-hall',
-  'civilization-spark-hall': 'basic-exhibition-hall',
-  'site-hall': 'site-protection-hall',
-  'site-archaeology-hall': 'site-protection-hall',
-  'bronze-a': 'basic-exhibition-hall',
-  'bronze-b': 'basic-exhibition-hall',
-  ceramics: 'kiln-hall',
-  'painting-a': 'basic-exhibition-hall',
-  'painting-b': 'basic-exhibition-hall',
-  jade: 'basic-exhibition-hall',
-  'gold-silver': 'basic-exhibition-hall',
-  sculpture: 'banpo-girl-sculpture',
-  special: 'temporary-hall-1',
-}
 var HALL_SLUG_NAMES = {}
 var HALL_NAME_SLUGS = {}
 
@@ -120,10 +104,6 @@ Object.keys(HALLS_MAP).forEach(function (id) {
   HALL_NAME_SLUGS[id] = hall.backendSlug
   HALL_NAME_SLUGS[hall.name] = hall.backendSlug
   HALL_NAME_SLUGS[hall.hallKey] = hall.backendSlug
-})
-Object.keys(LEGACY_HALL_SLUGS).forEach(function (slug) {
-  HALL_SLUG_NAMES[slug] = HALL_SLUG_NAMES[LEGACY_HALL_SLUGS[slug]]
-  HALL_NAME_SLUGS[slug] = LEGACY_HALL_SLUGS[slug]
 })
 
 function getHall(id) {
@@ -147,7 +127,7 @@ function getHallBySlug(slug) {
 function normalizeHallToSlug(value) {
   if (!value) return null
   var raw = String(value).trim()
-  return HALL_NAME_SLUGS[raw] || LEGACY_HALL_SLUGS[raw] || (HALL_SLUG_NAMES[raw] ? raw : raw)
+  return HALL_NAME_SLUGS[raw] || (HALL_SLUG_NAMES[raw] ? raw : null)
 }
 
 function getHallDisplayName(value) {
@@ -173,7 +153,6 @@ module.exports = {
   DEFAULT_ORDER: DEFAULT_ORDER,
   HALL_SLUG_NAMES: HALL_SLUG_NAMES,
   HALL_NAME_SLUGS: HALL_NAME_SLUGS,
-  LEGACY_HALL_SLUGS: LEGACY_HALL_SLUGS,
   getHall: getHall,
   getHallBySlug: getHallBySlug,
   getHallName: getHallName,

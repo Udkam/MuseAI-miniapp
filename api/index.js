@@ -247,9 +247,6 @@ var HALL_SLUG_NAMES = {
   'education-center':      '教研中心',
   'peony-garden':          '牡丹园',
   'kiln-hall':             '陶窑展厅',
-  'pottery-spirit-hall':     '基本陈列展厅',    // legacy imported pottery/craft exhibits
-  'civilization-spark-hall': '基本陈列展厅',    // legacy imported civilization/daily-life exhibits
-  'site-archaeology-hall':   '遗址保护大厅',    // legacy imported site/archaeology exhibits
 }
 
 // Build reverse map: Chinese name → slug
@@ -257,15 +254,10 @@ var HALL_NAME_SLUGS = {}
 Object.keys(HALL_SLUG_NAMES).forEach(function (slug) {
   HALL_NAME_SLUGS[HALL_SLUG_NAMES[slug]] = slug
 })
-// New visitor-facing points from 展厅信息.docx. Several spaces do not have
-// exhibit-level DB data yet, so they either reuse the closest legacy slug or
-// intentionally return null and load all/none depending on the page.
+// New visitor-facing points from 展厅信息.docx.
 HALL_NAME_SLUGS['基本陈列展厅'] = HALL_NAME_SLUGS['基本陈列展厅'] || 'basic-exhibition-hall'
 HALL_NAME_SLUGS['遗址保护大厅'] = HALL_NAME_SLUGS['遗址保护大厅'] || 'site-protection-hall'
 HALL_NAME_SLUGS['陶窑展厅'] = HALL_NAME_SLUGS['陶窑展厅'] || 'kiln-hall'
-HALL_NAME_SLUGS['出土文物陈列区'] = 'pottery-spirit-hall'
-HALL_NAME_SLUGS['半坡聚落复原区'] = 'site-archaeology-hall'
-HALL_NAME_SLUGS['专题文化展区'] = 'civilization-spark-hall'
 
 HALL_SLUG_NAMES = Object.assign({}, banpoHalls.HALL_SLUG_NAMES)
 HALL_NAME_SLUGS = Object.assign({}, banpoHalls.HALL_NAME_SLUGS)

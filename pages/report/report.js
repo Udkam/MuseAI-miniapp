@@ -53,9 +53,6 @@ var HALL_TOPIC_WEIGHTS = {
   'education-center':      { evidence: 2 },
   'banpo-girl-sculpture':  { spiritual: 1, social: 1 },
   'peony-garden':          { life: 1 },
-  'pottery-spirit-hall':   { craft: 2, spiritual: 1 },
-  'site-archaeology-hall': { settlement: 2, social: 1 },
-  'civilization-spark-hall': { evidence: 1, spiritual: 1 },
 }
 
 var HALL_NOTES = {
@@ -122,10 +119,7 @@ var PERSONA_REPORT_COPY = {
 
 function normalizePersonaKey(state) {
   var id = state.personaId || state.persona || 'default'
-  if (id === 'student' || id === 'resident' || id === 'B') return 'B'
-  if (id === 'historian' || id === 'community' || id === 'C') return 'C'
-  if (id === 'artifact' || id === 'artisan' || id === 'D') return 'D'
-  if (id === 'A') return 'A'
+  if (id === 'A' || id === 'B' || id === 'C' || id === 'D') return id
   return 'default'
 }
 
@@ -723,8 +717,11 @@ Page({
     if (!highlights.length) highlights = []
 
     var recordNotes = mergeRecordNotes(
-      buildRecordNotes(chatMessages, questions, events),
-      normalizeRecordNotes(data.record_notes)
+      normalizeRecordNotes(tourStore.getRecordSummaryNotes()),
+      mergeRecordNotes(
+        buildRecordNotes(chatMessages, questions, events),
+        normalizeRecordNotes(data.record_notes)
+      )
     )
 
     var dataNotice = ''

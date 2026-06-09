@@ -31,7 +31,7 @@ function resetTour() {
     interestType: 'B',
     persona: 'B',
     assumption: 'A',
-    personaId: 'student',
+    personaId: 'B',
   })
 }
 
