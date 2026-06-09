@@ -535,7 +535,7 @@ function summarizeCurrentHallRecord(messages) {
     return _compactRecordText(pair.question, 46)
   }).filter(Boolean).slice(0, 4)
   var answerText = pairs.map(function (pair) { return pair.answer }).join(' ')
-  var evidence = _compactRecordText(answerText, 180)
+  var evidence = _compactRecordText(answerText, 420)
   var personaName = getPersonaLabel() || '导览记录者'
   var point = '以' + personaName + '的视角看，这段游览围绕' + hallName + '展开。'
   if (samples.length) {

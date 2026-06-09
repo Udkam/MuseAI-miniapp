@@ -244,6 +244,7 @@ function compactText(text, maxLen) {
 function compactParagraph(text, maxLen) {
   var value = stripMarkdown(text)
   if (!value) return ''
+  if (maxLen === 0) return value
   var limit = maxLen || 260
   if (value.length > limit) return value.slice(0, limit).replace(/[，。；、\s]+$/g, '') + '…'
   return value
@@ -356,7 +357,7 @@ function buildAggregatedRecordNotes(pairs, events) {
     events
   )
   var topicLabel = REFLECTION_TOPIC_LABELS[topic] || '证据线索'
-  var evidence = compactParagraph(answerText, 180)
+  var evidence = compactParagraph(answerText, 420)
   var personaFrame = {
     A: '这段记录更像一份考古观察：它把问题压回到可核对的遗迹、材料和推断边界上，也提醒后续回到展厅时继续区分直接证据与合理解释。',
     B: '这段记录更像一份研学笔记：它把展厅见闻整理成后续还能复盘的学习线索，也帮助你把“看过什么”转成“为什么这样判断”。',
@@ -466,7 +467,7 @@ function normalizeRecordNotes(notes) {
   return notes.map(function (item) {
     return {
       question: compactText(item && item.question, 60),
-      point: compactParagraph(item && item.point, 320),
+      point: compactParagraph(item && item.point, 0),
     }
   }).filter(function (item) {
     return item.question && item.point
