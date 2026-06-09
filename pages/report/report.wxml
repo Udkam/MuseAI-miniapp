@@ -66,7 +66,6 @@
     <text class="section-label text-clay text-bold">记录摘要</text>
     <view wx:if="{{recordNotes.length > 0}}" class="record-note-list">
       <view wx:for="{{recordNotes}}" wx:key="question" class="record-note">
-        <text class="record-question">{{item.question}}</text>
         <text class="record-point" selectable="true" user-select="true">{{item.point}}</text>
         <button class="record-copy" size="mini" data-point="{{item.point}}" bindtap="copyRecordNote">复制</button>
       </view>

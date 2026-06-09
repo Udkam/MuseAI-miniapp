@@ -296,15 +296,6 @@
   border: 2rpx solid #EAD9C9;
 }
 
-.record-question {
-  display: block;
-  font-size: 25rpx;
-  font-weight: 700;
-  color: #3D2B1A;
-  line-height: 1.55;
-  margin-bottom: 8rpx;
-}
-
 .record-point {
   display: block;
   font-size: 25rpx;

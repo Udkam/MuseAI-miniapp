@@ -264,7 +264,6 @@ function collectFocusPhrases(questionText, answerText, topicLabel) {
   if (/房屋|聚落|遗址|壕沟|布局|半地穴/.test(text)) addUnique(phrases, '聚落空间')
   if (/人面|鱼纹|图案|信仰|仪式|观念/.test(text)) addUnique(phrases, '图案与观念')
   if (/生活|先民|日常|生产|定居/.test(text)) addUnique(phrases, '半坡生活方式')
-  collectRecordTerms(questionText, '', 3).forEach(function (term) { addUnique(phrases, term) })
   if (!phrases.length) addUnique(phrases, topicLabel || '证据线索')
   return phrases.slice(0, 4)
 }
@@ -280,6 +279,23 @@ function collectKnowledgePhrases(answerText, topicLabel) {
   if (/生活|定居|生产|日常|先民/.test(text)) addUnique(phrases, '出土文物反映定居、生产和日常生活方式')
   if (!phrases.length) addUnique(phrases, (topicLabel || '证据线索') + '需要回到展品、展签和遗迹位置核对')
   return phrases.slice(0, 3)
+}
+
+function appendSummarySentence(parts, sentence, maxLen) {
+  if (!sentence) return
+  var current = parts.join('')
+  if ((current + sentence).length <= (maxLen || 300)) parts.push(sentence)
+}
+
+function buildRecordSummaryPoint(hallText, questionText, answerText, topicLabel) {
+  var focusPhrases = collectFocusPhrases(questionText, answerText, topicLabel)
+  var knowledgePhrases = collectKnowledgePhrases(answerText, topicLabel)
+  var subject = hallText && hallText !== '半坡遗址' ? hallText + '的问答' : '本次问答'
+  var parts = []
+  appendSummarySentence(parts, subject + '集中在' + focusPhrases.join('、') + '。', 300)
+  appendSummarySentence(parts, '回答中可提炼为：' + knowledgePhrases.join('；') + '。', 300)
+  appendSummarySentence(parts, '这些线索可继续回到展品、展签和遗迹位置核对。', 300)
+  return parts.join('')
 }
 
 function extractKnowledgePoint(answer) {
@@ -371,10 +387,6 @@ function buildAggregatedRecordNotes(pairs, events) {
   })
   if (!uniquePairs.length) return []
 
-  var state = tourStore.getTourState()
-  var personaKey = normalizePersonaKey(state)
-  var copy = PERSONA_REPORT_COPY[personaKey] || PERSONA_REPORT_COPY.default
-  var personaName = tourStore.getPersonaLabel() || (copy.tags && copy.tags[0]) || '导览记录者'
   var hallNames = unique(uniquePairs.map(function (pair) {
     return pair.hall ? hallDisplay(pair.hall) : ''
   }).filter(Boolean))
@@ -387,13 +399,7 @@ function buildAggregatedRecordNotes(pairs, events) {
     events
   )
   var topicLabel = REFLECTION_TOPIC_LABELS[topic] || '证据线索'
-  var focusPhrases = collectFocusPhrases(questionText, answerText, topicLabel)
-  var knowledgePhrases = collectKnowledgePhrases(answerText, topicLabel)
-  var point = '以' + personaName + '的视角看，本次游览围绕' + hallText + '展开。'
-  point += '关注点：' + focusPhrases.join('、') + '。'
-  point += '知识点：' + knowledgePhrases.join('；') + '。'
-  point += '后续可按展品、展签和遗迹位置核对这些判断。'
-  point = compactParagraph(point, 300)
+  var point = buildRecordSummaryPoint(hallText, questionText, answerText, topicLabel)
   return [{ question: '游览记录摘要', point: point }]
 }
 
@@ -486,9 +492,14 @@ function buildRecordNotes(messages, questions, events) {
 function normalizeRecordNotes(notes) {
   if (!Array.isArray(notes)) return []
   return notes.map(function (item) {
+    var rawPoint = stripMarkdown(item && item.point)
+    var point = /^以.+视角看/.test(rawPoint) || rawPoint.indexOf('你提出的问题包括') >= 0 || rawPoint.indexOf('从回答内容看') >= 0
+      ? buildRecordSummaryPoint('', rawPoint, rawPoint, '证据线索')
+      : rawPoint
+    if (point.length > 300) point = buildRecordSummaryPoint('', point, point, '证据线索')
     return {
       question: compactText(item && item.question, 60),
-      point: compactParagraph(item && item.point, 300),
+      point: point,
     }
   }).filter(function (item) {
     return item.question && item.point
@@ -796,7 +807,7 @@ Page({
 
     var backendRecordNotes = normalizeRecordNotes(data.record_notes)
     var localEventRecordNotes = buildRecordNotes([], questions, events)
-    var authoritativeRecordNotes = mergeRecordNotes(backendRecordNotes, localEventRecordNotes)
+    var authoritativeRecordNotes = mergeRecordNotes(localEventRecordNotes, backendRecordNotes)
     var fallbackRecordNotes = mergeRecordNotes(
       normalizeRecordNotes(tourStore.getRecordSummaryNotes()),
       buildRecordNotes(chatMessages, questions, [])

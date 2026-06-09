@@ -149,13 +149,17 @@ assert.ok(
   'record summary should include both question topics as focus keywords'
 )
 assert.ok(
-  eventSummaryExperience.recordNotes[0].point.indexOf('关注点：') >= 0
-    && eventSummaryExperience.recordNotes[0].point.indexOf('知识点：') >= 0,
-  'record summary should use keyword-compressed sections'
+  eventSummaryExperience.recordNotes[0].point.indexOf('回答中可提炼为：') >= 0,
+  'record summary should integrate answer knowledge'
 )
 assert.ok(
   eventSummaryExperience.recordNotes[0].point.length <= 300,
   'record summary should stay within 300 characters'
+)
+assert.ok(
+  eventSummaryExperience.recordNotes[0].point.indexOf('以') !== 0
+    && eventSummaryExperience.recordNotes[0].point.indexOf('你提出的问题包括') < 0,
+  'record summary should avoid the old perspective/question-list template'
 )
 
 resetTour()
@@ -177,10 +181,10 @@ assert.deepStrictEqual(
   [
     {
       question: '游览记录摘要',
-      point: '以研学记录员的视角看，本次游览主要围绕基本陈列展厅展开，关注点落在日常生活。你提出的问题包括“这些出土文物反映了半坡先民怎样的生活”。从回答内容看，最值得保留的复盘线索是：这些出土文物说明半坡先民已经形成了稳定的定居、生产和日常生活方式。这段记录更像一份研学笔记：它把展厅见闻整理成后续还能复盘的学习线索，也帮助你把“看过什么”转成“为什么这样判断”。',
+      point: '本次问答集中在文物类型、半坡生活方式。回答中可提炼为：出土文物反映定居、生产和日常生活方式。这些线索可继续回到展品、展签和遗迹位置核对。',
     },
   ],
-  'backend record_notes should not be duplicated by current in-memory chat notes'
+  'old backend record_notes should be rewritten into the compact summary style'
 )
 
 resetTour()

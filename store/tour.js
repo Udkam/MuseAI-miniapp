@@ -534,6 +534,21 @@ function _recordSummaryPhrases(questionText, answerText) {
   return { focus: focus.slice(0, 4), knowledge: knowledge.slice(0, 3) }
 }
 
+function _appendRecordSentence(parts, sentence, maxLen) {
+  if (!sentence) return
+  if ((parts.join('') + sentence).length <= (maxLen || 300)) parts.push(sentence)
+}
+
+function _buildRecordSummaryPoint(hallName, questionText, answerText) {
+  var phrases = _recordSummaryPhrases(questionText, answerText)
+  var subject = hallName ? hallName + '的问答' : '本次问答'
+  var parts = []
+  _appendRecordSentence(parts, subject + '集中在' + phrases.focus.join('、') + '。', 300)
+  _appendRecordSentence(parts, '回答中可提炼为：' + phrases.knowledge.join('；') + '。', 300)
+  _appendRecordSentence(parts, '这些线索可继续回到展品、展签和遗迹位置核对。', 300)
+  return parts.join('')
+}
+
 function _extractMessagePairs(messages) {
   var pairs = []
   var list = Array.isArray(messages) ? messages : []
@@ -562,13 +577,7 @@ function summarizeCurrentHallRecord(messages) {
   var hallName = banpoHalls.getHallDisplayName(hall)
   var questionText = pairs.map(function (pair) { return pair.question }).join(' ')
   var answerText = pairs.map(function (pair) { return pair.answer }).join(' ')
-  var phrases = _recordSummaryPhrases(questionText, answerText)
-  var personaName = getPersonaLabel() || '导览记录者'
-  var point = '以' + personaName + '的视角看，这段游览围绕' + hallName + '展开。'
-  point += '关注点：' + phrases.focus.join('、') + '。'
-  point += '知识点：' + phrases.knowledge.join('；') + '。'
-  point += '后续可按展品、展签和遗迹位置核对这些判断。'
-  point = _compactRecordText(point, 300)
+  var point = _buildRecordSummaryPoint(hallName, questionText, answerText)
 
   var note = {
     hall: hall,
