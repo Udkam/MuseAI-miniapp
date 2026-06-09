@@ -241,6 +241,14 @@ function compactText(text, maxLen) {
   return sentence
 }
 
+function compactParagraph(text, maxLen) {
+  var value = stripMarkdown(text)
+  if (!value) return ''
+  var limit = maxLen || 260
+  if (value.length > limit) return value.slice(0, limit).replace(/[，。；、\s]+$/g, '') + '…'
+  return value
+}
+
 function extractKnowledgePoint(answer) {
   var text = stripMarkdown(answer)
   if (!text) return ''
@@ -339,7 +347,7 @@ function buildAggregatedRecordNotes(pairs, events) {
   }).filter(Boolean))
   var hallText = hallNames.length ? hallNames.join('、') : '半坡遗址'
   var questionSamples = uniquePairs.map(function (pair) {
-    return compactText(pair.question, 34)
+    return compactParagraph(pair.question, 46)
   }).filter(Boolean).slice(0, 4)
   var answerText = uniquePairs.map(function (pair) { return pair.answer }).filter(Boolean).join(' ')
   var topic = inferTopTopicFromText(
@@ -348,13 +356,13 @@ function buildAggregatedRecordNotes(pairs, events) {
     events
   )
   var topicLabel = REFLECTION_TOPIC_LABELS[topic] || '证据线索'
-  var evidence = compactText(answerText, 110)
+  var evidence = compactParagraph(answerText, 180)
   var personaFrame = {
-    A: '这段记录更像一份考古观察：它把问题压回到可核对的遗迹、材料和推断边界上。',
-    B: '这段记录更像一份研学笔记：它把展厅见闻整理成后续还能复盘的学习线索。',
-    C: '这段记录更像一次历史追问：它把展厅内容和半坡社会、共同生活的问题连接起来。',
-    D: '这段记录更像一份器物观察：它从材料、器形、用途和工艺痕迹进入半坡生活。',
-    default: '这段记录把展厅、问题和回答整理成了后续可继续追问的游览线索。',
+    A: '这段记录更像一份考古观察：它把问题压回到可核对的遗迹、材料和推断边界上，也提醒后续回到展厅时继续区分直接证据与合理解释。',
+    B: '这段记录更像一份研学笔记：它把展厅见闻整理成后续还能复盘的学习线索，也帮助你把“看过什么”转成“为什么这样判断”。',
+    C: '这段记录更像一次历史追问：它把展厅内容和半坡社会、共同生活的问题连接起来，也保留了继续追问制度、分工和日常秩序的入口。',
+    D: '这段记录更像一份器物观察：它从材料、器形、用途和工艺痕迹进入半坡生活，也把器物细节和生产、使用场景联系起来。',
+    default: '这段记录把展厅、问题和回答整理成了后续可继续追问的游览线索，也为报告保留了可回到现场核对的证据边界。',
   }
   var point = '以' + personaName + '的视角看，本次游览主要围绕' + hallText + '展开，关注点落在' + topicLabel + '。'
   if (questionSamples.length) {
@@ -363,7 +371,7 @@ function buildAggregatedRecordNotes(pairs, events) {
   if (evidence) {
     point += '从回答内容看，最值得保留的复盘线索是：' + evidence + '。'
   }
-  point += personaFrame[personaKey] || personaFrame.default
+  point += (personaFrame[personaKey] || personaFrame.default)
   return [{ question: '游览记录摘要', point: point }]
 }
 
@@ -458,7 +466,7 @@ function normalizeRecordNotes(notes) {
   return notes.map(function (item) {
     return {
       question: compactText(item && item.question, 60),
-      point: compactText(item && item.point, 120),
+      point: compactParagraph(item && item.point, 320),
     }
   }).filter(function (item) {
     return item.question && item.point

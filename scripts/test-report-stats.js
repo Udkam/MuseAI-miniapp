@@ -82,7 +82,7 @@ var backendNoteExperience = reportPage._buildExperience({
 assert.deepStrictEqual(
   backendNoteExperience.recordNotes,
   [
-    { question: '围绕：半坡的石器用途', point: '石器磨损和穿孔痕迹说明工具已有明确分工' },
+    { question: '围绕：半坡的石器用途', point: '石器磨损和穿孔痕迹说明工具已有明确分工。' },
   ],
   'report should use backend record_notes when local chat/events are unavailable'
 )
@@ -148,6 +148,10 @@ assert.ok(
     && eventSummaryExperience.recordNotes[0].point.indexOf('石器和骨器') >= 0,
   'record summary should include both question topics'
 )
+assert.ok(
+  eventSummaryExperience.recordNotes[0].point.length > 140,
+  'record summary should keep a report-length narrative'
+)
 
 resetTour()
 tourStore.updateTourState({ currentHall: 'basic-exhibition-hall' })
@@ -159,7 +163,7 @@ var backendPreferredExperience = reportPage._buildExperience({
   record_notes: [
     {
       question: '游览记录摘要',
-      point: '以研学记录员的视角看，本次游览主要围绕基本陈列展厅展开，关注点落在日常生活。你提出的问题包括“这些出土文物反映了半坡先民怎样的生活”。',
+      point: '以研学记录员的视角看，本次游览主要围绕基本陈列展厅展开，关注点落在日常生活。你提出的问题包括“这些出土文物反映了半坡先民怎样的生活”。从回答内容看，最值得保留的复盘线索是：这些出土文物说明半坡先民已经形成了稳定的定居、生产和日常生活方式。这段记录更像一份研学笔记：它把展厅见闻整理成后续还能复盘的学习线索，也帮助你把“看过什么”转成“为什么这样判断”。',
     },
   ],
 }, [], false)
@@ -168,7 +172,7 @@ assert.deepStrictEqual(
   [
     {
       question: '游览记录摘要',
-      point: '以研学记录员的视角看，本次游览主要围绕基本陈列展厅展开，关注点落在日常生活',
+      point: '以研学记录员的视角看，本次游览主要围绕基本陈列展厅展开，关注点落在日常生活。你提出的问题包括“这些出土文物反映了半坡先民怎样的生活”。从回答内容看，最值得保留的复盘线索是：这些出土文物说明半坡先民已经形成了稳定的定居、生产和日常生活方式。这段记录更像一份研学笔记：它把展厅见闻整理成后续还能复盘的学习线索，也帮助你把“看过什么”转成“为什么这样判断”。',
     },
   ],
   'backend record_notes should not be duplicated by current in-memory chat notes'

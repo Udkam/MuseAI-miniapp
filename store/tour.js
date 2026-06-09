@@ -532,10 +532,10 @@ function summarizeCurrentHallRecord(messages) {
 
   var hallName = banpoHalls.getHallDisplayName(hall)
   var samples = pairs.map(function (pair) {
-    return _compactRecordText(pair.question, 34)
+    return _compactRecordText(pair.question, 46)
   }).filter(Boolean).slice(0, 4)
   var answerText = pairs.map(function (pair) { return pair.answer }).join(' ')
-  var evidence = _compactRecordText(answerText, 110)
+  var evidence = _compactRecordText(answerText, 180)
   var personaName = getPersonaLabel() || '导览记录者'
   var point = '以' + personaName + '的视角看，这段游览围绕' + hallName + '展开。'
   if (samples.length) {
@@ -544,6 +544,7 @@ function summarizeCurrentHallRecord(messages) {
   if (evidence) {
     point += '回答中值得保留的依据是：' + evidence + '。'
   }
+  point += '后续生成报告时，这段记录会和其他展厅摘要继续合并成一段游览报告，而不是按单个问题重复罗列。'
 
   var note = {
     hall: hall,
