@@ -519,7 +519,9 @@ function normalizeRecordNotes(notes) {
     var point = /^以.+视角看/.test(rawPoint) || rawPoint.indexOf('你提出的问题包括') >= 0 || rawPoint.indexOf('从回答内容看') >= 0
       ? buildRecordSummaryPoint('', rawPoint, rawPoint, '证据线索')
       : rawPoint
-    if (point.length > 300) point = buildRecordSummaryPoint('', point, point, '证据线索')
+    // Backend LLM summaries are capped at 400 chars; only re-template clearly
+    // over-long (legacy) points so a real summary is preserved verbatim.
+    if (point.length > 400) point = buildRecordSummaryPoint('', point, point, '证据线索')
     return {
       question: compactText(item && item.question, 60),
       point: point,
@@ -838,11 +840,13 @@ Page({
     var currentChatRecordNotes = buildRecordNotes(chatMessages, questions, [])
     var localEventRecordNotes = buildRecordNotes([], questions, events)
     var backendRecordNotes = normalizeRecordNotes(data.record_notes)
+    // Backend first: when the server produced an LLM record summary it must win
+    // the single "游览记录摘要" slot; local keyword templates are offline fallback only.
     var recordNotes = mergeRecordNotes(
+      backendRecordNotes,
       storedRecordNotes,
       currentChatRecordNotes,
-      localEventRecordNotes,
-      backendRecordNotes
+      localEventRecordNotes
     )
 
     var dataNotice = ''

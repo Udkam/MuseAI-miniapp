@@ -7,6 +7,10 @@ const TOUR_TTS_STYLE = '请用清晰、自然、亲切的博物馆导览语气�
 const TTS_SEGMENT_MAX_CHARS = 72
 const TTS_SEGMENT_MAX_COUNT = 10
 
+// Safe-area inset is device-constant; cache it across page entries so we don't
+// pay the synchronous system-info bridge cost during each slide-in transition.
+var _safeAreaBottomCache = null
+
 var HALL_WELCOME_COPY = {
   'basic-exhibition-hall': '这里是基本陈列展厅。先把半坡看成一个完整的生活系统：房屋、工具、陶器、装饰品，都在回答同一个问题：六千年前的人怎样组织日常生活。\n你可以从一件器物、一个纹样，或“他们怎么吃住劳动”问起。',
   'site-protection-hall': '这里是遗址保护大厅。这里看的不是单件文物，而是半坡聚落的真实空间：房址、墓葬、壕沟、作坊和灶址之间的关系。\n建议你先观察“什么在一起、什么被分开”，再问我这些空间关系说明了什么。',
@@ -217,7 +221,10 @@ Page({
     var hallName = state.currentHall ? banpoHalls.getHallDisplayName(state.currentHall) : this.data.hallName
     var ttsPrefs = tourStore.getTtsPrefs()
     this.setData({ currentExhibit: state.currentExhibit || null, sessionId: state.sessionId || null, hallName: hallName, ttsEnabled: ttsPrefs.enabled !== false })
-    this._loadSuggestions()
+    // Defer the suggestion build + exhibit fetch past the page-transition frame
+    // so the slide-in/back stays smooth; suggestions paint a tick later.
+    var self = this
+    wx.nextTick(function () { self._loadSuggestions() })
   },
 
   onUnload: function () {
@@ -263,8 +270,16 @@ Page({
   },
 
   _initSafeArea: function () {
+    if (_safeAreaBottomCache !== null) {
+      this._safeAreaBottom = _safeAreaBottomCache
+      return
+    }
     try {
-      var info = wx.getSystemInfoSync ? wx.getSystemInfoSync() : null
+      // Prefer the lightweight wx.getWindowInfo over the deprecated, slower
+      // getSystemInfoSync; fall back for older base libraries.
+      var info = wx.getWindowInfo
+        ? wx.getWindowInfo()
+        : (wx.getSystemInfoSync ? wx.getSystemInfoSync() : null)
       if (info && info.safeArea && info.screenHeight) {
         this._safeAreaBottom = Math.max(0, info.screenHeight - info.safeArea.bottom)
       } else {
@@ -273,6 +288,7 @@ Page({
     } catch (_) {
       this._safeAreaBottom = 0
     }
+    _safeAreaBottomCache = this._safeAreaBottom
   },
 
   _teardownKeyboardLift: function () {

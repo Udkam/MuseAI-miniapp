@@ -5,13 +5,15 @@ const banpoHalls = require('../../constants/banpo-halls')
 var HALLS_MAP = banpoHalls.HALLS_MAP
 var DEFAULT_ORDER = banpoHalls.DEFAULT_ORDER
 
-function _buildHallList() {
+function _buildHallList(visitedSlugs) {
+  var visited = visitedSlugs || []
   return DEFAULT_ORDER.map(function (id, index) {
     var hall = HALLS_MAP[id]
     if (!hall) return null
+    var slug = hall.backendSlug || banpoHalls.normalizeHallToSlug(hall.name)
     return Object.assign({}, hall, {
       order: index + 1,
-      isVisited: false,
+      isVisited: visited.indexOf(slug) !== -1,
     })
   }).filter(function (hall) {
     return !!hall
@@ -33,7 +35,14 @@ Page({
   },
 
   _refresh: function () {
-    this.setData({ halls: _buildHallList() })
+    var visited = tourStore.getTourState().visitedHalls || []
+    var key = visited.join(',')
+    // Re-render only when the visited set actually changed (e.g. after the user
+    // engaged with a hall and returned). Avoids a redundant setData of identical
+    // data during every page-transition into this page.
+    if (key === this._visitedKey && this.data.halls.length) return
+    this._visitedKey = key
+    this.setData({ halls: _buildHallList(visited) })
   },
 
   selectHall: function (e) {

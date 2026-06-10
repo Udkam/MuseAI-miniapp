@@ -17,7 +17,7 @@
     <view
       wx:for="{{halls}}"
       wx:key="id"
-      class="hall-card"
+      class="hall-card{{item.isVisited ? ' visited' : ''}}"
       bindtap="selectHall"
       data-hall="{{item}}"
     >
@@ -29,6 +29,7 @@
         <text class="hall-name">{{item.name}}</text>
         <text class="hall-desc text-muted">{{item.desc}}</text>
       </view>
+      <text wx:if="{{item.isVisited}}" class="hall-visited-badge">已浏览</text>
       <text class="hall-arrow text-clay">›</text>
     </view>
   </view>

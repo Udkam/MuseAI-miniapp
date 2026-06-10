@@ -40,13 +40,16 @@ Component({
   },
 
   observers: {
-    // Re-parse whenever role or content changes.
+    // Parse Markdown only for finalized assistant messages.
+    // While streaming, skip parsing and let the wxml render `content` as plain
+    // text (the blocks-empty fallback). The live bubble's content grows on every
+    // ~80ms chunk flush; re-parsing the whole answer each time is O(n²). The
+    // final committed message (non-streaming, in the messages list) parses once.
     // User messages keep blocks empty → plain text fallback.
-    // Error messages are parsed too (they're plain text, parse is harmless).
-    'role, content': function (role, content) {
-      if (role === 'assistant' && content) {
+    'role, content, isStreaming': function (role, content, isStreaming) {
+      if (role === 'assistant' && content && !isStreaming) {
         this.setData({ blocks: parseMarkdown(normalizeAssistantContent(content)) })
-      } else {
+      } else if (this.data.blocks.length) {
         this.setData({ blocks: [] })
       }
     },

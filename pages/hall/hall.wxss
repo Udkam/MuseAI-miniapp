@@ -178,5 +178,22 @@
   flex-shrink: 0;
 }
 
+/* ── Visited state ──────────────────────────────────────────────────────────── */
+
+.hall-card.visited {
+  background: #EDE3D6;
+}
+
+.hall-visited-badge {
+  font-size: 20rpx;
+  font-weight: 650;
+  color: #8B5E3C;
+  background: #FFF8EF;
+  border: 2rpx solid #D8B08C;
+  border-radius: 100rpx;
+  padding: 4rpx 14rpx;
+  flex-shrink: 0;
+}
+
 /* ── Recommended badge ──────────────────────────────────────────────────────── */
 
