@@ -287,14 +287,23 @@ function appendSummarySentence(parts, sentence, maxLen) {
   if ((current + sentence).length <= (maxLen || 300)) parts.push(sentence)
 }
 
+function joinSummaryPhrases(phrases) {
+  var list = (phrases || []).filter(Boolean)
+  if (!list.length) return ''
+  if (list.length === 1) return list[0]
+  if (list.length === 2) return list[0] + '和' + list[1]
+  return list.slice(0, -1).join('、') + '和' + list[list.length - 1]
+}
+
 function buildRecordSummaryPoint(hallText, questionText, answerText, topicLabel) {
   var focusPhrases = collectFocusPhrases(questionText, answerText, topicLabel)
   var knowledgePhrases = collectKnowledgePhrases(answerText, topicLabel)
-  var subject = hallText && hallText !== '半坡遗址' ? hallText + '的问答' : '本次问答'
+  var subject = hallText && hallText !== '半坡遗址' ? hallText + '这段记录' : '这次参观'
+  var focusText = joinSummaryPhrases(focusPhrases)
+  var knowledgeText = joinSummaryPhrases(knowledgePhrases)
   var parts = []
-  appendSummarySentence(parts, subject + '集中在' + focusPhrases.join('、') + '。', 300)
-  appendSummarySentence(parts, '回答中可提炼为：' + knowledgePhrases.join('；') + '。', 300)
-  appendSummarySentence(parts, '这些线索可继续回到展品、展签和遗迹位置核对。', 300)
+  appendSummarySentence(parts, subject + '主要留下这些线索：' + knowledgeText + '。', 300)
+  appendSummarySentence(parts, '提问中的' + focusText + '，可在展柜、展签和遗迹位置继续核对。', 300)
   return parts.join('')
 }
 
@@ -884,21 +893,5 @@ Page({
 
   shareReport: function () {
     wx.showToast({ title: '分享功能即将上线', icon: 'none' })
-  },
-
-  copyRecordNote: function (event) {
-    var point = event && event.currentTarget && event.currentTarget.dataset
-      ? event.currentTarget.dataset.point
-      : ''
-    if (!point) {
-      wx.showToast({ title: '暂无可复制内容', icon: 'none' })
-      return
-    }
-    wx.setClipboardData({
-      data: point,
-      success: function () {
-        wx.showToast({ title: '已复制', icon: 'success' })
-      },
-    })
   },
 })

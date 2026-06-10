@@ -19,6 +19,8 @@
             wx:for-index="si"
             wx:for-item="seg"
             class="md-seg{{seg.bold ? ' md-bold' : ''}}{{seg.code ? ' md-code' : ''}}"
+            selectable="{{true}}"
+            user-select="{{true}}"
           >{{seg.text}}</text>
         </text>
 
@@ -31,7 +33,7 @@
             wx:for-item="listItem"
             class="md-li"
           >
-            <text class="md-bullet">{{blk.ordered ? ((blk.start || 1) + li)+'.' : '•'}}</text>
+            <text class="md-bullet" selectable="{{true}}" user-select="{{true}}">{{blk.ordered ? ((blk.start || 1) + li)+'.' : '•'}}</text>
             <text class="md-li-body" selectable="{{true}}" user-select="{{true}}">
               <text
                 wx:for="{{listItem}}"
@@ -39,6 +41,8 @@
                 wx:for-index="si2"
                 wx:for-item="seg2"
                 class="md-seg{{seg2.bold ? ' md-bold' : ''}}{{seg2.code ? ' md-code' : ''}}"
+                selectable="{{true}}"
+                user-select="{{true}}"
               >{{seg2.text}}</text>
             </text>
           </view>

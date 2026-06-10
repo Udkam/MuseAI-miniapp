@@ -149,7 +149,7 @@ assert.ok(
   'record summary should include both question topics as focus keywords'
 )
 assert.ok(
-  eventSummaryExperience.recordNotes[0].point.indexOf('回答中可提炼为：') >= 0,
+  eventSummaryExperience.recordNotes[0].point.indexOf('主要留下这些线索：') >= 0,
   'record summary should integrate answer knowledge'
 )
 assert.ok(
@@ -181,7 +181,7 @@ assert.deepStrictEqual(
   [
     {
       question: '游览记录摘要',
-      point: '本次问答集中在文物类型、半坡生活方式。回答中可提炼为：出土文物反映定居、生产和日常生活方式。这些线索可继续回到展品、展签和遗迹位置核对。',
+      point: '这次参观主要留下这些线索：出土文物反映定居、生产和日常生活方式。提问中的文物类型和半坡生活方式，可在展柜、展签和遗迹位置继续核对。',
     },
   ],
   'old backend record_notes should be rewritten into the compact summary style'

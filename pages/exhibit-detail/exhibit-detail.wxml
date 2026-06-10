@@ -20,7 +20,7 @@
   <!-- Description -->
   <view class="card">
     <text class="section-title text-clay">展品简介</text>
-    <text class="desc-text">{{exhibit.description}}</text>
+    <text class="desc-text" selectable="{{true}}" user-select="{{true}}">{{exhibit.description}}</text>
   </view>
 
   <!-- Actions -->

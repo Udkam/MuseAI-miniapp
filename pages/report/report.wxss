@@ -303,22 +303,6 @@
   line-height: 1.65;
 }
 
-.record-copy {
-  margin: 16rpx 0 0;
-  padding: 0 18rpx;
-  min-height: 48rpx;
-  line-height: 48rpx;
-  border-radius: 10rpx;
-  background: #FFF1DF;
-  color: #B65432;
-  border: 1rpx solid #E7C8AE;
-  font-size: 22rpx;
-}
-
-.record-copy::after {
-  border: 0;
-}
-
 /* ── Error notice (fallback indicator) ───────────────────────────────────── */
 
 .error-notice {

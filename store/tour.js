@@ -539,13 +539,22 @@ function _appendRecordSentence(parts, sentence, maxLen) {
   if ((parts.join('') + sentence).length <= (maxLen || 300)) parts.push(sentence)
 }
 
+function _joinRecordPhrases(phrases) {
+  var list = (phrases || []).filter(Boolean)
+  if (!list.length) return ''
+  if (list.length === 1) return list[0]
+  if (list.length === 2) return list[0] + '和' + list[1]
+  return list.slice(0, -1).join('、') + '和' + list[list.length - 1]
+}
+
 function _buildRecordSummaryPoint(hallName, questionText, answerText) {
   var phrases = _recordSummaryPhrases(questionText, answerText)
-  var subject = hallName ? hallName + '的问答' : '本次问答'
+  var subject = hallName ? hallName + '这段记录' : '这次参观'
+  var focusText = _joinRecordPhrases(phrases.focus)
+  var knowledgeText = _joinRecordPhrases(phrases.knowledge)
   var parts = []
-  _appendRecordSentence(parts, subject + '集中在' + phrases.focus.join('、') + '。', 300)
-  _appendRecordSentence(parts, '回答中可提炼为：' + phrases.knowledge.join('；') + '。', 300)
-  _appendRecordSentence(parts, '这些线索可继续回到展品、展签和遗迹位置核对。', 300)
+  _appendRecordSentence(parts, subject + '主要留下这些线索：' + knowledgeText + '。', 300)
+  _appendRecordSentence(parts, '提问中的' + focusText + '，可在展柜、展签和遗迹位置继续核对。', 300)
   return parts.join('')
 }
 
@@ -1159,7 +1168,7 @@ function buildStyledPrompt(rawInput, opts) {
     '可用轻量Markdown：一个简短标题(### 标题)、列表(-)、加粗(**文字**)。',
     '不要使用表格、多级标题堆叠、HTML标签。',
     '使用**加粗**突出2到4个真正关键的器物名、观察证据或判断结论，不要整段加粗。',
-    '不要使用固定模板小标题，尤其不要把回答分成重要性、后续观察建议等段落；需要解释含义时用自然连接句，例如“可以这样理解：”“换句话说，”，不要写“我的分析”“说明了什么”。',
+    '不要使用固定模板小标题，尤其不要把回答分成重要性、后续观察建议等段落；需要解释含义时用自然连接句，但不要固定套用同一句，可按语义选择“可以这样看”“这提示我们”“从这个细节能看出”“放回展厅里看”等表达，少用并避免反复使用“换句话说”。不要写“我的分析”“说明了什么”。',
     '连续bullet不超过4个。',
     '---',
   ].join('\n'))
