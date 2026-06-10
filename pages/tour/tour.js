@@ -149,6 +149,8 @@ Page({
   _ttsRequestSeq: 0,
   _keyboardHandler: null,
   _safeAreaBottom: 0,
+  _keyboardLift: 0,
+  _sessionRecoveryRetrying: false,
 
   // ── Lifecycle ─────────────────────────────────────────────────────────────
 
@@ -305,8 +307,13 @@ Page({
     // Keep only the input bar above the keyboard; hide suggestions while typing
     // so iOS candidate bars and safe area do not stack into a large blank gap.
     var lift = h ? Math.max(0, h - (this._safeAreaBottom || 0)) : 0
+    if (this._keyboardLift === lift && this.data.keyboardVisible === !!lift) return
+    this._keyboardLift = lift
     var inputStyle = lift ? ('transform: translate3d(0,-' + lift + 'px,0);') : ''
-    var messageListStyle = lift ? ('padding-bottom:' + Math.ceil(lift + 128) + 'px;') : ''
+    // The input bar is translated above the keyboard, but the message list should
+    // reserve only the bar itself. Reserving keyboard height again creates a large
+    // blank area and pushes the last AI bubble too far up on real devices.
+    var messageListStyle = lift ? 'padding-bottom:176rpx;' : ''
     this.setData({
       inputPanelStyle: inputStyle,
       suggestionsPanelStyle: '',
@@ -501,6 +508,11 @@ Page({
         console.error('[stream] error at',
           self._perf ? (Date.now() - self._perf.sendAt) + ' ms' : '?',
           '| raw:', err)
+
+        if (self._isRecoverableSessionError(err) && !self._sessionRecoveryRetrying) {
+          self._recoverSessionAndRetry(text, state)
+          return
+        }
 
         var friendly = self._friendlyError(err)
         chatStore.setError(friendly)
@@ -1035,6 +1047,89 @@ Page({
     if (status >= 500) return '服务器暂时繁忙，请稍后再试。'
     if (status >= 400 && status < 500) return '请求参数有误，请重试或刷新页面。'
     return '连接 AI 导览员失败，请检查网络后重试。'
+  },
+
+  _isRecoverableSessionError: function (err) {
+    var status = Number(err && err.status) || 0
+    return status === 401 || status === 403 || status === 404 || status === 410
+  },
+
+  _removeLastUserMessage: function (text) {
+    var messages = (this.data.messages || []).slice()
+    var last = messages[messages.length - 1]
+    if (last && last.role === 'user' && last.content === text) {
+      messages.pop()
+      this.setData({ messages: messages })
+    }
+
+    var storeMessages = (chatStore.getState().messages || []).slice()
+    var storeLast = storeMessages[storeMessages.length - 1]
+    if (storeLast && storeLast.role === 'user' && storeLast.content === text) {
+      storeMessages.pop()
+      chatStore.setMessages(storeMessages)
+    }
+  },
+
+  _dropPendingQuestionEvent: function (text, hall) {
+    var events = tourStore.drainPendingEvents()
+    if (!events.length) return
+    var targetHall = hall ? banpoHalls.normalizeHallToSlug(hall) : ''
+    var removed = false
+    var kept = events.filter(function (event) {
+      if (removed || event.event_type !== 'exhibit_question') return true
+      var metadata = event.metadata || {}
+      var question = metadata.message || metadata.question || ''
+      var eventHall = event.hall ? banpoHalls.normalizeHallToSlug(event.hall) : ''
+      if (question === text && (!targetHall || eventHall === targetHall)) {
+        removed = true
+        return false
+      }
+      return true
+    })
+    if (kept.length) tourStore.restorePendingEvents(kept)
+  },
+
+  _recoverSessionAndRetry: function (text, previousState) {
+    var self = this
+    var prev = previousState || tourStore.getTourState()
+    var hall = prev.currentHall || banpoHalls.normalizeHallToSlug(self.data.hallName) || null
+    var persona = prev.persona || tourStore.getBackendPersona() || 'B'
+    var personaId = prev.personaId || persona || 'default'
+
+    self._sessionRecoveryRetrying = true
+    self._removeLastUserMessage(text)
+    self._dropPendingQuestionEvent(text, hall)
+    self.setData({
+      inputText: text,
+      streamingContent: '',
+      isThinking: false,
+      isStreaming: false,
+      ragSteps: [],
+      loadingHint: '',
+    })
+
+    tourStore.createLocalTourState({
+      interestType: prev.interestType || persona || 'B',
+      persona: persona,
+      assumption: prev.assumption || prev.assumptionText || 'default',
+      personaId: personaId,
+    })
+    if (hall) {
+      tourStore.updateTourState({ currentHall: hall, status: 'touring' })
+    }
+
+    self._ensureTourSession().then(function (created) {
+      self._sessionRecoveryRetrying = false
+      if (created) {
+        self.sendMessage()
+        return
+      }
+      wx.showToast({ title: '会话恢复失败，请稍后重试', icon: 'none', duration: 2200 })
+    }).catch(function (err) {
+      self._sessionRecoveryRetrying = false
+      console.warn('[tour] session recovery failed', err)
+      wx.showToast({ title: '会话恢复失败，请稍后重试', icon: 'none', duration: 2200 })
+    })
   },
 
   _ensureTourSession: function () {

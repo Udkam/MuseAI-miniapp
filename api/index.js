@@ -151,7 +151,7 @@ const tourApi = {
   generateReport: function(id, token) {
     return req.post('/tour/sessions/' + id + '/report', null, {
       headers: token ? { 'X-Session-Token': token } : undefined,
-      timeout: 8000,
+      timeout: 45000,
       retries: 0,
     })
   },
@@ -159,7 +159,7 @@ const tourApi = {
   getReport: function(id, token) {
     return req.get('/tour/sessions/' + id + '/report', {
       headers: token ? { 'X-Session-Token': token } : undefined,
-      timeout: 5000,
+      timeout: 15000,
       retries: 0,
     })
   },

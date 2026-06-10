@@ -11,7 +11,7 @@ Page({
 
   onShow: function () {
     var state = tourStore.getTourState()
-    var canResume = tourStore.hasResumableTourSession(5)
+    var canResume = tourStore.hasResumableTourSession(0)
     this.setData({
       hasTourSession: canResume,
       resumeHallName: canResume ? (tourStore.getCurrentHallDisplayName() || '展厅选择') : '',
@@ -71,9 +71,9 @@ Page({
   },
 
   resumeTour: function () {
-    if (!tourStore.hasResumableTourSession(5)) {
+    if (!tourStore.hasResumableTourSession(0)) {
       this.setData({ hasTourSession: false })
-      wx.showToast({ title: '完成 5 次 AI 对话后可继续上次导览', icon: 'none' })
+      wx.showToast({ title: '当前没有可继续的导览', icon: 'none' })
       return
     }
     wx.navigateTo({ url: '/pages/hall/hall' })

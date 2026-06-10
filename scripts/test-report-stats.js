@@ -15,229 +15,112 @@ global.wx = {
   showLoading: function () {},
   hideLoading: function () {},
   showToast: function () {},
+  reLaunch: function () {},
 }
 
-var reportPage = null
+var pageConfig = null
 global.Page = function (config) {
-  reportPage = config
+  pageConfig = config
 }
 
 const tourStore = require('../store/tour')
-const chatStore = require('../store/chat')
 require('../pages/report/report')
 
-function resetTour() {
+function resetTour(personaId) {
+  Object.keys(storage).forEach(function (key) { delete storage[key] })
   tourStore.clearTour()
-  chatStore.resetChat()
   tourStore.createLocalTourState({
-    interestType: 'B',
-    persona: 'B',
+    interestType: personaId || 'B',
+    persona: personaId || 'B',
     assumption: 'A',
-    personaId: 'B',
+    personaId: personaId || 'B',
   })
 }
 
-function hallNames(experience) {
-  return experience.visitedHallCards.map(function (card) { return card.name })
+function makePage() {
+  var data = JSON.parse(JSON.stringify(pageConfig.data || {}))
+  return Object.assign({}, pageConfig, {
+    data: data,
+    setData: function (patch) {
+      this.data = Object.assign({}, this.data, patch || {})
+    },
+  })
 }
 
-assert.ok(reportPage && reportPage._buildExperience, 'report page should expose _buildExperience through Page config')
+assert.ok(pageConfig && pageConfig._mapReportData, 'report page should expose backend report mapper')
+assert.strictEqual(pageConfig._buildExperience, undefined, 'legacy local report generator should be removed')
 
-resetTour()
-tourStore.updateTourState({
-  currentHall: 'prehistoric-workshop',
-  visitedHalls: ['prehistoric-workshop'],
+resetTour('D')
+var page = makePage()
+var mapped = page._mapReportData({
+  total_duration_minutes: 6.4,
+  total_questions: 3,
+  total_exhibits_viewed: 2,
+  halls_visited: ['basic-exhibition-hall', 'kiln-hall', 'kiln-hall'],
+  report_theme: 'artifact_study',
+  record_summary: '陶器和石器的用途、制作痕迹与展厅位置是这次记录的重点。',
+  record_notes: [
+    { question: '旧摘要', point: 'record_summary 存在时不应使用这条。' },
+  ],
+  highlights: ['共提出 3 个导览问题', '重点查看 2 件展品'],
+  reflection: {
+    initial_assumption: '先从器物细节进入。',
+    observed_focus: '关注点集中在器物工艺。',
+    change_summary: '已经开始把用途和制作痕迹联系起来。',
+  },
+}, '')
+
+assert.strictEqual(mapped.reportTitle, '半坡器物观察报告')
+assert.strictEqual(mapped.persona, '器物研究员')
+assert.deepStrictEqual(mapped.stats, {
+  halls: '2',
+  exhibits: '2',
+  messages: '3',
+  duration: '6 分钟',
 })
-var mixedEvents = [
-  { event_type: 'hall_enter', hall: 'basic-exhibition-hall', metadata: {} },
-  {
-    event_type: 'exhibit_question',
-    hall: 'prehistoric-workshop',
-    metadata: { message: '这里适合怎么做研学记录？' },
-  },
-]
-var mixedExperience = reportPage._buildExperience({}, mixedEvents, false)
 assert.deepStrictEqual(
-  hallNames(mixedExperience),
-  ['史前工坊'],
-  'report should ignore hall_enter and count only halls with question/answer activity'
+  mapped.visitedHallCards.map(function (item) { return item.name }),
+  ['基本陈列展厅', '陶窑展厅'],
+  'halls should come from backend halls_visited and be deduped'
 )
-
-resetTour()
-tourStore.updateTourState({ currentHall: 'prehistoric-workshop' })
-var fallbackExperience = reportPage._buildExperience({}, [
-  { event_type: 'exhibit_question', hall: 'basic-exhibition-hall', metadata: { message: '这是什么？' } },
-], false)
-assert.deepStrictEqual(
-  hallNames(fallbackExperience),
-  ['基本陈列展厅'],
-  'report should count a hall once the visitor asks a question there'
-)
-
-var backendNoteExperience = reportPage._buildExperience({
-  record_notes: [
-    { question: '围绕：半坡的石器用途', point: '石器磨损和穿孔痕迹说明工具已有明确分工。' },
-  ],
-}, [], false)
-assert.deepStrictEqual(
-  backendNoteExperience.recordNotes,
-  [
-    { question: '围绕：半坡的石器用途', point: '石器磨损和穿孔痕迹说明工具已有明确分工。' },
-  ],
-  'report should use backend record_notes when local chat/events are unavailable'
-)
-
-resetTour()
-tourStore.addTourEvent({ eventType: 'exhibit_question', hall: 'prehistoric-workshop' })
-assert.deepStrictEqual(
-  tourStore.getTourState().visitedHalls,
-  ['prehistoric-workshop'],
-  'question events should update local visitedHalls for report fallback'
-)
-tourStore.addTourEvent({ eventType: 'hall_enter', hall: 'basic-exhibition-hall' })
-assert.deepStrictEqual(
-  tourStore.getTourState().visitedHalls,
-  ['prehistoric-workshop'],
-  'hall_enter should not append to question-derived visitedHalls'
-)
-
-resetTour()
-tourStore.updateTourState({ currentHall: 'basic-exhibition-hall' })
-var eventSummaryExperience = reportPage._buildExperience({}, [
+assert.deepStrictEqual(mapped.recordNotes, [
   {
-    event_type: 'exhibit_question',
-    hall: 'basic-exhibition-hall',
-    metadata: { client_event_id: 'q1', message: '这些出土文物反映了半坡先民怎样的生活？' },
+    question: '记录摘要',
+    point: '陶器和石器的用途、制作痕迹与展厅位置是这次记录的重点。',
   },
-  {
-    event_type: 'assistant_answer',
-    hall: 'basic-exhibition-hall',
-    metadata: {
-      client_event_id: 'a1',
-      question: '这些出土文物反映了半坡先民怎样的生活？',
-      answer: '这些出土文物说明半坡先民已经形成了稳定的定居、生产和日常生活方式。',
-    },
-  },
-  {
-    event_type: 'exhibit_question',
-    hall: 'basic-exhibition-hall',
-    metadata: { client_event_id: 'q2', message: '半坡的石器和骨器是做什么用的？' },
-  },
-  {
-    event_type: 'assistant_answer',
-    hall: 'basic-exhibition-hall',
-    metadata: {
-      client_event_id: 'a2',
-      question: '半坡的石器和骨器是做什么用的？',
-      answer: '石器、骨器和工具可用于加工食物、制作器物，也能帮助判断生产分工。',
-    },
-  },
-], false)
-assert.strictEqual(
-  eventSummaryExperience.recordNotes.length,
-  1,
-  'event Q&A should be summarized into one narrative note'
-)
-assert.strictEqual(
-  eventSummaryExperience.recordNotes[0].question,
-  '游览记录摘要',
-  'record summary should be a narrative report title'
-)
-assert.ok(
-  eventSummaryExperience.recordNotes[0].point.indexOf('文物类型') >= 0
-    && eventSummaryExperience.recordNotes[0].point.indexOf('石器骨器用途') >= 0,
-  'record summary should include both question topics as focus keywords'
-)
-assert.ok(
-  eventSummaryExperience.recordNotes[0].point.indexOf('主要留下这些线索：') >= 0,
-  'record summary should integrate answer knowledge'
-)
-assert.ok(
-  eventSummaryExperience.recordNotes[0].point.length <= 300,
-  'record summary should stay within 300 characters'
-)
-assert.ok(
-  eventSummaryExperience.recordNotes[0].point.indexOf('以') !== 0
-    && eventSummaryExperience.recordNotes[0].point.indexOf('你提出的问题包括') < 0,
-  'record summary should avoid the old perspective/question-list template'
-)
-
-resetTour()
-tourStore.updateTourState({ currentHall: 'basic-exhibition-hall' })
-chatStore.setMessages([
-  { role: 'user', content: '这些出土文物反映了半坡先民怎样的生活？' },
-  { role: 'assistant', content: '这些出土文物说明半坡先民已经形成了稳定的定居、生产和日常生活方式。' },
 ])
-var backendPreferredExperience = reportPage._buildExperience({
+assert.deepStrictEqual(mapped.highlights, ['共提出 3 个导览问题', '重点查看 2 件展品'])
+assert.deepStrictEqual(mapped.reflection, {
+  initial_assumption: '先从器物细节进入。',
+  observed_focus: '关注点集中在器物工艺。',
+  change_summary: '已经开始把用途和制作痕迹联系起来。',
+})
+
+resetTour('B')
+page = makePage()
+mapped = page._mapReportData({
+  total_duration_minutes: null,
+  total_questions: 1,
+  total_exhibits_viewed: 0,
+  halls_visited: [],
+  report_theme: 'field_study',
   record_notes: [
-    {
-      question: '游览记录摘要',
-      point: '以研学记录员的视角看，本次游览主要围绕基本陈列展厅展开，关注点落在日常生活。你提出的问题包括“这些出土文物反映了半坡先民怎样的生活”。从回答内容看，最值得保留的复盘线索是：这些出土文物说明半坡先民已经形成了稳定的定居、生产和日常生活方式。这段记录更像一份研学笔记：它把展厅见闻整理成后续还能复盘的学习线索，也帮助你把“看过什么”转成“为什么这样判断”。',
-    },
+    { question: '游览记录摘要', point: '后端在无 LLM 摘要时返回的摘要。' },
+    { question: '多余项', point: '页面只展示一条摘要。' },
   ],
-}, [], false)
-assert.deepStrictEqual(
-  backendPreferredExperience.recordNotes,
-  [
-    {
-      question: '游览记录摘要',
-      point: '基本陈列展厅这段记录主要留下这些线索：出土文物反映定居、生产和日常生活方式。提问中的文物类型和半坡生活方式，可在展柜、展签和遗迹位置继续核对。',
-    },
-  ],
-  'old backend record_notes should be rewritten into the compact summary style'
-)
+}, '部分本机记录暂未同步，本次报告仅使用服务器已保存的数据。')
 
-resetTour()
-tourStore.updateTourState({ currentHall: 'basic-exhibition-hall' })
-tourStore.summarizeCurrentHallRecord([
-  { role: 'user', content: '半坡的石器和骨器是做什么用的？' },
-  { role: 'assistant', content: '石器、骨器和工具可用于加工食物、制作器物，也能帮助判断生产分工。' },
+assert.strictEqual(mapped.reportTitle, '半坡研学记录报告')
+assert.deepStrictEqual(mapped.recordNotes, [
+  { question: '游览记录摘要', point: '后端在无 LLM 摘要时返回的摘要。' },
 ])
-tourStore.updateTourState({ currentHall: 'kiln-hall' })
-tourStore.summarizeCurrentHallRecord([
-  { role: 'user', content: '陶器从泥土到成品要经历什么？' },
-  { role: 'assistant', content: '陶器可从器形、纹饰和烧制痕迹理解用途，陶窑也能说明火候控制和制作流程。' },
-])
-var refreshedRecordExperience = reportPage._buildExperience({
-  record_notes: [
-    {
-      question: '游览记录摘要',
-      point: '基本陈列展厅这段记录主要留下这些线索：石器、骨器和工具可对应加工、制作与生产分工。提问中的石器骨器用途，可在展柜、展签和遗迹位置继续核对。',
-    },
-  ],
-}, [], false)
-assert.strictEqual(
-  refreshedRecordExperience.recordNotes.length,
-  1,
-  'stored hall summaries should be re-aggregated into a single current record note'
-)
-assert.ok(
-  refreshedRecordExperience.recordNotes[0].point.indexOf('石器') >= 0
-    && refreshedRecordExperience.recordNotes[0].point.indexOf('陶器') >= 0,
-  'record summary should include later hall Q&A instead of staying on the first report'
-)
-assert.ok(
-  refreshedRecordExperience.recordNotes[0].point.length <= 300,
-  'refreshed stored summary should stay within 300 characters'
-)
+assert.strictEqual(mapped.dataNotice, '部分本机记录暂未同步，本次报告仅使用服务器已保存的数据。')
+assert.strictEqual(mapped.stats.duration, '-')
 
-resetTour()
-var duplicateQuestionExperience = reportPage._buildExperience({}, [
-  {
-    event_type: 'exhibit_question',
-    hall: 'basic-exhibition-hall',
-    metadata: { client_event_id: 'same-question', message: '半坡的石器和骨器是做什么用的？' },
-  },
-  {
-    event_type: 'exhibit_question',
-    hall: 'basic-exhibition-hall',
-    metadata: { client_event_id: 'same-question', message: '半坡的石器和骨器是做什么用的？' },
-  },
-], false)
-assert.strictEqual(
-  duplicateQuestionExperience.questionCount,
-  1,
-  'duplicate question events should only count once in local report stats'
-)
+page = makePage()
+page._applyUnavailable('服务器报告暂不可用，请稍后重试。', false)
+assert.strictEqual(page.data.loadError, true)
+assert.strictEqual(page.data.recordNotes.length, 0)
+assert.strictEqual(page.data.dataNotice, '服务器报告暂不可用，请稍后重试。')
 
-console.log('report stat checks passed')
+console.log('report mapper checks passed')
