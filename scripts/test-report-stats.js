@@ -181,10 +181,44 @@ assert.deepStrictEqual(
   [
     {
       question: '游览记录摘要',
-      point: '这次参观主要留下这些线索：出土文物反映定居、生产和日常生活方式。提问中的文物类型和半坡生活方式，可在展柜、展签和遗迹位置继续核对。',
+      point: '基本陈列展厅这段记录主要留下这些线索：出土文物反映定居、生产和日常生活方式。提问中的文物类型和半坡生活方式，可在展柜、展签和遗迹位置继续核对。',
     },
   ],
   'old backend record_notes should be rewritten into the compact summary style'
+)
+
+resetTour()
+tourStore.updateTourState({ currentHall: 'basic-exhibition-hall' })
+tourStore.summarizeCurrentHallRecord([
+  { role: 'user', content: '半坡的石器和骨器是做什么用的？' },
+  { role: 'assistant', content: '石器、骨器和工具可用于加工食物、制作器物，也能帮助判断生产分工。' },
+])
+tourStore.updateTourState({ currentHall: 'kiln-hall' })
+tourStore.summarizeCurrentHallRecord([
+  { role: 'user', content: '陶器从泥土到成品要经历什么？' },
+  { role: 'assistant', content: '陶器可从器形、纹饰和烧制痕迹理解用途，陶窑也能说明火候控制和制作流程。' },
+])
+var refreshedRecordExperience = reportPage._buildExperience({
+  record_notes: [
+    {
+      question: '游览记录摘要',
+      point: '基本陈列展厅这段记录主要留下这些线索：石器、骨器和工具可对应加工、制作与生产分工。提问中的石器骨器用途，可在展柜、展签和遗迹位置继续核对。',
+    },
+  ],
+}, [], false)
+assert.strictEqual(
+  refreshedRecordExperience.recordNotes.length,
+  1,
+  'stored hall summaries should be re-aggregated into a single current record note'
+)
+assert.ok(
+  refreshedRecordExperience.recordNotes[0].point.indexOf('石器') >= 0
+    && refreshedRecordExperience.recordNotes[0].point.indexOf('陶器') >= 0,
+  'record summary should include later hall Q&A instead of staying on the first report'
+)
+assert.ok(
+  refreshedRecordExperience.recordNotes[0].point.length <= 300,
+  'refreshed stored summary should stay within 300 characters'
 )
 
 resetTour()

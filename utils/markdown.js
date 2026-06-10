@@ -46,7 +46,31 @@ function parseInline(rawText) {
     segments.push({ text: rawText.slice(lastIndex), bold: false, code: false })
   }
 
-  return segments.length ? segments : [{ text: rawText, bold: false, code: false }]
+  return normalizePunctuationSegments(
+    segments.length ? segments : [{ text: rawText, bold: false, code: false }]
+  )
+}
+
+function normalizePunctuationSegments(segments) {
+  var out = []
+  ;(segments || []).forEach(function (seg) {
+    if (!seg || !seg.text) return
+    var current = {
+      text: seg.text,
+      bold: !!seg.bold,
+      code: !!seg.code,
+    }
+    var prev = out[out.length - 1]
+    if (prev && prev.bold && !current.bold && !current.code) {
+      var leading = current.text.match(/^[，。；：、！？,.!?;:）】》\)\]\}]+/)
+      if (leading) {
+        prev.text += leading[0]
+        current.text = current.text.slice(leading[0].length)
+      }
+    }
+    if (current.text) out.push(current)
+  })
+  return out
 }
 
 function needsAsciiSpace(left, right) {

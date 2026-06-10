@@ -498,6 +498,20 @@ function buildRecordNotes(messages, questions, events) {
   return notes
 }
 
+function buildStoredRecordNotes(notes, events) {
+  var pairs = []
+  ;(Array.isArray(notes) ? notes : []).forEach(function (item) {
+    if (!item || !item.point) return
+    var hall = item.hall ? hallSlug(item.hall) : ''
+    pairs.push({
+      question: item.question || '游览记录摘要',
+      answer: item.point,
+      hall: hall,
+    })
+  })
+  return pairs.length ? buildAggregatedRecordNotes(pairs, events) : []
+}
+
 function normalizeRecordNotes(notes) {
   if (!Array.isArray(notes)) return []
   return notes.map(function (item) {
@@ -515,15 +529,21 @@ function normalizeRecordNotes(notes) {
   })
 }
 
-function mergeRecordNotes(primary, secondary) {
+function mergeRecordNotes() {
   var merged = []
   var seen = {}
-  ;(primary || []).concat(secondary || []).forEach(function (item) {
-    if (!item || !item.question || !item.point) return
-    var key = recordDedupeKey([item.question])
-    if (seen[key]) return
-    seen[key] = true
-    merged.push(item)
+  var hasSummary = false
+  Array.prototype.slice.call(arguments).forEach(function (list) {
+    ;(list || []).forEach(function (item) {
+      if (!item || !item.question || !item.point) return
+      var isSummary = item.question === '游览记录摘要'
+      if (isSummary && hasSummary) return
+      var key = recordDedupeKey([item.hall || '', item.question, item.point])
+      if (seen[key]) return
+      seen[key] = true
+      if (isSummary) hasSummary = true
+      merged.push(item)
+    })
   })
   return merged.slice(0, 4)
 }
@@ -814,14 +834,16 @@ Page({
     if (exhibitNames.length) highlights.push('重点展项：' + exhibitNames.join('、'))
     if (!highlights.length) highlights = []
 
-    var backendRecordNotes = normalizeRecordNotes(data.record_notes)
+    var storedRecordNotes = buildStoredRecordNotes(tourStore.getRecordSummaryNotes(), events)
+    var currentChatRecordNotes = buildRecordNotes(chatMessages, questions, [])
     var localEventRecordNotes = buildRecordNotes([], questions, events)
-    var authoritativeRecordNotes = mergeRecordNotes(localEventRecordNotes, backendRecordNotes)
-    var fallbackRecordNotes = mergeRecordNotes(
-      normalizeRecordNotes(tourStore.getRecordSummaryNotes()),
-      buildRecordNotes(chatMessages, questions, [])
+    var backendRecordNotes = normalizeRecordNotes(data.record_notes)
+    var recordNotes = mergeRecordNotes(
+      storedRecordNotes,
+      currentChatRecordNotes,
+      localEventRecordNotes,
+      backendRecordNotes
     )
-    var recordNotes = authoritativeRecordNotes.length ? authoritativeRecordNotes : fallbackRecordNotes
 
     var dataNotice = ''
     if (isLocalFallback) {
