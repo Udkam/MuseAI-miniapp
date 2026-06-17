@@ -12,6 +12,7 @@ var FOCUS_OPTIONS = [
   {
     id: 'study',
     icon: '📝',
+    iconKey: 'focus-study',
     title: '带着任务研学',
     desc: '边看边记，把展厅整理成可复盘的笔记',
     persona: 'B',
@@ -22,6 +23,7 @@ var FOCUS_OPTIONS = [
   {
     id: 'research',
     icon: '🔎',
+    iconKey: 'focus-research',
     title: '证据怎样成史',
     desc: '像研究者一样，看证据、推理和不确定性',
     persona: 'A',
@@ -32,6 +34,7 @@ var FOCUS_OPTIONS = [
   {
     id: 'history',
     icon: '🧭',
+    iconKey: 'focus-history',
     title: '历史问题追问',
     desc: '把半坡放进更大的史前中国和今天来理解',
     persona: 'C',
@@ -42,6 +45,7 @@ var FOCUS_OPTIONS = [
   {
     id: 'object-study',
     icon: '🏺',
+    iconKey: 'focus-artifact',
     title: '器物细节观察',
     desc: '从材料、器形、纹饰和工艺读懂文物',
     persona: 'D',
@@ -78,6 +82,7 @@ var RHYTHM_OPTIONS = [
   {
     id: 'notebook',
     icon: '📝',
+    iconKey: 'rhythm-notebook',
     title: '研学记录模式',
     desc: '每段给观察任务和可写进笔记的要点',
     answerLength: 'balanced',
@@ -88,6 +93,7 @@ var RHYTHM_OPTIONS = [
   {
     id: 'quick',
     icon: '⏱',
+    iconKey: 'rhythm-quick',
     title: '30 分钟抓重点',
     desc: '少铺垫，直接讲关键展品和结论',
     answerLength: 'brief',
@@ -98,6 +104,7 @@ var RHYTHM_OPTIONS = [
   {
     id: 'dialogue',
     icon: '💬',
+    iconKey: 'rhythm-dialogue',
     title: '1 小时边看边问',
     desc: '正常节奏，讲清楚也留一点追问空间',
     answerLength: 'balanced',
@@ -108,6 +115,7 @@ var RHYTHM_OPTIONS = [
   {
     id: 'research',
     icon: '📚',
+    iconKey: 'rhythm-deep',
     title: '研究深挖模式',
     desc: '多给证据比较、术语解释和延伸问题',
     answerLength: 'detailed',
@@ -120,6 +128,15 @@ var RHYTHM_OPTIONS = [
 var DEFAULT_FOCUS = FOCUS_OPTIONS[0]
 var DEFAULT_ASSUMPTION = ASSUMPTION_OPTIONS[3]
 var DEFAULT_RHYTHM = RHYTHM_OPTIONS[0]
+
+function attachIconSrc(items) {
+  items.forEach(function (item) {
+    if (item.iconKey) item.iconSrc = '/assets/icons/' + item.iconKey + '.png'
+  })
+}
+
+attachIconSrc(FOCUS_OPTIONS)
+attachIconSrc(RHYTHM_OPTIONS)
 
 Page({
   data: {

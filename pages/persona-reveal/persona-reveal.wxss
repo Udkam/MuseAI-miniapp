@@ -74,6 +74,12 @@ page {
   line-height: 1;
 }
 
+.persona-icon-img {
+  width: 58rpx;
+  height: 58rpx;
+  display: block;
+}
+
 .pass-title-block {
   min-width: 0;
   flex: 1;

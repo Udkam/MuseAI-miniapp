@@ -8,7 +8,8 @@
     <view class="pass-card" style="border-color: {{persona.color}};">
       <view class="pass-head">
         <view class="persona-mark" style="background-color: {{persona.color}};">
-          <text class="persona-icon">{{persona.icon}}</text>
+          <image wx:if="{{persona.iconSrc}}" class="persona-icon-img" src="{{persona.iconSrc}}" mode="aspectFit"></image>
+          <text wx:else class="persona-icon">{{persona.icon}}</text>
         </view>
         <view class="pass-title-block">
           <text class="pass-label">今日观察视角</text>

@@ -23,7 +23,8 @@
     >
       <view class="hall-order">{{item.order}}</view>
       <view class="hall-icon-wrap">
-        <text class="hall-icon">{{item.icon}}</text>
+        <image wx:if="{{item.iconSrc}}" class="hall-icon-img" src="{{item.iconSrc}}" mode="aspectFit"></image>
+        <text wx:else class="hall-icon">{{item.icon}}</text>
       </view>
       <view class="hall-info">
         <text class="hall-name">{{item.name}}</text>

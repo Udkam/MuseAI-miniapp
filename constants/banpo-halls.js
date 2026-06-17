@@ -8,6 +8,7 @@ var HALLS_MAP = {
     name: '基本陈列展厅',
     short: '陈列',
     icon: '🏺',
+    iconKey: 'hall-basic',
     desc: '以半坡遗址考古发现与研究成果为主线，系统呈现半坡文化的生活形态、生产方式与社会结构。',
     highlights: ['人面鱼纹彩陶盆', '尖底瓶', '彩陶与装饰品', '石器工具'],
     hallKey: '基本陈列展厅',
@@ -18,6 +19,7 @@ var HALLS_MAP = {
     name: '遗址保护大厅',
     short: '遗址',
     icon: '🏘️',
+    iconKey: 'hall-site',
     desc: '强调原址呈现与保护展示，可观察墓葬、地面圆形房屋、烧制作坊、灶具灶台等关键遗存。',
     highlights: ['墓葬', '地面圆形房屋', '烧制作坊', '灶具灶台'],
     hallKey: '遗址保护大厅',
@@ -28,6 +30,7 @@ var HALLS_MAP = {
     name: '临展厅一',
     short: '临展一',
     icon: '🖼️',
+    iconKey: 'hall-temp-one',
     desc: '承载阶段性专题展览，主题和展品随当期策展内容变化。',
     highlights: ['当期专题', '临时展品', '策展主题'],
     hallKey: '临展厅一',
@@ -38,6 +41,7 @@ var HALLS_MAP = {
     name: '临展厅二',
     short: '临展二',
     icon: '🖼️',
+    iconKey: 'hall-temp-two',
     desc: '与临展厅一共同承担轮换展出，需要按馆方最新展览清单更新内容。',
     highlights: ['轮换展览', '阶段性专题', '馆方更新'],
     hallKey: '临展厅二',
@@ -48,6 +52,7 @@ var HALLS_MAP = {
     name: '半坡姑娘雕塑',
     short: '雕塑',
     icon: '🗿',
+    iconKey: 'hall-girl',
     desc: '以“半坡姑娘”为代表形象进行艺术化再现，是观众合影点和半坡人形象记忆入口。',
     highlights: ['人物形象', '文化象征', '观展地标'],
     hallKey: '半坡姑娘雕塑',
@@ -58,6 +63,7 @@ var HALLS_MAP = {
     name: '史前工坊',
     short: '工坊',
     icon: '🛠️',
+    iconKey: 'hall-workshop',
     desc: '把制陶、材料、手作等史前生活知识转化为可参与的互动学习体验。',
     highlights: ['手作体验', '史前工艺', '互动学习'],
     hallKey: '史前工坊',
@@ -68,6 +74,7 @@ var HALLS_MAP = {
     name: '教研中心',
     short: '教研',
     icon: '📚',
+    iconKey: 'hall-education',
     desc: '面向青少年和公众教育活动，适合承载研学课程、主题课堂与研究型活动。',
     highlights: ['教育研学', '主题课堂', '公众活动'],
     hallKey: '教研中心',
@@ -78,6 +85,7 @@ var HALLS_MAP = {
     name: '牡丹园',
     short: '牡丹',
     icon: '🌸',
+    iconKey: 'hall-peony',
     desc: '以牡丹为核心的园林休憩区域，适合在观展间隙停留并体验季节性自然景观。',
     highlights: ['植物景观', '园林休憩', '季节观赏'],
     hallKey: '牡丹园',
@@ -88,6 +96,7 @@ var HALLS_MAP = {
     name: '陶窑展厅',
     short: '陶窑',
     icon: '🔥',
+    iconKey: 'hall-kiln',
     desc: '以“陶器如何被制作出来”为核心叙事，解释制坯、装饰、干燥、入窑烧成等生产流程。',
     highlights: ['陶窑遗址', '火候工艺', '制陶流程'],
     hallKey: '陶窑展厅',
@@ -100,6 +109,7 @@ var HALL_NAME_SLUGS = {}
 
 Object.keys(HALLS_MAP).forEach(function (id) {
   var hall = HALLS_MAP[id]
+  if (hall.iconKey) hall.iconSrc = '/assets/icons/' + hall.iconKey + '.png'
   HALL_SLUG_NAMES[hall.backendSlug] = hall.name
   HALL_NAME_SLUGS[id] = hall.backendSlug
   HALL_NAME_SLUGS[hall.name] = hall.backendSlug

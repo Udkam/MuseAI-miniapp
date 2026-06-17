@@ -22,7 +22,8 @@
         data-id="{{item.id}}"
       >
         <view hidden="{{selectedFocusId !== item.id}}" class="card-check">✓</view>
-        <text class="card-icon">{{item.icon}}</text>
+        <image wx:if="{{item.iconSrc}}" class="card-icon-img" src="{{item.iconSrc}}" mode="aspectFit"></image>
+        <text wx:else class="card-icon">{{item.icon}}</text>
         <text class="card-title">{{item.title}}</text>
         <text class="card-desc">{{item.desc}}</text>
       </view>
@@ -83,7 +84,8 @@
         bindtap="selectRhythm"
         data-id="{{item.id}}"
       >
-        <text class="choice-icon">{{item.icon}}</text>
+        <image wx:if="{{item.iconSrc}}" class="choice-icon-img" src="{{item.iconSrc}}" mode="aspectFit"></image>
+        <text wx:else class="choice-icon">{{item.icon}}</text>
         <view class="choice-body">
           <text class="choice-title">{{item.title}}</text>
           <text class="choice-desc">{{item.desc}}</text>

@@ -156,6 +156,12 @@
   line-height: 1;
 }
 
+.hall-icon-img {
+  width: 54rpx;
+  height: 54rpx;
+  display: block;
+}
+
 .hall-info {
   flex: 1;
   overflow: hidden;
