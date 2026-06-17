@@ -5,8 +5,5 @@
     "test:report": "node scripts/test-report-stats.js",
     "test:preflight": "node scripts/preflight-wechat-release.js",
     "test:all": "npm run test:markdown && npm run test:suggestions && npm run test:report && npm run test:preflight"
-  },
-  "dependencies": {
-    "tdesign-miniprogram": "^1.15.0"
   }
 }

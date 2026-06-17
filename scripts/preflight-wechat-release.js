@@ -44,7 +44,7 @@ const SYNTAX_FILES = [
 function walk(dir, out) {
   if (!fs.existsSync(dir)) return out
   fs.readdirSync(dir, { withFileTypes: true }).forEach(function (entry) {
-    if (entry.name === 'node_modules' || entry.name === 'miniprogram_npm' || entry.name === '_web_archive') return
+    if (entry.name === 'node_modules' || entry.name === 'miniprogram_npm') return
     const full = path.join(dir, entry.name)
     if (entry.isDirectory()) {
       walk(full, out)
