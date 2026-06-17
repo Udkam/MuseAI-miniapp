@@ -11,21 +11,23 @@
 .exhibit-img-placeholder {
   width: 280rpx;
   height: 280rpx;
-  background: #EDE3D6;
-  border-radius: 24rpx;
+  background: linear-gradient(135deg, #FFF9F1 0%, #E7D8C5 100%);
+  border: 2rpx solid #E6D8C6;
+  border-radius: 28rpx;
   display: flex;
   align-items: center;
   justify-content: center;
 }
 
 .exhibit-img-icon {
-  font-size: 96rpx;
+  font-size: 112rpx;
+  line-height: 1;
 }
 
 .exhibit-name {
   font-size: 44rpx;
   font-weight: 700;
-  color: #3D2B1A;
+  color: #3F2A1D;
   display: block;
   margin-bottom: 20rpx;
 }
@@ -38,15 +40,15 @@
 
 .tag {
   font-size: 24rpx;
-  color: #8B6B55;
-  background: #EDE3D6;
+  color: #7C6654;
+  background: #E7D8C5;
   padding: 8rpx 20rpx;
   border-radius: 100rpx;
 }
 
 .tag-hall {
-  background: #C4845A22;
-  color: #C4845A;
+  background: #A8573222;
+  color: #A85732;
 }
 
 .section-title {

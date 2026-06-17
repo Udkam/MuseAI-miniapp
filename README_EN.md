@@ -8,12 +8,19 @@ MuseAI frontend is a native WeChat mini-program for the Banpo Museum guide exper
 
 The frontend is currently in **Stage 13: pre-launch closed-loop validation and release preparation**.
 
-The code-level MVP covers the main product flow, but formal release is not complete. Current blockers include:
+The code-level MVP covers the main product flow. HTTPS status should be read in two parts:
+
+- Done (server side): `api.banpo-museai.xyz` DNS, SSL certificate, and Nginx 443 reverse proxy are configured; `https://api.banpo-museai.xyz/api/v1/health` returns healthy.
+- Current development state: because `banpo-museai.xyz` is still waiting for filing, the mini-program frontend temporarily uses the local backend `http://127.0.0.1:8000/api/v1`; the production HTTPS endpoint is kept as an adjacent code comment and should be restored after filing and WeChat legal request-domain approval.
+- Not done (WeChat side): domain filing, WeChat admin legal request-domain configuration, and a full real-device run with the DevTools "ignore legal domain" exemption turned off.
+
+Remaining blockers:
 
 - The mini-program filing subject has not been finalized.
-- `api.banpo-museai.xyz` has DNS/SSL/Nginx configured, but it may not work reliably as a WeChat legal request domain before filing is accepted.
-- Development and real-device debugging may still use `http://122.152.232.190:3000/api/v1`.
+- OCR service ID is not configured.
 - OCR, TTS, keyboard adaptation, and report statistics still require multi-device real-device testing.
+- systemd hosting, log rotation, and PostgreSQL backups are not yet applied on the server (see `backend/deploy/`).
+- Full experience-version real-device acceptance is not complete.
 
 ## Implemented Capabilities
 
@@ -124,19 +131,21 @@ Mini-program request endpoints are currently configured across three files. Chec
 | `api/stream.js` | SSE guide streaming requests |
 | `api/index.js` | direct API wrappers for TTS, OCR, exhibits, and routes |
 
-Development/debug endpoint:
+During filing, local development uses:
 
 ```text
-http://122.152.232.190:3000/api/v1
+http://127.0.0.1:8000/api/v1
 ```
 
-Formal release endpoint:
+Formal release should switch back to:
 
 ```text
 https://api.banpo-museai.xyz/api/v1
 ```
 
-The formal endpoint is only release-ready when:
+(Historical note: early development used `http://122.152.232.190:3000/api/v1`; it is no longer referenced in code, and the public HTTP entry should be closed on the server once the HTTPS real-device validation passes.)
+
+The formal endpoint is only release-ready in the official WeChat environment when:
 
 - domain filing is accepted;
 - the HTTPS certificate is valid;

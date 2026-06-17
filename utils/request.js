@@ -1,6 +1,8 @@
 const storage = require('./storage')
 
-const BASE_URL = 'http://122.152.232.190:3000/api/v1'
+// Local development while banpo-museai.xyz is still waiting for ICP filing.
+const BASE_URL = 'http://127.0.0.1:8000/api/v1'
+// Production after ICP filing and WeChat request-domain approval:
 // const BASE_URL = 'https://api.banpo-museai.xyz/api/v1'
 
 const DEFAULT_TIMEOUT   = 10000

@@ -1,7 +1,7 @@
 .exhibit-card {
   display: flex;
   align-items: flex-start;
-  background: #F5F0E8;
+  background: #F3EADD;
   border-radius: 20rpx;
   padding: 24rpx;
   gap: 20rpx;
@@ -11,8 +11,9 @@
 .ec-img-placeholder {
   width: 96rpx;
   height: 96rpx;
-  background: #EDE3D6;
-  border-radius: 16rpx;
+  background: linear-gradient(135deg, #FFF9F1 0%, #E7D8C5 100%);
+  border: 2rpx solid #E6D8C6;
+  border-radius: 22rpx;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -21,6 +22,7 @@
 
 .ec-icon {
   font-size: 48rpx;
+  line-height: 1;
 }
 
 .ec-body {
@@ -31,7 +33,7 @@
 .ec-name {
   font-size: 30rpx;
   font-weight: 600;
-  color: #3D2B1A;
+  color: #3F2A1D;
   display: block;
   margin-bottom: 10rpx;
 }
@@ -45,20 +47,20 @@
 
 .ec-tag {
   font-size: 22rpx;
-  color: #8B6B55;
-  background: #EDE3D6;
+  color: #7C6654;
+  background: #E7D8C5;
   padding: 4rpx 16rpx;
   border-radius: 100rpx;
 }
 
 .ec-tag-hall {
-  background: #C4845A18;
-  color: #C4845A;
+  background: #A8573218;
+  color: #A85732;
 }
 
 .ec-desc {
   font-size: 24rpx;
-  color: #8B6B55;
+  color: #7C6654;
   line-height: 1.5;
   display: -webkit-box;
   -webkit-line-clamp: 2;

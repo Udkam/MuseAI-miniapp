@@ -161,6 +161,7 @@ Page({
     var exhibitNameFromQuery = options && options.exhibit ? decodeURIComponent(options.exhibit) : ''
     var ttsPrefs = tourStore.getTtsPrefs()
     if (!this._ttsAudioCache) this._ttsAudioCache = {}
+    this._cleanupStaleTtsFiles()
     this._initSafeArea()
     // Only reset chat on a fresh tour entry (hall page → tour).
     // When coming from exhibit-detail goDeeper(), options.exhibit is set —
@@ -238,6 +239,7 @@ Page({
     }
     this._stopTtsPlayback()
     this._destroyTtsAudio()
+    this._cleanupOwnTtsFiles()
     this._teardownKeyboardLift()
     tourStore.summarizeCurrentHallRecord(chatStore.getState().messages)
     // Fire-and-forget: best-effort flush of pending events on page leave
@@ -834,6 +836,62 @@ Page({
     if (!this._ttsAudioCtx) return
     try { this._ttsAudioCtx.destroy() } catch (_) {}
     this._ttsAudioCtx = null
+  },
+
+  // ── TTS temp-file cleanup ──────────────────────────────────────────────────
+  // TTS segments are written to USER_DATA_PATH (200 MB quota) and would
+  // otherwise accumulate forever. Files created by this page instance are
+  // removed on unload; leftovers from earlier sessions are swept on load.
+  // The 24 h age gate protects segments still cached by tour pages deeper in
+  // the navigation stack (goDeeper re-entry keeps the previous page alive).
+  // Cleanup is best-effort: failures only warn and never block the chat.
+
+  _cleanupStaleTtsFiles: function () {
+    var maxAgeMs = 24 * 60 * 60 * 1000
+    var dir = wx.env.USER_DATA_PATH
+    var now = Date.now()
+    try {
+      var fs = wx.getFileSystemManager()
+      fs.readdir({
+        dirPath: dir,
+        success: function (res) {
+          ;(res.files || []).forEach(function (name) {
+            if (String(name).indexOf('museai_tts_') !== 0) return
+            var m = /_(\d+)\.(wav|mp3)$/.exec(name)
+            if (m && now - Number(m[1]) < maxAgeMs) return
+            fs.unlink({
+              filePath: dir + '/' + name,
+              fail: function (err) { console.warn('[tts] stale temp cleanup failed', name, err) },
+            })
+          })
+        },
+        fail: function (err) { console.warn('[tts] temp dir scan failed', err) },
+      })
+    } catch (err) {
+      console.warn('[tts] temp cleanup error', err)
+    }
+  },
+
+  _cleanupOwnTtsFiles: function () {
+    var cache = this._ttsAudioCache
+    this._ttsAudioCache = {}
+    if (!cache) return
+    var playingPath = this.data.ttsState && this.data.ttsState.audioPath
+    try {
+      var fs = wx.getFileSystemManager()
+      Object.keys(cache).forEach(function (key) {
+        var paths = (cache[key] && cache[key].paths) || []
+        paths.forEach(function (p) {
+          if (!p || p === playingPath) return
+          fs.unlink({
+            filePath: p,
+            fail: function (err) { console.warn('[tts] temp cleanup failed', p, err) },
+          })
+        })
+      })
+    } catch (err) {
+      console.warn('[tts] temp cleanup error', err)
+    }
   },
 
   _setMessageTtsStatus: function (messageId, status) {

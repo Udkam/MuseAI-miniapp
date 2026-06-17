@@ -3,7 +3,7 @@
   flex-direction: column;
   align-items: center;
   padding: 40rpx 24rpx;
-  background: #F5F0E8;
+  background: #F3EADD;
   border: 3rpx solid transparent;
   border-radius: 20rpx;
   text-align: center;
@@ -11,8 +11,8 @@
 }
 
 .persona-card.selected {
-  border-color: #C4845A;
-  background: #FFF8F2;
+  border-color: #A85732;
+  background: #FFF7EF;
 }
 
 .pc-icon {
@@ -23,12 +23,12 @@
 .pc-label {
   font-size: 32rpx;
   font-weight: 700;
-  color: #3D2B1A;
+  color: #3F2A1D;
   margin-bottom: 12rpx;
 }
 
 .pc-desc {
   font-size: 24rpx;
-  color: #8B6B55;
+  color: #7C6654;
   line-height: 1.5;
 }

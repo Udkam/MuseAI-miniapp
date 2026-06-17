@@ -2,7 +2,7 @@
   min-height: 100vh;
   display: flex;
   flex-direction: column;
-  background: #FAF7F2;
+  background: #F8F3EA;
   position: relative;
   overflow-x: hidden;
 }
@@ -27,7 +27,7 @@
 
 .progress-dot.active {
   width: 88rpx;
-  background: #C4845A;
+  background: #A85732;
 }
 
 .step-panel {
@@ -49,14 +49,14 @@
 .ob-title {
   font-size: 42rpx;
   font-weight: 700;
-  color: #2C1810;
+  color: #241712;
   display: block;
   line-height: 1.35;
 }
 
 .ob-hint {
   font-size: 25rpx;
-  color: #8B6B55;
+  color: #7C6654;
   display: block;
   margin-top: 14rpx;
   line-height: 1.55;
@@ -70,7 +70,7 @@
 }
 
 .profile-card {
-  background: #F5F0E8;
+  background: #F3EADD;
   border: 3rpx solid transparent;
   border-radius: 18rpx;
   padding: 28rpx 22rpx 24rpx;
@@ -84,8 +84,8 @@
 
 .profile-card.selected,
 .choice-item.selected {
-  border-color: #C4845A;
-  background: #FFF8F2;
+  border-color: #A85732;
+  background: #FFF7EF;
   box-shadow: 0 4rpx 18rpx rgba(196, 132, 90, 0.16);
 }
 
@@ -93,8 +93,8 @@
 .choice-check {
   width: 42rpx;
   height: 42rpx;
-  background: #C4845A;
-  color: #FAF7F2;
+  background: #A85732;
+  color: #F8F3EA;
   border-radius: 50%;
   font-size: 24rpx;
   font-weight: 700;
@@ -112,6 +112,7 @@
 
 .card-icon {
   font-size: 48rpx;
+  line-height: 1;
   display: block;
   margin-bottom: 16rpx;
 }
@@ -120,27 +121,27 @@
 .choice-title {
   font-size: 29rpx;
   font-weight: 700;
-  color: #2C1810;
+  color: #241712;
   line-height: 1.35;
   display: block;
 }
 
 .profile-card.selected .card-title,
 .choice-item.selected .choice-title {
-  color: #C4845A;
+  color: #A85732;
 }
 
 .card-desc,
 .choice-desc {
   font-size: 24rpx;
-  color: #8B6B55;
+  color: #7C6654;
   line-height: 1.5;
   display: block;
   margin-top: 10rpx;
 }
 
 .intent-input-wrap {
-  background: #F5F0E8;
+  background: #F3EADD;
   border-radius: 16rpx;
   padding: 20rpx 24rpx;
   margin-bottom: 18rpx;
@@ -149,7 +150,7 @@
 .intent-input {
   width: 100%;
   font-size: 27rpx;
-  color: #2C1810;
+  color: #241712;
   line-height: 1.5;
 }
 
@@ -159,15 +160,15 @@
 }
 
 .persona-preview {
-  background: #FFF8F2;
-  border-left: 5rpx solid #C4845A;
+  background: #FFF7EF;
+  border-left: 5rpx solid #A85732;
   border-radius: 0 12rpx 12rpx 0;
   padding: 16rpx 20rpx;
 }
 
 .persona-preview-text {
   font-size: 25rpx;
-  color: #8B6B55;
+  color: #7C6654;
   line-height: 1.5;
 }
 
@@ -180,7 +181,7 @@
 .choice-item {
   display: flex;
   align-items: center;
-  background: #F5F0E8;
+  background: #F3EADD;
   border: 3rpx solid transparent;
   border-radius: 18rpx;
   padding: 22rpx 22rpx;
@@ -227,8 +228,8 @@
 }
 
 .btn-primary[disabled] {
-  background: #3D2B1A;
-  color: #F5F0E8;
+  background: #3F2A1D;
+  color: #F3EADD;
   opacity: 0.88;
 }
 
@@ -250,8 +251,8 @@
 .creating-panel {
   width: 360rpx;
   min-height: 240rpx;
-  background: #3D2B1A;
-  color: #F5F0E8;
+  background: #3F2A1D;
+  color: #F3EADD;
   border-radius: 20rpx;
   display: flex;
   flex-direction: column;
@@ -265,7 +266,7 @@
   height: 44rpx;
   border-radius: 50%;
   border: 5rpx solid rgba(245, 240, 232, 0.28);
-  border-top-color: #F5F0E8;
+  border-top-color: #F3EADD;
   animation: creating-spin 0.8s linear infinite;
   margin-bottom: 22rpx;
 }

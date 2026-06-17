@@ -3,7 +3,8 @@
     "test:markdown": "node scripts/test-markdown.js",
     "test:suggestions": "node scripts/test-guide-suggestions.js",
     "test:report": "node scripts/test-report-stats.js",
-    "test:all": "npm run test:markdown && npm run test:suggestions && npm run test:report"
+    "test:preflight": "node scripts/preflight-wechat-release.js",
+    "test:all": "npm run test:markdown && npm run test:suggestions && npm run test:report && npm run test:preflight"
   },
   "dependencies": {
     "tdesign-miniprogram": "^1.15.0"

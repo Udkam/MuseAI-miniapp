@@ -11,7 +11,7 @@
 .scan-title {
   font-size: 44rpx;
   font-weight: 700;
-  color: #3D2B1A;
+  color: #3F2A1D;
   display: block;
   margin-bottom: 8rpx;
 }
@@ -25,8 +25,8 @@
 .search-bar {
   display: flex;
   align-items: center;
-  background: #F5F0E8;
-  border: 2rpx solid #DDD0C0;
+  background: #F3EADD;
+  border: 2rpx solid #D8C8B4;
   border-radius: 100rpx;
   padding: 16rpx 28rpx;
   gap: 16rpx;
@@ -34,26 +34,27 @@
 }
 
 .search-icon {
-  font-size: 32rpx;
+  font-size: 30rpx;
+  line-height: 1;
   flex-shrink: 0;
 }
 
 .search-input {
   flex: 1;
   font-size: 28rpx;
-  color: #2C1810;
+  color: #241712;
 }
 
 .search-clear {
   flex-shrink: 0;
-  color: #8B6B55;
+  color: #7C6654;
   font-size: 28rpx;
   padding: 4rpx 8rpx;
 }
 
 .data-notice {
-  background: #FFF8EF;
-  border-left: 6rpx solid #C4845A;
+  background: #FFF9F1;
+  border-left: 6rpx solid #A85732;
   color: #8A6E55;
   font-size: 24rpx;
   line-height: 1.6;
@@ -66,7 +67,7 @@
   display: flex;
   align-items: center;
   gap: 20rpx;
-  background: #FFF8EF;
+  background: #FFF9F1;
   border: 2rpx solid #E7D2BE;
   border-radius: 20rpx;
   padding: 22rpx 24rpx;
@@ -80,7 +81,7 @@
 
 .scan-action-title {
   display: block;
-  color: #3D2B1A;
+  color: #3F2A1D;
   font-size: 28rpx;
   font-weight: 700;
   margin-bottom: 6rpx;
@@ -101,7 +102,7 @@
   padding: 0 24rpx;
   border-radius: 999rpx;
   background: #4A2F1C;
-  color: #FFF8EF;
+  color: #FFF9F1;
   font-size: 25rpx;
   font-weight: 600;
 }
@@ -135,14 +136,14 @@
 
 .scan-result-label,
 .scan-result-confidence {
-  color: #C4845A;
+  color: #A85732;
   font-size: 23rpx;
   font-weight: 600;
 }
 
 .scan-result-name {
   display: block;
-  color: #2C1810;
+  color: #241712;
   font-size: 34rpx;
   font-weight: 700;
   margin-bottom: 10rpx;
@@ -183,17 +184,22 @@
 .exhibit-card {
   display: flex;
   align-items: center;
-  background: #F5F0E8;
+  background: #F3EADD;
   border-radius: 20rpx;
   padding: 28rpx 24rpx;
   gap: 20rpx;
 }
 
 .exhibit-card-icon {
-  font-size: 52rpx;
-  flex-shrink: 0;
-  width: 72rpx;
+  width: 64rpx;
+  height: 64rpx;
+  border-radius: 22rpx;
+  background: #FFF9F1;
+  border: 2rpx solid #E6D8C6;
+  font-size: 40rpx;
+  line-height: 64rpx;
   text-align: center;
+  flex-shrink: 0;
 }
 
 .exhibit-card-info {
@@ -204,7 +210,7 @@
 .exhibit-card-name {
   font-size: 30rpx;
   font-weight: 600;
-  color: #2C1810;
+  color: #241712;
   display: block;
   margin-bottom: 12rpx;
 }
@@ -217,15 +223,15 @@
 
 .etag {
   font-size: 22rpx;
-  color: #8B6B55;
-  background: #EDE3D6;
+  color: #7C6654;
+  background: #E7D8C5;
   padding: 4rpx 16rpx;
   border-radius: 100rpx;
 }
 
 .etag-era {
-  background: #C4845A22;
-  color: #C4845A;
+  background: #A8573222;
+  color: #A85732;
 }
 
 .exhibit-card-arrow {
@@ -244,7 +250,8 @@
 }
 
 .empty-icon {
-  font-size: 80rpx;
+  font-size: 72rpx;
+  line-height: 1;
 }
 
 .empty-text {
@@ -254,7 +261,7 @@
 /* ── Manual input fallback ────────────────────────────────────────────────── */
 
 .manual-section {
-  border-top: 2rpx solid #DDD0C0;
+  border-top: 2rpx solid #D8C8B4;
   padding-top: 32rpx;
   margin-top: 8rpx;
 }
@@ -272,17 +279,17 @@
 
 .manual-input {
   flex: 1;
-  background: #F5F0E8;
-  border: 2rpx solid #DDD0C0;
+  background: #F3EADD;
+  border: 2rpx solid #D8C8B4;
   border-radius: 16rpx;
   padding: 20rpx 24rpx;
   font-size: 28rpx;
-  color: #2C1810;
+  color: #241712;
 }
 
 .manual-btn {
-  background: #C4845A;
-  color: #FAF7F2;
+  background: #A85732;
+  color: #F8F3EA;
   font-size: 26rpx;
   padding: 20rpx 32rpx;
   border-radius: 16rpx;

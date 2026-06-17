@@ -1,7 +1,8 @@
 /**
  * MuseAI Mini Program — API layer
  *
- * BASE_URL: https://api.banpo-museai.xyz/api/v1  (set in utils/request.js)
+ * BASE_URL: http://127.0.0.1:8000/api/v1  (set in utils/request.js)
+ * Production after ICP filing: https://api.banpo-museai.xyz/api/v1
  * Health endpoint is under /api/v1.
  * Streaming endpoints use api/stream.js (wx.request enableChunked).
  */
@@ -10,9 +11,6 @@ const req    = require('../utils/request')
 const stream = require('./stream')
 const storage = require('../utils/storage')
 const banpoHalls = require('../constants/banpo-halls')
-
-const SERVER_ROOT = 'http://122.152.232.190:3000/api/v1'
-// const SERVER_ROOT = 'https://api.banpo-museai.xyz'
 
 const OCR_SERVICE_CONFIG = {
   // Fill this from app.globalData.ocrServiceConfig or replace here after

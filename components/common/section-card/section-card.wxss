@@ -1,5 +1,5 @@
 .section-card {
-  background: #F5F0E8;
+  background: #F3EADD;
   border-radius: 20rpx;
   padding: 32rpx;
   margin-bottom: 24rpx;
@@ -8,7 +8,7 @@
 .section-card-title {
   font-size: 30rpx;
   font-weight: 600;
-  color: #3D2B1A;
+  color: #3F2A1D;
   display: block;
   margin-bottom: 20rpx;
 }
