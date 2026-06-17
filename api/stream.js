@@ -19,8 +19,10 @@
 
 var storage = require('../utils/storage')
 
-// Local development while banpo-museai.xyz is still waiting for ICP filing.
-var BASE_URL = 'http://127.0.0.1:8000/api/v1'
+// Temporary public dev endpoint while banpo-museai.xyz is still waiting for ICP filing.
+var BASE_URL = 'http://122.152.232.190:3000/api/v1'
+// Local backend alternative:
+// var BASE_URL = 'http://127.0.0.1:8000/api/v1'
 // Production after ICP filing and WeChat request-domain approval:
 // var BASE_URL = 'https://api.banpo-museai.xyz/api/v1'
 

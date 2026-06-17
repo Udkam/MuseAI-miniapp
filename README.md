@@ -11,7 +11,7 @@ MuseAI 前端是面向西安半坡博物馆导览体验的微信小程序。当�
 代码层面的 MVP 已覆盖主要闭环。HTTPS 状态需要拆开看：
 
 - 已完成（服务器侧）：`api.banpo-museai.xyz` DNS 解析、SSL 证书、Nginx 443 反代均已配置，`https://api.banpo-museai.xyz/api/v1/health` 已返回 healthy。
-- 当前开发状态：因 `banpo-museai.xyz` 仍在备案中，小程序前端暂时切回本地后端 `http://127.0.0.1:8000/api/v1`；正式 HTTPS 地址保留在代码注释中，备案和微信 request 合法域名通过后再切回。
+- 当前开发状态：因 `banpo-museai.xyz` 仍在备案中，小程序前端暂时使用服务器 HTTP 调试入口 `http://122.152.232.190:3000/api/v1`；本地后端 `http://127.0.0.1:8000/api/v1` 与正式 HTTPS 地址均保留在代码注释中，备案和微信 request 合法域名通过后再切回 HTTPS。
 - 未完成（微信侧）：备案、微信公众平台 request 合法域名配置、关闭开发者工具“不校验合法域名”豁免后的真机正式环境联调。
 
 其余阻断项：
@@ -131,7 +131,13 @@ npm install
 | `api/stream.js` | SSE 流式导览请求 |
 | `api/index.js` | 部分直连 API、TTS、OCR、展品/路线封装 |
 
-备案期间本地开发默认使用：
+备案期间开发者工具默认使用服务器 HTTP 调试入口：
+
+```text
+http://122.152.232.190:3000/api/v1
+```
+
+如果本机已启动后端，也可以临时切到：
 
 ```text
 http://127.0.0.1:8000/api/v1
@@ -143,7 +149,7 @@ http://127.0.0.1:8000/api/v1
 https://api.banpo-museai.xyz/api/v1
 ```
 
-（历史说明：早期开发调试曾使用 `http://122.152.232.190:3000/api/v1`，代码中已不再使用；HTTPS 真机验证通过后该公网 HTTP 入口应在服务器侧关闭。）
+HTTPS 真机验证通过后，公网 HTTP 调试入口应在服务器侧关闭。
 
 正式域名在微信正式环境可用还必须同时满足：
 
@@ -225,7 +231,7 @@ node --check pages/report/report.js
 node --check pages/exhibit-scan/exhibit-scan.js
 ```
 
-`test:preflight` 会检查小程序打包范围内是否残留旧公网 IP、非白名单本地地址、`localhost`、`:3000`、明显密钥形态，并对关键 JS 文件执行语法检查。备案期间允许 `http://127.0.0.1:8000/api/v1`，但会警告发布前必须切回 `https://api.banpo-museai.xyz/api/v1`。它不会读取或修改真实 `.env`。
+`test:preflight` 会检查小程序打包范围内是否残留非白名单开发地址、`localhost`、`:3000`、明显密钥形态，并对关键 JS 文件执行语法检查。备案期间允许 `http://122.152.232.190:3000/api/v1` 或 `http://127.0.0.1:8000/api/v1`，但会警告发布前必须切回 `https://api.banpo-museai.xyz/api/v1`。它不会读取或修改真实 `.env`。
 
 ## 真机测试重点
 

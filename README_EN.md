@@ -11,7 +11,7 @@ The frontend is currently in **Stage 13: pre-launch closed-loop validation and r
 The code-level MVP covers the main product flow. HTTPS status should be read in two parts:
 
 - Done (server side): `api.banpo-museai.xyz` DNS, SSL certificate, and Nginx 443 reverse proxy are configured; `https://api.banpo-museai.xyz/api/v1/health` returns healthy.
-- Current development state: because `banpo-museai.xyz` is still waiting for filing, the mini-program frontend temporarily uses the local backend `http://127.0.0.1:8000/api/v1`; the production HTTPS endpoint is kept as an adjacent code comment and should be restored after filing and WeChat legal request-domain approval.
+- Current development state: because `banpo-museai.xyz` is still waiting for filing, the mini-program frontend temporarily uses the server HTTP dev endpoint `http://122.152.232.190:3000/api/v1`; the local backend `http://127.0.0.1:8000/api/v1` and the production HTTPS endpoint are both kept as adjacent code comments. Switch back to HTTPS after filing and WeChat legal request-domain approval.
 - Not done (WeChat side): domain filing, WeChat admin legal request-domain configuration, and a full real-device run with the DevTools "ignore legal domain" exemption turned off.
 
 Remaining blockers:
@@ -131,7 +131,13 @@ Mini-program request endpoints are currently configured across three files. Chec
 | `api/stream.js` | SSE guide streaming requests |
 | `api/index.js` | direct API wrappers for TTS, OCR, exhibits, and routes |
 
-During filing, local development uses:
+During filing, WeChat DevTools uses the server HTTP dev endpoint by default:
+
+```text
+http://122.152.232.190:3000/api/v1
+```
+
+If the backend is running on this machine, you can temporarily switch to:
 
 ```text
 http://127.0.0.1:8000/api/v1
@@ -143,7 +149,7 @@ Formal release should switch back to:
 https://api.banpo-museai.xyz/api/v1
 ```
 
-(Historical note: early development used `http://122.152.232.190:3000/api/v1`; it is no longer referenced in code, and the public HTTP entry should be closed on the server once the HTTPS real-device validation passes.)
+The public HTTP dev entry should be closed on the server once the HTTPS real-device validation passes.
 
 The formal endpoint is only release-ready in the official WeChat environment when:
 

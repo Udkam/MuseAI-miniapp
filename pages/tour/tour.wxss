@@ -86,12 +86,14 @@
 
 .rag-bar {
   margin: 4rpx 8rpx 20rpx;
-  background: #F3EADD;
-  border-radius: 16rpx;
+  background: #FFFDF9;
+  border: 2rpx solid #E7D7C5;
+  border-radius: 18rpx;
   padding: 16rpx 20rpx;
   display: flex;
   flex-wrap: wrap;
   gap: 12rpx 20rpx;
+  box-shadow: 0 8rpx 20rpx rgba(63, 42, 29, 0.04);
 }
 
 .rag-step {
@@ -199,11 +201,12 @@
 .suggestions-bar {
   display: flex;
   align-items: center;
-  background: #FFF8F0;
+  background: #FFFDF9;
   border-top: 2rpx solid #EDD8BE;
   padding: 0 0 0 16rpx;
   flex-shrink: 0;
   min-height: 88rpx;
+  box-shadow: 0 -8rpx 20rpx rgba(63, 42, 29, 0.04);
 }
 
 .suggestions-scroll {
@@ -224,9 +227,9 @@
   display: inline-flex;
   align-items: center;
   gap: 8rpx;
-  padding: 12rpx 24rpx;
-  background: #FAF0E0;
-  border: 2rpx solid #E0C4A0;
+  padding: 12rpx 22rpx;
+  background: #F8F3EA;
+  border: 2rpx solid #E4D2BE;
   border-radius: 36rpx;
   white-space: nowrap;
   flex-shrink: 0;
@@ -265,12 +268,13 @@
   align-items: center;
   padding: 16rpx 24rpx calc(40rpx + constant(safe-area-inset-bottom));
   padding: 16rpx 24rpx calc(40rpx + env(safe-area-inset-bottom));
-  background: #F3EADD;
-  border-top: 2rpx solid #D8C8B4;
+  background: #FFFDF9;
+  border-top: 2rpx solid #E2D1BF;
   gap: 12rpx;
   flex-shrink: 0;
   transition: transform 0.18s ease-out;
   will-change: transform;
+  box-shadow: 0 -10rpx 24rpx rgba(63, 42, 29, 0.06);
 }
 
 .suggestions-bar {
@@ -285,8 +289,8 @@
   gap: 6rpx;
   height: 72rpx;
   padding: 0 18rpx;
-  background: #F8F3EA;
-  border: 2rpx solid #D8C7B4;
+  background: #F7EFE5;
+  border: 2rpx solid #E2CFBA;
   border-radius: 36rpx;
   color: #6B4A32;
   box-sizing: border-box;
@@ -313,8 +317,8 @@
 .input-field {
   flex: 1;
   min-width: 0;
-  background: #F8F3EA;
-  border: 2rpx solid #D8C8B4;
+  background: #FFFFFF;
+  border: 2rpx solid #E2D1BF;
   border-radius: 40rpx;
   padding: 18rpx 28rpx;
   font-size: 28rpx;
@@ -324,15 +328,22 @@
 }
 
 .send-btn {
-  font-size: 28rpx;
-  color: #D8C8B4;
+  min-width: 76rpx;
+  height: 64rpx;
+  border-radius: 32rpx;
+  font-size: 26rpx;
+  line-height: 64rpx;
+  text-align: center;
+  color: #B9AA99;
+  background: #F1E8DC;
   flex-shrink: 0;
-  padding: 0 8rpx;
-  transition: color 0.2s;
+  padding: 0 10rpx;
+  transition: color 0.2s, background 0.2s;
 }
 
 .send-btn.active {
-  color: #A85732;
+  color: #FFF9F1;
+  background: #3F2A1D;
   font-weight: 600;
 }
 

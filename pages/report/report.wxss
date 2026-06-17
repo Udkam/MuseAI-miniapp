@@ -133,32 +133,43 @@
 
 .reflection-card {
   background: #FFFDF9;
+  border-color: #E7D7C5;
+  box-shadow: 0 10rpx 24rpx rgba(63, 42, 29, 0.04);
 }
 
 .reflection-row {
   display: grid;
-  grid-template-columns: 84rpx 1fr;
+  grid-template-columns: 76rpx 1fr;
   gap: 18rpx;
-  padding: 18rpx 0;
-  border-top: 2rpx solid #F0E2D5;
+  padding: 20rpx;
+  margin-top: 14rpx;
+  border: 2rpx solid #EAD9C9;
+  border-radius: 14rpx;
+  background: #FFF9F1;
 }
 
 .reflection-row:first-of-type {
-  border-top: 0;
-  padding-top: 0;
+  margin-top: 0;
 }
 
 .reflection-label {
-  font-size: 24rpx;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 40rpx;
+  border-radius: 20rpx;
+  background: #F2E3D2;
+  font-size: 22rpx;
   font-weight: 700;
   color: #A85732;
-  line-height: 1.7;
+  line-height: 40rpx;
+  text-align: center;
 }
 
 .reflection-text {
-  font-size: 27rpx;
+  font-size: 26rpx;
   color: #5A3E2B;
-  line-height: 1.7;
+  line-height: 1.65;
 }
 
 .hall-card-list {

@@ -4,7 +4,8 @@
     <view class="ai-badge">
       <text class="ai-badge-text">{{routeSourceLabel}}</text>
     </view>
-    <text class="route-title">为你规划的参观路线</text>
+    <text class="route-title">策展路线已生成</text>
+    <text class="route-subtitle">按展厅线索推进，先建立现场判断，再进入具体展品。</text>
     <text wx:if="{{routeNotice}}" class="route-notice">{{routeNotice}}</text>
   </view>
 
@@ -21,7 +22,7 @@
   </view>
 
   <view class="steps-section">
-    <text class="section-label">参观顺序</text>
+    <text class="section-label">参观计划</text>
     <view class="steps-list">
       <view
         wx:for="{{steps}}"

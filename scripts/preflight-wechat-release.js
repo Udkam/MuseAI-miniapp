@@ -7,6 +7,7 @@ const ROOT = path.resolve(__dirname, '..')
 const API_ORIGIN = 'https://api.banpo-museai.xyz'
 const API_BASE = API_ORIGIN + '/api/v1'
 const LOCAL_API_BASE = 'http://127.0.0.1:8000/api/v1'
+const PUBLIC_DEV_API_BASE = 'http://122.152.232.190:3000/api/v1'
 
 const CODE_SCAN_ROOTS = [
   'api',
@@ -87,25 +88,42 @@ function failWithList(title, items) {
 function checkApiBase() {
   const requestJs = read('utils/request.js')
   const streamJs = read('api/stream.js')
-  const requestUsesProd = requestJs.indexOf("const BASE_URL = '" + API_BASE + "'") >= 0
-  const streamUsesProd = streamJs.indexOf("var BASE_URL = '" + API_BASE + "'") >= 0
-  const requestUsesLocal = requestJs.indexOf("const BASE_URL = '" + LOCAL_API_BASE + "'") >= 0
-  const streamUsesLocal = streamJs.indexOf("var BASE_URL = '" + LOCAL_API_BASE + "'") >= 0
+  function hasActiveBase(content, declaration, value) {
+    const escaped = value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+    return new RegExp('^\\s*' + declaration + "\\s*=\\s*'" + escaped + "'", 'm').test(content)
+  }
+  const requestUsesProd = hasActiveBase(requestJs, 'const BASE_URL', API_BASE)
+  const streamUsesProd = hasActiveBase(streamJs, 'var BASE_URL', API_BASE)
+  const requestUsesLocal = hasActiveBase(requestJs, 'const BASE_URL', LOCAL_API_BASE)
+  const streamUsesLocal = hasActiveBase(streamJs, 'var BASE_URL', LOCAL_API_BASE)
+  const requestUsesPublicDev = hasActiveBase(requestJs, 'const BASE_URL', PUBLIC_DEV_API_BASE)
+  const streamUsesPublicDev = hasActiveBase(streamJs, 'var BASE_URL', PUBLIC_DEV_API_BASE)
   assert.ok(
-    (requestUsesProd && streamUsesProd) || (requestUsesLocal && streamUsesLocal),
-    'utils/request.js and api/stream.js must both use either local dev API or production HTTPS API'
+    (requestUsesProd && streamUsesProd) ||
+      (requestUsesLocal && streamUsesLocal) ||
+      (requestUsesPublicDev && streamUsesPublicDev),
+    'utils/request.js and api/stream.js must both use the same API base: local dev, public dev, or production HTTPS'
   )
   if (requestUsesLocal || streamUsesLocal) {
     console.warn('[preflight warning] active API base is local dev:', LOCAL_API_BASE)
     console.warn('[preflight warning] switch both BASE_URL declarations back to ' + API_BASE + ' before release upload.')
     return LOCAL_API_BASE
   }
+  if (requestUsesPublicDev || streamUsesPublicDev) {
+    console.warn('[preflight warning] active API base is temporary public HTTP dev:', PUBLIC_DEV_API_BASE)
+    console.warn('[preflight warning] switch both BASE_URL declarations back to ' + API_BASE + ' before release upload.')
+    return PUBLIC_DEV_API_BASE
+  }
   return API_BASE
 }
 
 function checkHardcodedEndpoints(files) {
   const bad = []
-  const allowedDevApi = new RegExp(LOCAL_API_BASE.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g')
+  const allowedDevApis = [LOCAL_API_BASE, PUBLIC_DEV_API_BASE]
+    .map(function (value) {
+      return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+    })
+  const allowedDevApi = new RegExp(allowedDevApis.join('|'), 'g')
   const patterns = [
     { name: 'old public IP', regex: /122\.152\.232\.190/g },
     { name: 'localhost', regex: /\blocalhost\b/g },

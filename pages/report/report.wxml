@@ -14,7 +14,6 @@
   <view class="report-header">
     <text class="report-badge-icon">📜</text>
     <text class="report-title">{{reportTitle}}</text>
-    <text class="report-persona text-clay">身份：{{persona}}</text>
   </view>
 
   <view class="stats-grid">
@@ -47,17 +46,17 @@
   </view>
 
   <view wx:if="{{reflection}}" class="card reflection-card">
-    <text class="section-label text-clay text-bold">认知变化</text>
+    <text class="section-label text-clay text-bold">复盘线索</text>
     <view class="reflection-row">
-      <text class="reflection-label">起初</text>
+      <text class="reflection-label">主线</text>
       <text class="reflection-text">{{reflection.initial_assumption}}</text>
     </view>
     <view class="reflection-row">
-      <text class="reflection-label">过程</text>
+      <text class="reflection-label">证据</text>
       <text class="reflection-text">{{reflection.observed_focus}}</text>
     </view>
     <view class="reflection-row">
-      <text class="reflection-label">现在</text>
+      <text class="reflection-label">再问</text>
       <text class="reflection-text">{{reflection.change_summary}}</text>
     </view>
   </view>

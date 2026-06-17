@@ -8,15 +8,21 @@
 /* ── Header ─────────────────────────────────────────────────────────────────── */
 
 .route-header {
-  padding-bottom: 32rpx;
+  padding: 30rpx 30rpx 28rpx;
+  margin-bottom: 26rpx;
+  background: #FFFDF9;
+  border: 2rpx solid #E7D7C5;
+  border-left: 8rpx solid #4F3728;
+  border-radius: 18rpx;
+  box-shadow: 0 12rpx 28rpx rgba(63, 42, 29, 0.06);
 }
 
 .ai-badge {
   display: inline-block;
-  background: rgba(196, 132, 90, 0.1);
-  border: 1rpx solid rgba(196, 132, 90, 0.28);
+  background: #F4ECE2;
+  border: 1rpx solid #E6D1BC;
   border-radius: 100rpx;
-  padding: 6rpx 22rpx;
+  padding: 6rpx 18rpx;
   margin-bottom: 18rpx;
 }
 
@@ -33,6 +39,13 @@
   display: block;
   margin-bottom: 10rpx;
   line-height: 1.3;
+}
+
+.route-subtitle {
+  display: block;
+  font-size: 25rpx;
+  line-height: 1.6;
+  color: #6D5949;
 }
 
 .route-tagline {
@@ -135,10 +148,12 @@
 .stats-row {
   display: flex;
   align-items: center;
-  background: #F3EADD;
-  border-radius: 16rpx;
+  background: #FFFDF9;
+  border: 2rpx solid #E7D7C5;
+  border-radius: 18rpx;
   padding: 24rpx 32rpx;
-  margin-bottom: 48rpx;
+  margin-bottom: 42rpx;
+  box-shadow: 0 8rpx 22rpx rgba(63, 42, 29, 0.04);
 }
 
 .stat-block {
@@ -171,10 +186,11 @@
 
 .section-label {
   font-size: 22rpx;
-  color: #B08060;
+  color: #8C6B52;
   display: block;
-  margin-bottom: 20rpx;
+  margin-bottom: 22rpx;
   letter-spacing: 1rpx;
+  font-weight: 700;
 }
 
 /* ── Floor plan ─────────────────────────────────────────────────────────────── */
@@ -344,7 +360,7 @@
 .step-wrap {
   display: flex;
   align-items: stretch;
-  gap: 20rpx;
+  gap: 18rpx;
   opacity: 0;
   animation: fade-up 0.42s ease-out forwards;
 }
@@ -360,17 +376,18 @@
 }
 
 .step-node {
-  width: 52rpx;
-  height: 52rpx;
+  width: 48rpx;
+  height: 48rpx;
   border-radius: 50%;
   display: flex;
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
+  border: 2rpx solid #E5D1BA;
 }
 
-.step-node-visited  { background: #D0C4B4; }
-.step-node-upcoming { background: #EDD8B8; }
+.step-node-visited  { background: #EEE7DC; }
+.step-node-upcoming { background: #FFFDF9; }
 
 .step-node-current {
   background: #A85732;
@@ -390,7 +407,7 @@
 }
 
 .step-node-num {
-  font-size: 26rpx;
+  font-size: 24rpx;
   font-weight: 700;
   color: #5A3E2B;
 }
@@ -399,7 +416,7 @@
 
 .step-conn-line {
   flex: 1;
-  width: 4rpx;
+  width: 3rpx;
   min-height: 40rpx;
   margin: 8rpx 0;
 }
@@ -413,8 +430,8 @@
 .step-card {
   flex: 1;
   border-radius: 18rpx;
-  padding: 28rpx;
-  margin-bottom: 28rpx;
+  padding: 26rpx;
+  margin-bottom: 24rpx;
   box-sizing: border-box;
 }
 
@@ -430,8 +447,9 @@
 }
 
 .step-card-upcoming {
-  background: #F9F6F1;
-  border: 2rpx solid #EDD8B8;
+  background: #FFFDF9;
+  border: 2rpx solid #E7D7C5;
+  box-shadow: 0 8rpx 24rpx rgba(63, 42, 29, 0.04);
 }
 
 /* Status badge */
@@ -439,13 +457,13 @@
 .step-status-badge {
   display: inline-block;
   border-radius: 100rpx;
-  padding: 4rpx 20rpx;
+  padding: 4rpx 16rpx;
   margin-bottom: 16rpx;
 }
 
 .step-status-badge-visited  { background: #D8C8B4; }
 .step-status-badge-current  { background: rgba(196, 132, 90, 0.14); }
-.step-status-badge-upcoming { background: #EDD8B8; }
+.step-status-badge-upcoming { background: #F2E8DA; }
 
 .step-status-text {
   font-size: 22rpx;
@@ -486,9 +504,10 @@
 /* AI rationale */
 
 .step-reason-block {
-  background: rgba(196, 132, 90, 0.06);
-  border-left: 5rpx solid #A85732;
-  border-radius: 0 10rpx 10rpx 0;
+  background: #FAF4EA;
+  border: 2rpx solid #EAD7C1;
+  border-left: 6rpx solid #A85732;
+  border-radius: 12rpx;
   padding: 16rpx 20rpx;
   margin-bottom: 16rpx;
 }
@@ -539,13 +558,13 @@
 
 .step-tag {
   font-size: 23rpx;
-  padding: 8rpx 20rpx;
+  padding: 7rpx 18rpx;
   border-radius: 100rpx;
 }
 
 .step-tag-visited  { color: #8B7060; background: #E4D9CE; }
 .step-tag-current  { color: #A85732; background: rgba(196, 132, 90, 0.1); }
-.step-tag-upcoming { color: #7C6654; background: #EDD8B8; }
+.step-tag-upcoming { color: #6D5949; background: #F2E8DA; border: 1rpx solid #E2CDB5; }
 
 /* ── Bottom action ──────────────────────────────────────────────────────────── */
 
