@@ -17,7 +17,7 @@
     <view wx:if="{{hasTourSession}}" class="resume-card" bindtap="resumeTour">
       <view class="resume-copy">
         <text class="resume-label">继续上次导览</text>
-        <text class="resume-title">{{resumeHallName}}</text>
+        <text wx:if="{{resumeHallName}}" class="resume-title">{{resumeHallName}}</text>
         <text class="resume-meta">已完成 {{aiConversationCount}} 次 AI 对话</text>
       </view>
       <text class="resume-arrow">›</text>

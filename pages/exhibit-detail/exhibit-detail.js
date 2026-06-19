@@ -33,6 +33,12 @@ function buildFallbackExhibit(name) {
   })
 }
 
+function reportableExhibitId(exhibit) {
+  var id = exhibit && exhibit.id ? String(exhibit.id) : ''
+  if (!id || id.indexOf('local-') === 0 || id.indexOf('mock-') === 0) return undefined
+  return id
+}
+
 Page({
   data: {
     exhibit: DEFAULT_EXHIBIT,
@@ -52,7 +58,9 @@ Page({
     wx.setNavigationBarTitle({ title: name || '展品详情' })
 
     if (local) {
-      var cached = tourStore.getCurrentExhibit ? tourStore.getCurrentExhibit() : null
+      var cached = tourStore.consumePendingDetailExhibit
+        ? tourStore.consumePendingDetailExhibit(name)
+        : null
       if (cached && (!name || cached.name === name)) {
         self.setData({ exhibit: cached, loading: false })
         wx.setNavigationBarTitle({ title: cached.name || '展项详情' })
@@ -114,15 +122,13 @@ Page({
     var exhibit  = this.data.exhibit
     var state    = tourStore.getTourState()
     if (state.sessionId) {
-      setTimeout(function () {
-        tourStore.addTourEvent({
-          eventType:       'exhibit_view',
-          exhibitId:       exhibit.id   || undefined,
-          hall:            exhibit.hall || state.currentHall || '',
-          durationSeconds: duration,
-          metadata:        { exhibit_name: exhibit.name },
-        })
-      }, 0)
+      tourStore.addTourEvent({
+        eventType:       'exhibit_view',
+        exhibitId:       reportableExhibitId(exhibit),
+        hall:            exhibit.hall || state.currentHall || '',
+        durationSeconds: duration,
+        metadata:        { exhibit_name: exhibit.name },
+      })
     }
   },
 

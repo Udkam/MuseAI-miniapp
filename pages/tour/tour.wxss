@@ -24,17 +24,6 @@
   color: #3F2A1D;
 }
 
-.topbar-actions {
-  display: flex;
-  align-items: center;
-  gap: 16rpx;
-}
-
-.topbar-btn {
-  font-size: 26rpx;
-  color: #A85732;
-}
-
 /* ── Exhibit Context Bar ─────────────────────────────────────────────────── */
 
 .exhibit-ctx-bar {

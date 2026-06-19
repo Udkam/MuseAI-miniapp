@@ -11,6 +11,8 @@ const HALL_ICON_ASSETS = [
 ]
 
 const TOUR_ICON_ASSETS = [
+  '/assets/icons/action-route-path.png',
+  '/assets/icons/action-report-scroll.png',
   '/assets/icons/action-search-exhibit.png',
   '/assets/icons/exhibit-empty-search.png',
   '/assets/icons/exhibit-list-item.png',

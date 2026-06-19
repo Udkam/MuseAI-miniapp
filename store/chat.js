@@ -10,6 +10,7 @@
  */
 
 const { RAG_STEP_CONFIG } = require('../constants/index')
+const RECENT_MESSAGE_MAX_CONTENT_CHARS = 800
 
 // ─── Status machine ────────────────────────────────────────────────────────
 const STATUS = {
@@ -170,7 +171,20 @@ function setGuestSessionId(id) {
  */
 function getRecentMessages(maxCount) {
   var n = Math.min(Math.max(maxCount || 6, 1), 10)
-  return _state.messages.slice(-n)
+  return _state.messages.slice(-n).map(function (message) {
+    var content = String((message && message.content) || '')
+      .replace(/\s+/g, ' ')
+      .trim()
+    if (content.length > RECENT_MESSAGE_MAX_CONTENT_CHARS) {
+      content = content.slice(0, RECENT_MESSAGE_MAX_CONTENT_CHARS - 1) + '…'
+    }
+    return {
+      role: message.role,
+      content: content,
+    }
+  }).filter(function (message) {
+    return (message.role === 'user' || message.role === 'assistant') && message.content
+  })
 }
 
 // ─── Full reset ────────────────────────────────────────────────────────────

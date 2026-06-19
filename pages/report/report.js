@@ -191,7 +191,7 @@ Page({
       .then(function (res) {
         if (!res || !res.ok) {
           tourStore.restorePendingEvents(events)
-          generate('部分本机记录暂未同步，本次报告仅使用服务器已保存的数据。')
+          self._applyUnavailable('游览记录上传失败，请检查网络后重试。', true)
           return
         }
         generate('')
@@ -199,7 +199,7 @@ Page({
       .catch(function (err) {
         console.warn('[report] flush events failed, restoring:', err)
         tourStore.restorePendingEvents(events)
-        generate('部分本机记录暂未同步，本次报告仅使用服务器已保存的数据。')
+        self._applyUnavailable('游览记录上传失败，请检查网络后重试。', true)
       })
   },
 

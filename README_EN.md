@@ -48,7 +48,9 @@ Remaining blockers:
   - matched result can open exhibit detail
 - Exhibit detail page with follow-up AI discussion.
 - Visit report page:
-  - visited halls counted from real feature-use events, not from merely entering a hall
+  - visited halls counted from browsed hall badges: sending a message in a hall, or opening any exhibit detail page from that hall
+  - question stats counted from user-sent messages, without deduplicating repeated question text
+  - exhibit stats counted from exhibit detail views, deduped by exhibit
   - reflection
   - hall-level record summary
   - basic stats
@@ -196,14 +198,13 @@ Needs configuration and validation:
 
 The report page uses backend report fields first and merges local unsynced tour events to reduce gaps caused by page switches or network failure.
 
-Visited halls are counted from:
+Visited halls and browsed hall badges are counted from:
 
-- `exhibit_question`
-- `assistant_answer`
-- `exhibit_view`
-- `exhibit_deep_dive`
+- `exhibit_question`: the user sent a message in a hall.
+- `exhibit_view`: the user opened an exhibit detail page.
+- `assistant_answer`: retained as compatibility for historical completed-answer events; new stats are anchored to user-sent messages and exhibit detail views.
 
-Simply entering a hall is not enough. The user must actually use a feature in that hall, such as asking a question, tapping a suggestion that asks a question, viewing an exhibit, or starting a deep dive. The frontend uses only the nine canonical hall slugs from the Banpo hall contract and converts them to Chinese names for display.
+Simply entering a hall is not enough. A hall is counted after the user sends at least one message in that hall, or opens any exhibit detail page from that hall. Hall counts are deduped by canonical slug. Question totals count user-sent messages and do not dedupe repeated question text, matching the continue-last-tour AI conversation count. Exhibit views are counted separately and deduped by exhibit. The frontend uses only the nine canonical hall slugs from the Banpo hall contract and converts them to Chinese names for display.
 
 Record summary data comes from hall-level local summaries saved when leaving a hall or opening the report, the current hall's latest local chat, and backend `record_notes`. The page keeps short hall-level notes instead of rendering every question as a separate summary item.
 
@@ -213,15 +214,19 @@ Record summary data comes from hall-level local summaries saved when leaving a h
 cd frontend
 npm run test:markdown
 npm run test:suggestions
+npm run test:hall-chat
 npm run test:report
+npm run test:preflight
 npm run test:all
 node --check api/index.js
 node --check api/stream.js
 node --check store/tour.js
 node --check pages/tour/tour.js
+node --check pages/hall/hall.js
 node --check pages/route/route.js
 node --check pages/report/report.js
 node --check pages/exhibit-scan/exhibit-scan.js
+node --check pages/exhibit-detail/exhibit-detail.js
 ```
 
 ## Real-Device Test Focus
@@ -232,8 +237,8 @@ node --check pages/exhibit-scan/exhibit-scan.js
 - AI answers should copy as plain text.
 - TTS play, stop, switch, and page-leave cleanup.
 - OCR should not run after the user cancels shooting.
-- Report visited halls, reflection, and record summary should match actual events.
-  In particular, entering a hall without using a feature should not count as a visited hall; asking, viewing, or deep-diving should count.
+- Report visited halls, exhibit count, question count, reflection, and record summary should match actual events.
+  In particular, entering a hall should not count; sending a message should count the question and the hall; opening an exhibit detail page should count the exhibit and the hall; hall and exhibit counts must be deduped, while question count must not dedupe repeated text.
 
 ## Launch Notes
 

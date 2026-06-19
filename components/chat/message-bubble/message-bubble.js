@@ -50,7 +50,10 @@ Component({
       if (role === 'assistant' && content && !isStreaming) {
         var self = this
         this.setData({ blocks: parseMarkdown(normalizeAssistantContent(content)) }, function () {
-          self.triggerEvent('rendered', { messageId: self.properties.messageId })
+          self.triggerEvent('contentrendered', {
+            role: role,
+            messageId: self.properties.messageId,
+          })
         })
       } else if (this.data.blocks.length) {
         this.setData({ blocks: [] })

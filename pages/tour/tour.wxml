@@ -3,9 +3,6 @@
   <!-- Top bar -->
   <view class="tour-topbar">
     <text class="topbar-hall">{{hallName}}</text>
-    <view class="topbar-actions">
-      <text class="topbar-btn" bindtap="goReport">报告</text>
-    </view>
   </view>
 
   <!-- Exhibit Context Bar (only shown when entered via exhibit-detail goDeeper) -->
@@ -36,7 +33,7 @@
         tts-status="{{item.ttsStatus}}"
         show-tts="{{ttsEnabled}}"
         bind:playtts="onMessageTtsTap"
-        bind:rendered="onMessageRendered"
+        bind:contentrendered="onMessageRendered"
       />
 
       <!-- ── RAG pipeline progress bar ── -->
@@ -76,7 +73,7 @@
         is-streaming="{{true}}"
       />
 
-      <!-- Scroll anchors (toggle between a/b so scroll-into-view always fires) -->
+      <!-- Scroll anchors: toggle between a/b so scroll-into-view always fires -->
       <view id="msg-bottom-a" style="height:1rpx;"></view>
       <view id="msg-bottom-b" style="height:1rpx;"></view>
 

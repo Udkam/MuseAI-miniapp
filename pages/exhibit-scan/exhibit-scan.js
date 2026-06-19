@@ -477,7 +477,7 @@ Page({
     if (ex.id && ex.id.indexOf('local-') !== 0 && ex.id.indexOf('mock-') !== 0) {
       url += '&id=' + encodeURIComponent(ex.id)
     } else {
-      tourStore.setCurrentExhibit(ex)
+      if (tourStore.setPendingDetailExhibit) tourStore.setPendingDetailExhibit(ex)
       url += '&local=1'
     }
     wx.navigateTo({ url: url })

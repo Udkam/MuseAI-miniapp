@@ -102,8 +102,8 @@ function _decodeBuffer(buffer) {
 function _parseBlock(block) {
   if (!block) return null
 
-  var lines   = block.split('\n')
-  var dataStr = null
+  var lines     = block.replace(/\r\n/g, '\n').replace(/\r/g, '\n').split('\n')
+  var dataParts = []
 
   for (var i = 0; i < lines.length; i++) {
     var line = lines[i]
@@ -112,11 +112,14 @@ function _parseBlock(block) {
     // Skip retry directives
     if (line.indexOf('retry:') === 0) continue
     // Extract data field
-    if (line.indexOf('data: ') === 0) {
-      dataStr = line.slice(6)
+    if (line.indexOf('data:') === 0) {
+      var dataLine = line.slice(5)
+      if (dataLine.charAt(0) === ' ') dataLine = dataLine.slice(1)
+      dataParts.push(dataLine)
     }
   }
 
+  var dataStr = dataParts.length ? dataParts.join('\n') : null
   if (dataStr === null || dataStr === '[DONE]') return null
 
   try {
@@ -135,6 +138,7 @@ function _parseBlock(block) {
  * incomplete; it is returned as `remaining` for the next call.
  */
 function _flushBuffer(buf) {
+  buf = String(buf || '').replace(/\r\n/g, '\n').replace(/\r/g, '\n')
   var parts     = buf.split('\n\n')
   var remaining = parts[parts.length - 1]  // possibly incomplete
   var events    = []

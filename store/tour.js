@@ -49,9 +49,8 @@ const HALL_CHAT_MAX_HALLS = 9
 
 const VISITED_HALL_EVENT_TYPES = {
   exhibit_question: true,
-  assistant_answer: true,
   exhibit_view: true,
-  exhibit_deep_dive: true,
+  assistant_answer: true,
 }
 
 // ─── Persona definitions ───────────────────────────────────────────────────
@@ -111,6 +110,7 @@ function _makeEmptyTour() {
     currentHall:       null,
     currentExhibitId:  null,
     currentExhibit:    null,   // full exhibit object; set by exhibit-detail before goDeeper
+    pendingDetailExhibit: null, // transient detail-page payload; not AI discussion context
     currentScannedExhibitId: null,
     currentScannedExhibitName: null,
     lastScanTimestamp: null,
@@ -174,9 +174,23 @@ function _hydrateStoredTour() {
     _tour.aiConversationCount = Number(stored.aiConversationCount || 0)
   }
 
+  var visited = _deriveVisitedHallsFromStorage()
+  if (visited.length || _tour.visitedHalls.length) {
+    _tour.visitedHalls = _normalizeVisitedHalls(_tour.visitedHalls.concat(visited))
+    if (_tour.visitedHalls.length) _persistVisitedHalls()
+  }
+
   if (!_tour.currentHall) {
     var hall = storage.get(STORAGE_KEYS.TOUR_CURRENT_HALL, null)
     if (hall) _tour.currentHall = banpoHalls.normalizeHallToSlug(hall)
+  }
+
+  if (!_tour.pendingEvents.length) {
+    var pending = storage.get(STORAGE_KEYS.TOUR_PENDING_EVENTS, [])
+    if (Array.isArray(pending) && pending.length) {
+      _tour.pendingEvents = pending.map(_sanitizePendingEvent).filter(Boolean)
+      _persistPendingEvents()
+    }
   }
 }
 
@@ -184,8 +198,122 @@ function _normalizeHallForStorage(hall) {
   return banpoHalls.normalizeHallToSlug(hall)
 }
 
+function _normalizeVisitedHalls(list) {
+  var seen = {}
+  var out = []
+  ;(Array.isArray(list) ? list : []).forEach(function (hall) {
+    var slug = _normalizeHallForStorage(hall)
+    if (!slug || seen[slug]) return
+    seen[slug] = true
+    out.push(slug)
+  })
+  return out
+}
+
+function _persistVisitedHalls() {
+  _tour.visitedHalls = _normalizeVisitedHalls(_tour.visitedHalls)
+  storage.set(STORAGE_KEYS.TOUR_VISITED_HALLS, _tour.visitedHalls)
+}
+
+function _deriveVisitedHallsFromStorage() {
+  var halls = []
+
+  var storedEvents = storage.get(STORAGE_KEYS.TOUR_PENDING_EVENTS, null)
+  if (Array.isArray(storedEvents)) {
+    storedEvents.forEach(function (event) {
+      if (event && VISITED_HALL_EVENT_TYPES[event.event_type || event.eventType] && event.hall) {
+        halls.push(event.hall)
+      }
+    })
+  }
+
+  var chatCache = storage.get(STORAGE_KEYS.TOUR_HALL_CHATS, null)
+  if (chatCache && chatCache.halls && typeof chatCache.halls === 'object') {
+    Object.keys(chatCache.halls).forEach(function (hall) {
+      var record = chatCache.halls[hall]
+      if (record && Array.isArray(record.messages) && _hasUserMessages(record.messages)) {
+        halls.push(hall)
+      }
+    })
+  }
+
+  return _normalizeVisitedHalls(halls)
+}
+
+function _eventOrderValue(event, fallback) {
+  var metadata = (event && event.metadata) || {}
+  var clientEventId = String(metadata.client_event_id || '')
+  var maybeTime = Number(clientEventId.split('-')[0])
+  if (isFinite(maybeTime) && maybeTime > 0) return maybeTime
+  var createdAt = Number(event && (event.createdAt || event.created_at))
+  if (isFinite(createdAt) && createdAt > 0) return createdAt
+  return fallback || 0
+}
+
+function _latestAnsweredHallFromStorage() {
+  var latest = null
+
+  function consider(hall, order) {
+    var slug = hall ? _normalizeHallForStorage(hall) : null
+    if (!slug) return
+    if (!latest || order > latest.order) {
+      latest = { hall: slug, order: order }
+    }
+  }
+
+  var pending = storage.get(STORAGE_KEYS.TOUR_PENDING_EVENTS, [])
+  if (Array.isArray(pending)) {
+    pending.forEach(function (event, index) {
+      if (!event || (event.event_type || event.eventType) !== 'assistant_answer') return
+      consider(event.hall, _eventOrderValue(event, index + 1))
+    })
+  }
+
+  var runtimeEvents = Array.isArray(_tour.pendingEvents) ? _tour.pendingEvents : []
+  runtimeEvents.forEach(function (event, index) {
+    if (!event || (event.event_type || event.eventType) !== 'assistant_answer') return
+    consider(event.hall, _eventOrderValue(event, pending.length + index + 1))
+  })
+
+  var chatCache = storage.get(STORAGE_KEYS.TOUR_HALL_CHATS, null)
+  var sessionKey = _tour.sessionId || (storage.getTourSession && storage.getTourSession().sessionId) || 'local'
+  if (chatCache && chatCache.sessionId === sessionKey && chatCache.halls && typeof chatCache.halls === 'object') {
+    Object.keys(chatCache.halls).forEach(function (hall) {
+      var record = chatCache.halls[hall]
+      if (!record || !Array.isArray(record.messages)) return
+      if (_extractMessagePairs(record.messages).length) {
+        consider(hall, Number(record.updatedAt || chatCache.updatedAt || 0))
+      }
+    })
+  }
+
+  return latest ? latest.hall : null
+}
+
 function _makeClientEventId() {
   return String(Date.now()) + '-' + Math.random().toString(36).slice(2, 10)
+}
+
+function _normalizeEventExhibitId(value) {
+  var id = value === undefined || value === null ? '' : String(value).trim()
+  if (!id || id.indexOf('local-') === 0 || id.indexOf('mock-') === 0) return null
+  return id
+}
+
+function _sanitizePendingEvent(event) {
+  if (!event || typeof event !== 'object') return null
+  var eventType = event.event_type || event.eventType || 'unknown'
+  var hall = event.hall || _tour.currentHall || null
+  var hallSlug = hall ? _normalizeHallForStorage(hall) : null
+  var metadata = Object.assign({}, event.metadata || {})
+  if (!metadata.client_event_id) metadata.client_event_id = _makeClientEventId()
+  return {
+    event_type: eventType,
+    exhibit_id: _normalizeEventExhibitId(event.exhibitId || event.exhibit_id),
+    hall: hallSlug,
+    duration_seconds: event.durationSeconds || event.duration_seconds || null,
+    metadata: metadata,
+  }
 }
 
 function _getHallChatSessionKey() {
@@ -337,6 +465,8 @@ function createLocalTourState(opts) {
   _tour = _makeEmptyTour()
   storage.setTourSession({ sessionId: null, sessionToken: null })
   storage.remove(STORAGE_KEYS.TOUR_CURRENT_HALL)
+  storage.remove(STORAGE_KEYS.TOUR_VISITED_HALLS)
+  storage.remove(STORAGE_KEYS.TOUR_PENDING_EVENTS)
   storage.remove(STORAGE_KEYS.TOUR_RECORD_SUMMARY)
   storage.remove(STORAGE_KEYS.TOUR_HALL_CHATS)
   _tour.interestType = o.interestType || null
@@ -344,9 +474,7 @@ function createLocalTourState(opts) {
   _tour.assumption   = o.assumption   || null
   _tour.personaId    = normalizePersonaId(o.personaId || o.persona || null)
 
-  // Recover any events that were buffered before a forced page restart
-  var stored = storage.get(STORAGE_KEYS.TOUR_PENDING_EVENTS, null)
-  _tour.pendingEvents = Array.isArray(stored) ? stored : []
+  _tour.pendingEvents = []
 
   return Object.assign({}, _tour)
 }
@@ -449,6 +577,16 @@ function getSavedCurrentHall() {
   return storedHall ? _normalizeHallForStorage(storedHall) : null
 }
 
+function getLastAnsweredHall() {
+  _hydrateStoredTour()
+  return _latestAnsweredHallFromStorage()
+}
+
+function getLastAnsweredHallDisplayName() {
+  var hall = getLastAnsweredHall()
+  return hall ? banpoHalls.getHallDisplayName(hall) : ''
+}
+
 /** @returns {object} shallow copy of current tour state */
 function getTourState() {
   _hydrateStoredTour()
@@ -500,15 +638,118 @@ function buildObjectPrompt(kind, name, intent) {
   return n + '能和展厅里哪些对象放在一起比较？比较后能看出什么？'
 }
 
+function _textHasAny(text, words) {
+  var source = String(text || '')
+  for (var i = 0; i < words.length; i++) {
+    if (source.indexOf(words[i]) >= 0) return true
+  }
+  return false
+}
+
+function _buildExhibitSuggestionPool(exhibit, persona) {
+  var kind = exhibit.objectKind || inferDiscussionObjectKind(exhibit)
+  var name = exhibit.name || ''
+  var label = name ? '“' + name + '”' : '这个对象'
+  var text = [name, exhibit.category, exhibit.description, kind].join(' ')
+  var pool = []
+
+  pool.push({
+    type: 'observation_task',
+    icon: '🔎',
+    title: kind === '遗迹' ? '看现场痕迹' : '看关键细节',
+    prompt: buildObjectPrompt(kind, name, 'details'),
+  })
+
+  if (_textHasAny(text, ['彩陶', '纹', '图案', '人面', '鱼纹', '装饰'])) {
+    pool.push({
+      type: 'observation_task',
+      icon: '🎨',
+      title: '读纹样线索',
+      prompt: '请围绕' + label + '的纹样或装饰说明：哪些信息能直接观察，哪些属于可能解释？',
+    })
+  } else if (_textHasAny(text, ['石器', '骨器', '工具', '针', '斧', '锥', '磨', '钻'])) {
+    pool.push({
+      type: 'observation_task',
+      icon: '🛠',
+      title: '看使用痕迹',
+      prompt: label + '可能经历过哪些加工或使用？材料、刃口、磨损和形态分别能说明什么？',
+    })
+  } else if (_textHasAny(text, ['陶窑', '烧', '窑', '火候', '残片'])) {
+    pool.push({
+      type: 'observation_task',
+      icon: '🔥',
+      title: '找火候证据',
+      prompt: '观察' + label + '时，可以从颜色、残片、结构或位置关系判断哪些烧制信息？',
+    })
+  } else if (kind === '遗迹' || _textHasAny(text, ['房屋', '壕沟', '墓葬', '作坊', '灶', '空间'])) {
+    pool.push({
+      type: 'comparison',
+      icon: '🧭',
+      title: '读空间关系',
+      prompt: label + '和周围的房址、墓葬、壕沟或作坊之间有什么关系？这些关系能说明怎样的聚落秩序？',
+    })
+  } else {
+    pool.push({
+      type: 'observation_task',
+      icon: '💡',
+      title: '问用途证据',
+      prompt: buildObjectPrompt(kind, name, 'function'),
+    })
+  }
+
+  var personaPrompts = {
+    A: {
+      icon: '📍',
+      title: '证据边界',
+      prompt: '围绕' + label + '，哪些判断能由实物或现场位置直接支持，哪些还只能作为解释？',
+    },
+    B: {
+      icon: '📝',
+      title: '记成笔记',
+      prompt: '如果把' + label + '写进研学笔记，最该记录哪三个观察点和一个追问？',
+    },
+    C: {
+      icon: '🧩',
+      title: '连到社会',
+      prompt: label + '能连接到半坡人的共同生活、分工或礼俗吗？请把证据和推测分开说。',
+    },
+    D: {
+      icon: '🏺',
+      title: '器物细读',
+      prompt: '请按材料、器形、纹饰、痕迹和使用场景来细读' + label + '。',
+    },
+    default: {
+      icon: '📍',
+      title: '先看什么',
+      prompt: '第一次看' + label + '时，应该先观察哪些可见信息，再决定要不要解释它的用途或意义？',
+    },
+  }
+  var personaItem = personaPrompts[persona] || personaPrompts.default
+  pool.push({
+    type: persona === 'C' ? 'comparison' : 'observation_task',
+    icon: personaItem.icon,
+    title: personaItem.title,
+    prompt: personaItem.prompt,
+  })
+
+  pool.push({
+    type: 'comparison',
+    icon: '🧭',
+    title: '展厅对照',
+    prompt: buildObjectPrompt(kind, name, 'relation'),
+  })
+
+  return pool
+}
+
 /**
  * Store the exhibit currently being discussed so buildStyledPrompt can inject
  * its metadata into every message while the user is in exhibit-focus mode.
  * @param {object|null} exhibit  normalizeExhibit() output from exhibit-detail
  */
-function setCurrentExhibit(exhibit) {
-  if (!exhibit) { _tour.currentExhibit = null; return }
-  // Store only the fields needed for context injection and display
-  _tour.currentExhibit = {
+function _normalizeExhibitContext(exhibit) {
+  if (!exhibit) return null
+  return {
     id:          exhibit.id          || exhibit.name || null,
     name:        exhibit.name        || '',
     hall:        exhibit.hall ? banpoHalls.normalizeHallToSlug(exhibit.hall) : '',
@@ -521,6 +762,10 @@ function setCurrentExhibit(exhibit) {
   }
 }
 
+function setCurrentExhibit(exhibit) {
+  _tour.currentExhibit = _normalizeExhibitContext(exhibit)
+}
+
 /** Clear exhibit-focus mode (user tapped ✕ in the Context Bar). */
 function clearCurrentExhibit() {
   _tour.currentExhibit = null
@@ -529,6 +774,18 @@ function clearCurrentExhibit() {
 /** @returns {object|null} shallow copy of currentExhibit, or null */
 function getCurrentExhibit() {
   return _tour.currentExhibit ? Object.assign({}, _tour.currentExhibit) : null
+}
+
+function setPendingDetailExhibit(exhibit) {
+  _tour.pendingDetailExhibit = _normalizeExhibitContext(exhibit)
+}
+
+function consumePendingDetailExhibit(name) {
+  var pending = _tour.pendingDetailExhibit
+  if (!pending) return null
+  if (name && pending.name && pending.name !== name) return null
+  _tour.pendingDetailExhibit = null
+  return Object.assign({}, pending)
 }
 
 function setCurrentScannedExhibit(exhibit) {
@@ -555,22 +812,13 @@ function getCurrentScannedExhibit() {
  *            durationSeconds?: number, metadata?: object }} event
  */
 function addTourEvent(event) {
-  var hall = event.hall || _tour.currentHall || null
-  var eventType = event.eventType || event.event_type || 'unknown'
-  var hallSlug = hall ? _normalizeHallForStorage(hall) : null
-  var metadata = Object.assign({}, event.metadata || {})
-  if (!metadata.client_event_id) {
-    metadata.client_event_id = _makeClientEventId()
-  }
-  var entry = {
-    event_type:       eventType,
-    exhibit_id:       event.exhibitId        || event.exhibit_id        || null,
-    hall:             hallSlug,
-    duration_seconds: event.durationSeconds  || event.duration_seconds  || null,
-    metadata:         metadata,
-  }
+  var entry = _sanitizePendingEvent(event)
+  if (!entry) return
+  var eventType = entry.event_type
+  var hallSlug = entry.hall
   if (VISITED_HALL_EVENT_TYPES[eventType] && hallSlug && _tour.visitedHalls.indexOf(hallSlug) === -1) {
     _tour.visitedHalls = _tour.visitedHalls.concat(hallSlug)
+    _persistVisitedHalls()
   }
   _tour.pendingEvents = _tour.pendingEvents.concat(entry)
   _persistPendingEvents()
@@ -583,7 +831,8 @@ function addTourEvent(event) {
  * @returns {Array}
  */
 function drainPendingEvents() {
-  var events          = _tour.pendingEvents.slice()
+  _hydrateStoredTour()
+  var events          = _tour.pendingEvents.map(_sanitizePendingEvent).filter(Boolean)
   _tour.pendingEvents = []
   _persistPendingEvents()
   return events
@@ -594,11 +843,21 @@ function drainPendingEvents() {
  * @param {Array} events
  */
 function restorePendingEvents(events) {
-  _tour.pendingEvents = events.concat(_tour.pendingEvents)
+  var sanitized = (events || []).map(_sanitizePendingEvent).filter(Boolean)
+  _tour.pendingEvents = sanitized.concat(_tour.pendingEvents.map(_sanitizePendingEvent).filter(Boolean))
+  sanitized.forEach(function (event) {
+    var eventType = event && (event.event_type || event.eventType)
+    var hallSlug = event && event.hall ? _normalizeHallForStorage(event.hall) : null
+    if (VISITED_HALL_EVENT_TYPES[eventType] && hallSlug && _tour.visitedHalls.indexOf(hallSlug) === -1) {
+      _tour.visitedHalls = _tour.visitedHalls.concat(hallSlug)
+    }
+  })
+  if (events && events.length) _persistVisitedHalls()
   _persistPendingEvents()
 }
 
 function _persistPendingEvents() {
+  _tour.pendingEvents = _tour.pendingEvents.map(_sanitizePendingEvent).filter(Boolean)
   storage.set(STORAGE_KEYS.TOUR_PENDING_EVENTS, _tour.pendingEvents)
 }
 
@@ -696,6 +955,12 @@ function _extractMessagePairs(messages) {
     if (answer) pairs.push({ question: msg.content, answer: answer })
   }
   return pairs
+}
+
+function _hasUserMessages(messages) {
+  return (Array.isArray(messages) ? messages : []).some(function (msg) {
+    return msg && msg.role === 'user' && !!msg.content
+  })
 }
 
 function _summarizeHallRecord(hall, messages) {
@@ -1005,36 +1270,13 @@ function generateGuideSuggestions(opts) {
 
   // ── Exhibit mode: suggestions around the selected exhibit ─────────────────
   if (exhibit) {
-    var objectKind = exhibit.objectKind || inferDiscussionObjectKind(exhibit)
-    var objectName = exhibit.name || ''
-
-    suggestions.push({
-      id: _id(), type: 'observation_task', icon: '🔎', title: '看关键细节',
-      actionType: 'ask', payload: { prompt: buildObjectPrompt(objectKind, objectName, 'details') },
-    })
-
-    var cat = exhibit.category || ''
-    var obsTitle = objectKind === '遗迹' ? '判断空间作用' : (objectKind === '资料' ? '读懂信息' : '问用途和证据')
-    var obsPmt   = buildObjectPrompt(objectKind, objectName, 'function')
-    if (cat.indexOf('彩陶') >= 0) {
-      obsTitle = '读纹样证据'
-      obsPmt   = '请围绕“' + objectName + '”上的纹样说明：哪些能直接观察，哪些属于可能解释？'
-    } else if (cat.indexOf('汲水') >= 0 || cat.indexOf('汲') >= 0) {
-      obsTitle = '了解使用原理'
-      obsPmt   = '“' + objectName + '”可能怎样使用？它的形态设计提供了哪些证据？'
-    } else if (cat.indexOf('骨') >= 0 || cat.indexOf('石') >= 0) {
-      obsTitle = '了解制作工艺'
-      obsPmt   = '“' + objectName + '”可能怎样制作？能从哪些加工痕迹判断？'
+    var pool = _buildExhibitSuggestionPool(exhibit, persona)
+    for (var pi = 0; pi < pool.length; pi++) {
+      suggestions.push({
+        id: _id(), type: pool[pi].type, icon: pool[pi].icon, title: pool[pi].title,
+        actionType: 'ask', payload: { prompt: pool[pi].prompt },
+      })
     }
-    suggestions.push({
-      id: _id(), type: 'observation_task', icon: '🔎', title: obsTitle,
-      actionType: 'ask', payload: { prompt: obsPmt },
-    })
-
-    suggestions.push({
-      id: _id(), type: 'comparison', icon: '🧭', title: '放回展厅看',
-      actionType: 'ask', payload: { prompt: buildObjectPrompt(objectKind, objectName, 'relation') },
-    })
 
     // Related object: highest importance in same hall, not current
     var related = null
@@ -1051,11 +1293,6 @@ function generateGuideSuggestions(opts) {
         payload: { exhibitId: related.id, exhibitName: related.name },
       })
     }
-
-    suggestions.push({
-      id: _id(), type: 'next_step', icon: '←', title: '返回列表',
-      actionType: 'navigate_back', payload: {},
-    })
 
     return _decorateSuggestions(suggestions.slice(0, 4))
   }
@@ -1440,6 +1677,8 @@ module.exports = {
   setCurrentExhibit,
   clearCurrentExhibit,
   getCurrentExhibit,
+  setPendingDetailExhibit,
+  consumePendingDetailExhibit,
   setCurrentScannedExhibit,
   getCurrentScannedExhibit,
 
@@ -1483,4 +1722,6 @@ module.exports = {
   // Hall persistence
   getSavedCurrentHall,
   getCurrentHallDisplayName: _getCurrentHallDisplayName,
+  getLastAnsweredHall,
+  getLastAnsweredHallDisplayName,
 }

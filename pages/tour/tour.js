@@ -7,6 +7,7 @@ const preload = require('../../utils/preload')
 const TOUR_TTS_STYLE = '请用清晰、自然、亲切的博物馆导览语气朗读；语速稍快，比常规讲解更利落，句间停顿短一些，尾音不要拖长。不要额外补充文字，只朗读给定内容。'
 const TTS_SEGMENT_MAX_CHARS = 72
 const TTS_SEGMENT_MAX_COUNT = 10
+const STREAM_FLUSH_INTERVAL_MS = 80
 
 // Safe-area inset is device-constant; cache it across page entries so we don't
 // pay the synchronous system-info bridge cost during each slide-in transition.
@@ -117,7 +118,7 @@ Page({
     ragSteps:         [],    // RAG pipeline progress (from onEvent)
     inputText:        '',
     sessionId:        null,
-    scrollTarget:     '',    // intentionally empty; set by _scrollToBottom() on first send
+    scrollTarget:     '',    // toggled by _scrollToBottom() after first send
     loadingHint:      '',    // progressive hint text while waiting for first chunk
     currentExhibit:   null,  // set by exhibit-detail goDeeper; null = general tour mode
     guideSuggestions: [],   // array of { id, type, icon, title, actionType, payload }
@@ -136,11 +137,13 @@ Page({
 
   // ── Instance vars (non-reactive) ──────────────────────────────────────────
   _streamTask:    null,   // active RequestTask — call .abort() to cancel
-  _scrollPending: false,  // debounce flag for _scrollToBottom
+  _scrollPending: false,
+  _finalScrollPending: false,
   _perf:          null,   // { sendAt, streamStartAt, firstChunkAt, doneAt }
   _hintTimer3:    null,   // upgrades loadingHint text at 3 s
   _hintTimer8:    null,   // upgrades loadingHint text at 8 s
-  _chunkBuffer:   '',     // chunk text accumulator pending the next 80 ms flush
+  _chunkBuffer:   '',     // chunk text accumulator pending the next throttled flush
+  _streamText:    '',     // local streaming accumulator; avoids reading stale setData state
   _flushTimer:    null,   // timer ID for scheduled _chunkBuffer flush
   _loadedAt:      0,      // timestamp (ms) of last onLoad/onShow — ghost-tap guard
   _suggestionSeq: 0,      // prevents stale Phase-2 suggestions from overwriting the next hall/exhibit
@@ -157,6 +160,7 @@ Page({
   _guideSuggestionsSig: '',
   _postEnterTimer: null,
   _scrollPulseTimers: null,
+  _resendWithoutQuestionCount: false,
 
   // ── Lifecycle ─────────────────────────────────────────────────────────────
 
@@ -286,8 +290,6 @@ Page({
     this._destroyTtsAudio()
     this._cleanupOwnTtsFiles()
     this._teardownKeyboardLift()
-    // Fire-and-forget: best-effort flush of pending events on page leave
-    this._flushEvents(null)
   },
 
   _persistCurrentHallChat: function () {
@@ -408,10 +410,6 @@ Page({
     if (h) this._scrollToBottom()
   },
 
-  onMessageRendered: function () {
-    this._scrollToBottomSettled()
-  },
-
   // ── Send message ──────────────────────────────────────────────────────────
 
   sendMessage: function () {
@@ -422,6 +420,8 @@ Page({
     var state = tourStore.getTourState()
     var id    = state.sessionId
     var token = state.sessionToken
+    var isCtxQ = tourStore.isContextQuestion(text)
+    var recentMsgsBeforeSend = isCtxQ ? chatStore.getRecentMessages(6) : []
 
     if (!id) {
       self._ensureTourSession().then(function (created) {
@@ -435,6 +435,7 @@ Page({
     // ── Performance clock ──────────────────────────────────────────────────
     var now = Date.now()
     self._perf = { sendAt: now, streamStartAt: now, firstChunkAt: 0, doneAt: 0 }
+    self._streamText = ''
 
     // ── Append user bubble immediately ─────────────────────────────────────
     var userMsg = { id: Date.now(), role: 'user', content: text }
@@ -447,8 +448,9 @@ Page({
       streamingContent: '',
       ragSteps:         [],
       loadingHint:      '正在连接 AI 导览员…',
+    }, function () {
+      self._scrollToBottom(0)
     })
-    self._scrollToBottom()
 
     // ── Progressive loading hints ──────────────────────────────────────────
     self._clearHintTimers()
@@ -464,11 +466,16 @@ Page({
     }, 8000)
 
     // ── Record exhibit_question event ──────────────────────────────────────
+    var shouldCountQuestion = !self._resendWithoutQuestionCount
+    self._resendWithoutQuestionCount = false
     tourStore.addTourEvent({
       eventType: 'exhibit_question',
       hall:      state.currentHall || banpoHalls.normalizeHallToSlug(self.data.hallName) || '',
       metadata:  { message: text.slice(0, 200) },
     })
+    if (shouldCountQuestion) {
+      tourStore.incrementAiConversationCount()
+    }
 
     // ── Start SSE stream ───────────────────────────────────────────────────
     var stylePrefs = tourStore.getStylePrefs()
@@ -476,10 +483,11 @@ Page({
       ? { answer_length: stylePrefs.answerLength, depth: stylePrefs.depth, terminology: stylePrefs.terminology }
       : null
 
-    // Detect referential questions (e.g. "我们在讨论什么") and inject recent history
+    // Detect referential questions and inject prior history only. The current
+    // question is already sent as `message`; duplicating it in history can make
+    // the backend take the slower context-rewrite path before the first token.
     var currentExhibit = state.currentExhibit || null
-    var isCtxQ         = tourStore.isContextQuestion(text)
-    var recentMsgs     = chatStore.getRecentMessages(6)
+    var recentMsgs     = recentMsgsBeforeSend
 
     // Keep the retrieval query clean: send the user's original question as message.
     // Context and onboarding preferences are sent separately so they guide the answer
@@ -502,7 +510,7 @@ Page({
       token:     token,
       style:     style,
       clientContext: clientContext,
-      conversationHistory: recentMsgs,
+      conversationHistory: recentMsgs.length ? recentMsgs : null,
       exhibitId: currentExhibit ? currentExhibit.id : undefined,
 
       onChunk: function (chunk) {
@@ -517,7 +525,9 @@ Page({
           }
           self._clearHintTimers()
           chatStore.startAssistantMessage()
-          self.setData({ isThinking: false, isStreaming: true, loadingHint: '' })
+          self.setData({ isThinking: false, isStreaming: true, loadingHint: '' }, function () {
+            self._scrollToBottom(0)
+          })
         }
 
         // Buffer for throttled UI flush (every 80 ms)
@@ -553,12 +563,12 @@ Page({
         var finalContent = payload.content
           || (payload.chunks && payload.chunks.join(''))
           || chatStore.getState().streamingBuffer
+          || self._streamText
           || self.data.streamingContent
           || ''
 
         var traceId = payload.trace_id || null
         chatStore.finishAssistantMessage({ content: finalContent, traceId: traceId })
-        tourStore.incrementAiConversationCount()
         tourStore.addTourEvent({
           eventType: 'assistant_answer',
           hall:      state.currentHall || banpoHalls.normalizeHallToSlug(self.data.hallName) || '',
@@ -566,6 +576,7 @@ Page({
             question: text.slice(0, 200),
             answer:   plainTextForTts(finalContent).slice(0, 600),
             trace_id: traceId,
+            is_ceramic_question: !!(payload && payload.is_ceramic_question),
           },
         })
 
@@ -576,6 +587,7 @@ Page({
           traceId: traceId,
           ttsStatus: 'idle',
         }
+        self._finalScrollPending = true
         self.setData({
           messages:         self.data.messages.concat(aiMsg),
           streamingContent: '',
@@ -614,6 +626,7 @@ Page({
           content: '⚠ ' + friendly,
           isError: true,
         }
+        self._finalScrollPending = true
         self.setData({
           messages:         self.data.messages.concat(errMsg),
           streamingContent: '',
@@ -645,7 +658,8 @@ Page({
     self._clearHintTimers()
     self._forceFlush()
 
-    var accumulated  = self.data.streamingContent
+    var accumulated  = self._streamText
+      || self.data.streamingContent
       || chatStore.getState().streamingBuffer
       || ''
     var finalContent = accumulated
@@ -660,6 +674,7 @@ Page({
       content: finalContent,
       ttsStatus: 'idle',
     }
+    self._finalScrollPending = true
     self.setData({
       messages:         self.data.messages.concat(stoppedMsg),
       streamingContent: '',
@@ -1170,20 +1185,21 @@ Page({
     self._flushTimer = setTimeout(function () {
       self._flushTimer = null
       if (self._chunkBuffer) {
-        var next = self.data.streamingContent + self._chunkBuffer
+        self._streamText += self._chunkBuffer
         self._chunkBuffer = ''
-        self.setData({ streamingContent: next })
-        self._scrollToBottom()
+        self.setData({ streamingContent: self._streamText }, function () {
+          self._scrollToBottom(0)
+        })
       }
-    }, 80)
+    }, STREAM_FLUSH_INTERVAL_MS)
   },
 
   _forceFlush: function () {
     this._clearFlushTimer()
     if (this._chunkBuffer) {
-      var next = this.data.streamingContent + this._chunkBuffer
+      this._streamText += this._chunkBuffer
       this._chunkBuffer = ''
-      this.setData({ streamingContent: next })
+      this.setData({ streamingContent: this._streamText })
     }
   },
 
@@ -1287,12 +1303,15 @@ Page({
     self._ensureTourSession().then(function (created) {
       self._sessionRecoveryRetrying = false
       if (created) {
+        self._resendWithoutQuestionCount = true
         self.sendMessage()
         return
       }
+      self._resendWithoutQuestionCount = false
       wx.showToast({ title: '会话恢复失败，请稍后重试', icon: 'none', duration: 2200 })
     }).catch(function (err) {
       self._sessionRecoveryRetrying = false
+      self._resendWithoutQuestionCount = false
       console.warn('[tour] session recovery failed', err)
       wx.showToast({ title: '会话恢复失败，请稍后重试', icon: 'none', duration: 2200 })
     })
@@ -1344,6 +1363,7 @@ Page({
         self._forceFlush()
         chatStore.finishAssistantMessage({ content: reply })
         var aiMsg = { id: Date.now(), role: 'assistant', content: reply, ttsStatus: 'idle' }
+        self._finalScrollPending = true
         self.setData({
           messages:         self.data.messages.concat(aiMsg),
           streamingContent: '',
@@ -1362,7 +1382,7 @@ Page({
     }, 35)
   },
 
-  // ── Scroll helper (debounced, toggles anchor ID to force re-scroll) ────────
+  // ── Scroll helper ─────────────────────────────────────────────────────────
 
   _scrollToBottomAfterRestore: function () {
     this._scrollToBottomSettled()
@@ -1394,10 +1414,17 @@ Page({
     self._scrollPending = true
     setTimeout(function () {
       self._scrollPending = false
-      var cur  = self.data.scrollTarget
+      var cur = self.data.scrollTarget
       var next = (cur === '' || cur === 'msg-bottom-a') ? 'msg-bottom-b' : 'msg-bottom-a'
       self.setData({ scrollTarget: next })
     }, typeof delay === 'number' ? delay : 80)
+  },
+
+  onMessageRendered: function (e) {
+    var detail = (e && e.detail) || {}
+    if (!this._finalScrollPending || detail.role !== 'assistant') return
+    this._finalScrollPending = false
+    this._scrollToBottomSettled()
   },
 
   // ── Exhibit context ───────────────────────────────────────────────────────
@@ -1412,30 +1439,5 @@ Page({
 
   goScan: function () {
     wx.navigateTo({ url: '/pages/exhibit-scan/exhibit-scan' })
-  },
-
-  goReport: function () {
-    var self = this
-    if (self._reportNavigating) return
-    self._reportNavigating = true
-
-    if (self.data.isThinking || self.data.isStreaming) {
-      self.stopStream()
-    }
-    self._syncHallChatAndSummary()
-    tourStore.summarizeStoredHallRecords()
-
-    // Navigate first so a slow/cancelled event upload never makes the button feel dead.
-    wx.navigateTo({
-      url: '/pages/report/report',
-      complete: function () {
-        setTimeout(function () { self._reportNavigating = false }, 600)
-      },
-    })
-
-    // Best-effort background flush; report page also merges local pending events.
-    setTimeout(function () {
-      self._flushEvents(null)
-    }, 0)
   },
 })

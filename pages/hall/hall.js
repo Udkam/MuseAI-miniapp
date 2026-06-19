@@ -53,6 +53,7 @@ Page({
       '/pages/tour/tour',
       '/pages/route/route',
       '/pages/exhibit-scan/exhibit-scan',
+      '/pages/report/report',
     ], 120)
     preload.preloadImages(preload.TOUR_ICON_ASSETS, 160)
   },
@@ -93,5 +94,18 @@ Page({
 
   goRoute: function () {
     wx.navigateTo({ url: '/pages/route/route' })
+  },
+
+  goReport: function () {
+    var self = this
+    if (self._reportNavigating) return
+    self._reportNavigating = true
+    tourStore.summarizeStoredHallRecords()
+    wx.navigateTo({
+      url: '/pages/report/report',
+      complete: function () {
+        setTimeout(function () { self._reportNavigating = false }, 600)
+      },
+    })
   },
 })

@@ -18,15 +18,17 @@
   min-width: 0;
 }
 
+.hall-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 12rpx;
+  flex-shrink: 0;
+}
+
 .hall-title {
   font-size: 44rpx;
   font-weight: 700;
   color: #3F2A1D;
-  display: block;
-  margin-bottom: 12rpx;
-}
-
-.hall-sub {
   display: block;
 }
 
@@ -42,9 +44,9 @@
   flex-shrink: 0;
 }
 
-.route-entry-icon {
-  font-size: 30rpx;
-  line-height: 1;
+.route-entry-img {
+  width: 30rpx;
+  height: 30rpx;
   flex-shrink: 0;
 }
 

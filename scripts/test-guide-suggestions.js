@@ -190,11 +190,19 @@ const exhibit = {
   hallDisplay: '基本陈列展厅',
 }
 tourStore.setCurrentExhibit(exhibit)
-const exhibitSuggestions = askSuggestions(tourStore.generateGuideSuggestions({
+const rawExhibitSuggestions = tourStore.generateGuideSuggestions({
   currentHall: '基本陈列展厅',
   currentExhibit: exhibit,
   exhibits: [{ id: 'other-1', name: '鹿纹彩陶盆', importance: 8 }],
-}))
+})
+const exhibitSuggestions = askSuggestions(rawExhibitSuggestions)
+assert.strictEqual(
+  rawExhibitSuggestions.some(function (item) {
+    return item.title === '返回列表' || item.actionType === 'navigate_back'
+  }),
+  false,
+  'exhibit-mode suggestions should not contain a return-to-list action'
+)
 
 assert.ok(
   exhibitSuggestions.some(function (item) {

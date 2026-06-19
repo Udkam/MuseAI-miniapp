@@ -4,11 +4,16 @@
     <view class="hall-title-row">
       <view class="hall-title-copy">
         <text class="hall-title">选择你的探索区域</text>
-        <text class="hall-sub text-muted text-sm">按固定展厅顺序浏览，也可以从现场所在展厅开始</text>
       </view>
-      <view class="route-entry" bindtap="goRoute">
-        <text class="route-entry-icon">🧭</text>
-        <text class="route-entry-text">路线</text>
+      <view class="hall-header-actions">
+        <view class="route-entry" bindtap="goRoute">
+          <image class="route-entry-img" src="/assets/icons/action-route-path.png" mode="aspectFit"></image>
+          <text class="route-entry-text">路线</text>
+        </view>
+        <view class="route-entry" bindtap="goReport">
+          <image class="route-entry-img" src="/assets/icons/action-report-scroll.png" mode="aspectFit"></image>
+          <text class="route-entry-text">报告</text>
+        </view>
       </view>
     </view>
   </view>

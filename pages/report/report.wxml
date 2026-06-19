@@ -23,7 +23,7 @@
     </view>
     <view class="stat-item">
       <text class="stat-num">{{stats.exhibits}}</text>
-      <text class="stat-label text-muted">展项</text>
+      <text class="stat-label text-muted">展品</text>
     </view>
     <view class="stat-item">
       <text class="stat-num">{{stats.messages}}</text>

@@ -108,13 +108,13 @@ mapped = page._mapReportData({
     { question: '游览记录摘要', point: '后端在无 LLM 摘要时返回的摘要。' },
     { question: '多余项', point: '页面只展示一条摘要。' },
   ],
-}, '部分本机记录暂未同步，本次报告仅使用服务器已保存的数据。')
+}, '游览记录上传失败，请检查网络后重试。')
 
 assert.strictEqual(mapped.reportTitle, '半坡研学记录报告')
 assert.deepStrictEqual(mapped.recordNotes, [
   { question: '游览记录摘要', point: '后端在无 LLM 摘要时返回的摘要。' },
 ])
-assert.strictEqual(mapped.dataNotice, '部分本机记录暂未同步，本次报告仅使用服务器已保存的数据。')
+assert.strictEqual(mapped.dataNotice, '游览记录上传失败，请检查网络后重试。')
 assert.strictEqual(mapped.stats.duration, '-')
 
 page = makePage()

@@ -13,9 +13,12 @@ Page({
   onShow: function () {
     var state = tourStore.getTourState()
     var canResume = tourStore.hasResumableTourSession(0)
+    var lastAnsweredHallName = canResume && tourStore.getLastAnsweredHallDisplayName
+      ? tourStore.getLastAnsweredHallDisplayName()
+      : ''
     this.setData({
       hasTourSession: canResume,
-      resumeHallName: canResume ? (tourStore.getCurrentHallDisplayName() || '展厅选择') : '',
+      resumeHallName: canResume ? lastAnsweredHallName : '',
       aiConversationCount: state.aiConversationCount || 0,
     })
     this._preloadNext()

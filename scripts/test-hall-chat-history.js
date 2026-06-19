@@ -15,6 +15,7 @@ global.wx = {
 
 const storageUtil = require('../utils/storage')
 let tourStore = require('../store/tour')
+const chatStore = require('../store/chat')
 
 function resetStorage() {
   Object.keys(storage).forEach(function (key) { delete storage[key] })
@@ -35,6 +36,11 @@ tourStore.createLocalTourState({
 })
 tourStore.setTourSession({ sessionId: 'session-1', sessionToken: 'token-1' })
 tourStore.updateTourState({ currentHall: 'basic-exhibition-hall' })
+assert.strictEqual(
+  tourStore.getLastAnsweredHallDisplayName(),
+  '',
+  'entering a hall without a completed answer should not populate the resume hall name'
+)
 
 const messages = [
   { id: 1, role: 'assistant', content: '这里是基本陈列展厅。', ttsStatus: 'idle' },
@@ -44,17 +50,65 @@ const messages = [
 
 tourStore.saveCurrentHallChatMessages(messages)
 assert.strictEqual(storage[storageUtil.KEYS.TOUR_HALL_CHATS].sessionId, 'session-1')
+tourStore.addTourEvent({ eventType: 'exhibit_question', hall: 'kiln-hall' })
+assert.ok(
+  tourStore.getTourState().visitedHalls.indexOf('kiln-hall') >= 0,
+  'sent user question should mark a hall visited'
+)
+tourStore.addTourEvent({ eventType: 'assistant_answer', hall: 'kiln-hall' })
+assert.ok(
+  tourStore.getTourState().visitedHalls.indexOf('kiln-hall') >= 0,
+  'visited hall should be tracked after an effective interaction'
+)
+assert.ok(
+  storage[storageUtil.KEYS.TOUR_VISITED_HALLS].indexOf('kiln-hall') >= 0,
+  'visited hall should be persisted'
+)
+tourStore.addTourEvent({ eventType: 'exhibit_view', hall: 'site-protection-hall', exhibitId: 'exhibit-1' })
+assert.ok(
+  tourStore.getTourState().visitedHalls.indexOf('site-protection-hall') >= 0,
+  'viewing an exhibit should mark its hall visited'
+)
+assert.strictEqual(
+  tourStore.getLastAnsweredHallDisplayName(),
+  '陶窑展厅',
+  'resume hall name should use the latest hall with a completed AI answer'
+)
 
 reloadTourStore()
 const restored = tourStore.getHallChatMessages('basic-exhibition-hall')
 assert.strictEqual(restored.length, 3, 'hall chat should restore after store reload')
 assert.strictEqual(restored[1].content, '石器和骨器是做什么用的？')
 assert.strictEqual(restored[2].ttsStatus, 'idle', 'assistant messages should restore with idle tts status')
+const restoredState = tourStore.getTourState()
+assert.ok(
+  restoredState.visitedHalls.indexOf('basic-exhibition-hall') >= 0,
+  'visited halls should backfill from stored hall chat history after reload'
+)
+assert.ok(
+  restoredState.visitedHalls.indexOf('kiln-hall') >= 0,
+  'visited halls should restore from persisted visited list after reload'
+)
+assert.ok(
+  restoredState.visitedHalls.indexOf('site-protection-hall') >= 0,
+  'visited halls should restore from exhibit view events after reload'
+)
 
 const notes = tourStore.summarizeStoredHallRecords()
 assert.strictEqual(notes.length, 1, 'stored hall chats should produce report notes')
 assert.strictEqual(notes[0].hall, 'basic-exhibition-hall')
 assert.ok(notes[0].point.indexOf('石器') >= 0 || notes[0].point.indexOf('骨器') >= 0)
+
+tourStore.saveHallChatMessages('site-protection-hall', [
+  { id: 11, role: 'assistant', content: '这里是遗址保护大厅。', ttsStatus: 'idle' },
+])
+storage[storageUtil.KEYS.TOUR_VISITED_HALLS] = ['peony-garden']
+reloadTourStore()
+assert.strictEqual(
+  tourStore.getTourState().visitedHalls.indexOf('peony-garden'),
+  -1,
+  'stored visited badges should not survive without a user message or exhibit view event'
+)
 
 tourStore.createLocalTourState({
   interestType: 'C',
@@ -66,6 +120,26 @@ assert.deepStrictEqual(
   tourStore.getHallChatMessages('basic-exhibition-hall'),
   [],
   'new tour should not inherit previous hall chat history'
+)
+assert.deepStrictEqual(
+  tourStore.getTourState().visitedHalls,
+  [],
+  'new tour should not inherit previous visited hall badges'
+)
+
+chatStore.resetChat()
+chatStore.setMessages([
+  { id: 101, role: 'assistant', content: '长'.repeat(1400) },
+  { id: 102, role: 'user', content: '问'.repeat(1200) },
+])
+const recent = chatStore.getRecentMessages(2)
+assert.strictEqual(recent.length, 2)
+assert.ok(recent[0].content.length <= 800, 'assistant history should fit backend max_length')
+assert.ok(recent[1].content.length <= 800, 'user history should fit backend max_length')
+assert.deepStrictEqual(
+  recent.map(function (item) { return item.role }),
+  ['assistant', 'user'],
+  'history should preserve roles after compaction'
 )
 
 console.log('hall chat history checks passed')

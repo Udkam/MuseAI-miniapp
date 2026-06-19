@@ -39,6 +39,7 @@ const STORAGE_KEYS = {
   TOUR_RECORD_SUMMARY:   'tour_record_summary',
   TOUR_HALL_CHATS:       'tour_hall_chats',
   TOUR_CURRENT_HALL:     'tour_current_hall',
+  TOUR_VISITED_HALLS:    'tour_visited_halls',
   TOUR_UI_PREFS:         'tour_workbench_ui_prefs',
   TOUR_STYLE_PREFS:      'tour_workbench_style_prefs',
   TOUR_TTS_PREFS:        'tour_workbench_tts_prefs',

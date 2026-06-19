@@ -46,9 +46,11 @@ MuseAI 前端是面向西安半坡博物馆导览体验的微信小程序。当�
   - 拍照识别 MVP
   - OCR 不可用时回退到文字搜索
   - 匹配结果可跳转展品详情
-- 展品详情页：围绕展项继续与 AI 讨论。
+- 展品详情页：围绕展品继续与 AI 讨论。
 - 游览报告页：
-  - 到访展厅：合并后端 `halls_visited` 与本地功能使用事件，只有提问、AI 回答、展品浏览和深挖会补齐展厅统计。
+  - 到访展厅：按已浏览展厅统计；用户在展厅内发送过消息，或从搜展品进入该厅任意展品详情页，都会计入。
+  - 问题统计：按用户发送消息次数统计，不对问题文本去重，并与首页继续上次游览的 AI 对话数保持一致。
+  - 展品统计：点进展品详情页即计入展品浏览；同一展品重复查看只计一次。
   - 认知变化
   - 记录摘要：离开展厅或打开报告前按展厅合并本地聊天记录，再与后端 `record_notes` 合并为可复盘笔记。
   - 基础统计
@@ -195,14 +197,15 @@ HTTPS 真机验证通过后，公网 HTTP 调试入口应在服务器侧关闭�
 
 前端报告页优先使用后端返回的报告字段，同时会合并本地尚未完全同步的 tour events，减少页面切换、网络波动或历史缓存带来的统计漏记。
 
-会计入“到访展厅”的事件类型包括：
+会计入“到访展厅”和“已浏览”标记的事件类型包括：
 
-- `exhibit_question`
-- `assistant_answer`
-- `exhibit_view`
-- `exhibit_deep_dive`
+- `exhibit_question`：用户在展厅内发送消息。
+- `exhibit_view`：用户点进任意展品详情页。
+- `assistant_answer`：兼容已完成回答的历史事件；新统计以用户发送消息和展品查看为准。
 
-因此用户只是进入展厅不会进入报告的到访展厅统计；只有在该展厅实际使用问答、建议条提问、展品浏览或深挖后才会计入。前端内部统一使用展厅信息导入的 9 个 canonical slug，展示时再转换为中文名。
+因此用户只是进入展厅不会计入到访展厅；只要在该展厅发送过一条消息，或点进该厅任意展品详情页，就会给展厅加上“已浏览”标记。展厅数量按 canonical slug 去重。前端内部统一使用展厅信息导入的 9 个 canonical slug，展示时再转换为中文名。
+
+问题统计按用户发送消息数计算，不对相同问题文本去重，并与“继续上次游览”显示的 AI 对话数保持一致。展品统计单独计算：用户点进展品详情页后记录 `exhibit_view`，报告中展示为“展品”，同一展品重复查看只计一次。
 
 记录摘要的数据来源包括：
 
@@ -219,6 +222,7 @@ HTTPS 真机验证通过后，公网 HTTP 调试入口应在服务器侧关闭�
 cd frontend
 npm run test:markdown
 npm run test:suggestions
+npm run test:hall-chat
 npm run test:report
 npm run test:preflight
 npm run test:all
@@ -226,9 +230,11 @@ node --check api/index.js
 node --check api/stream.js
 node --check store/tour.js
 node --check pages/tour/tour.js
+node --check pages/hall/hall.js
 node --check pages/route/route.js
 node --check pages/report/report.js
 node --check pages/exhibit-scan/exhibit-scan.js
+node --check pages/exhibit-detail/exhibit-detail.js
 ```
 
 `test:preflight` 会检查小程序打包范围内是否残留非白名单开发地址、`localhost`、`:3000`、明显密钥形态，并对关键 JS 文件执行语法检查。备案期间允许 `http://122.152.232.190:3000/api/v1` 或 `http://127.0.0.1:8000/api/v1`，但会警告发布前必须切回 `https://api.banpo-museai.xyz/api/v1`。它不会读取或修改真实 `.env`。
@@ -241,7 +247,7 @@ node --check pages/exhibit-scan/exhibit-scan.js
 - AI 回答是否能复制纯文本。
 - TTS 播放、停止、切换、离页销毁是否正常。
 - OCR 拍照取消后是否停止识别。
-- 报告中的到访展厅、认知变化、记录摘要是否与实际事件一致，尤其要验证“只进入展厅但未使用功能”不会被计入，“提问/浏览/深挖后”才会被计入。
+- 报告中的到访展厅、展品、问题、认知变化和记录摘要是否与实际事件一致，尤其要验证：只进入展厅不计入；发送消息会计入问题数和该展厅；点进展品详情页会计入展品数和该展厅；展厅和展品需要去重，问题数不去重。
 
 ## 上线前注意
 
