@@ -70,9 +70,15 @@ function normalizeBackendRecordNotes(data) {
 
 function buildStats(data) {
   var hallCount = unique(data.halls_visited || []).length
+  var serverExhibits = Number(data.total_exhibits_viewed || 0)
+  var localExhibits = tourStore.getVisitedExhibitCount ? tourStore.getVisitedExhibitCount() : 0
+  var exhibitCount = Math.max(
+    isFinite(serverExhibits) ? serverExhibits : 0,
+    isFinite(localExhibits) ? localExhibits : 0
+  )
   return {
     halls:    String(hallCount || 0),
-    exhibits: data.total_exhibits_viewed != null ? String(data.total_exhibits_viewed) : '0',
+    exhibits: String(exhibitCount || 0),
     messages: data.total_questions != null ? String(data.total_questions) : '0',
     duration: formatDuration(data.total_duration_minutes),
   }

@@ -50,7 +50,6 @@ const HALL_CHAT_MAX_HALLS = 9
 const VISITED_HALL_EVENT_TYPES = {
   exhibit_question: true,
   exhibit_view: true,
-  assistant_answer: true,
 }
 
 // ─── Persona definitions ───────────────────────────────────────────────────
@@ -110,7 +109,9 @@ function _makeEmptyTour() {
     currentHall:       null,
     currentExhibitId:  null,
     currentExhibit:    null,   // full exhibit object; set by exhibit-detail before goDeeper
+    currentExhibitByHall: {},
     pendingDetailExhibit: null, // transient detail-page payload; not AI discussion context
+    skipToHallOnReturn: null,
     currentScannedExhibitId: null,
     currentScannedExhibitName: null,
     lastScanTimestamp: null,
@@ -180,6 +181,12 @@ function _hydrateStoredTour() {
     if (_tour.visitedHalls.length) _persistVisitedHalls()
   }
 
+  var visitedExhibits = _deriveVisitedExhibitsFromStorage()
+  if (visitedExhibits.length || _tour.visitedExhibitIds.length) {
+    _tour.visitedExhibitIds = _normalizeVisitedExhibitIds(_tour.visitedExhibitIds.concat(visitedExhibits))
+    if (_tour.visitedExhibitIds.length) _persistVisitedExhibits()
+  }
+
   if (!_tour.currentHall) {
     var hall = storage.get(STORAGE_KEYS.TOUR_CURRENT_HALL, null)
     if (hall) _tour.currentHall = banpoHalls.normalizeHallToSlug(hall)
@@ -215,6 +222,23 @@ function _persistVisitedHalls() {
   storage.set(STORAGE_KEYS.TOUR_VISITED_HALLS, _tour.visitedHalls)
 }
 
+function _normalizeVisitedExhibitIds(list) {
+  var seen = {}
+  var out = []
+  ;(Array.isArray(list) ? list : []).forEach(function (item) {
+    var value = item === undefined || item === null ? '' : String(item).trim()
+    if (!value || seen[value]) return
+    seen[value] = true
+    out.push(value)
+  })
+  return out
+}
+
+function _persistVisitedExhibits() {
+  _tour.visitedExhibitIds = _normalizeVisitedExhibitIds(_tour.visitedExhibitIds)
+  storage.set(STORAGE_KEYS.TOUR_VISITED_EXHIBITS, _tour.visitedExhibitIds)
+}
+
 function _deriveVisitedHallsFromStorage() {
   var halls = []
 
@@ -240,11 +264,49 @@ function _deriveVisitedHallsFromStorage() {
   return _normalizeVisitedHalls(halls)
 }
 
+function _exhibitVisitKeyFromEvent(event) {
+  if (!event || (event.event_type || event.eventType) !== 'exhibit_view') return ''
+  var id = _normalizeEventExhibitId(event.exhibitId || event.exhibit_id)
+  if (id) return 'id:' + id
+
+  var metadata = event.metadata || {}
+  var name = String(metadata.exhibit_name || metadata.name || '').trim()
+  if (!name) return ''
+  var hall = event.hall ? _normalizeHallForStorage(event.hall) : ''
+  return 'name:' + hall + ':' + name
+}
+
+function _rememberVisitedExhibit(event) {
+  var key = _exhibitVisitKeyFromEvent(event)
+  if (!key || _tour.visitedExhibitIds.indexOf(key) >= 0) return
+  _tour.visitedExhibitIds = _tour.visitedExhibitIds.concat(key)
+  _persistVisitedExhibits()
+}
+
+function _deriveVisitedExhibitsFromStorage() {
+  var exhibits = []
+
+  var stored = storage.get(STORAGE_KEYS.TOUR_VISITED_EXHIBITS, [])
+  if (Array.isArray(stored)) {
+    exhibits = exhibits.concat(stored)
+  }
+
+  var storedEvents = storage.get(STORAGE_KEYS.TOUR_PENDING_EVENTS, null)
+  if (Array.isArray(storedEvents)) {
+    storedEvents.forEach(function (event) {
+      var key = _exhibitVisitKeyFromEvent(event)
+      if (key) exhibits.push(key)
+    })
+  }
+
+  return _normalizeVisitedExhibitIds(exhibits)
+}
+
 function _eventOrderValue(event, fallback) {
   var metadata = (event && event.metadata) || {}
   var clientEventId = String(metadata.client_event_id || '')
   var maybeTime = Number(clientEventId.split('-')[0])
-  if (isFinite(maybeTime) && maybeTime > 0) return maybeTime
+  if (isFinite(maybeTime) && maybeTime > 0) return maybeTime + ((fallback || 0) / 1000)
   var createdAt = Number(event && (event.createdAt || event.created_at))
   if (isFinite(createdAt) && createdAt > 0) return createdAt
   return fallback || 0
@@ -466,6 +528,9 @@ function createLocalTourState(opts) {
   storage.setTourSession({ sessionId: null, sessionToken: null })
   storage.remove(STORAGE_KEYS.TOUR_CURRENT_HALL)
   storage.remove(STORAGE_KEYS.TOUR_VISITED_HALLS)
+  storage.remove(STORAGE_KEYS.TOUR_VISITED_EXHIBITS)
+  storage.remove(STORAGE_KEYS.TOUR_HALL_EXHIBITS)
+  storage.remove(STORAGE_KEYS.TOUR_SKIP_TO_HALL_ON_RETURN)
   storage.remove(STORAGE_KEYS.TOUR_PENDING_EVENTS)
   storage.remove(STORAGE_KEYS.TOUR_RECORD_SUMMARY)
   storage.remove(STORAGE_KEYS.TOUR_HALL_CHATS)
@@ -762,18 +827,95 @@ function _normalizeExhibitContext(exhibit) {
   }
 }
 
-function setCurrentExhibit(exhibit) {
-  _tour.currentExhibit = _normalizeExhibitContext(exhibit)
+function _loadHallExhibitContexts() {
+  var raw = storage.get(STORAGE_KEYS.TOUR_HALL_EXHIBITS, {})
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) raw = {}
+  var normalized = {}
+  Object.keys(raw).forEach(function (hall) {
+    var slug = _normalizeHallForStorage(hall)
+    var exhibit = _normalizeExhibitContext(raw[hall])
+    if (slug && exhibit && exhibit.name) normalized[slug] = exhibit
+  })
+  _tour.currentExhibitByHall = normalized
+  return normalized
+}
+
+function _persistHallExhibitContexts() {
+  storage.set(STORAGE_KEYS.TOUR_HALL_EXHIBITS, _tour.currentExhibitByHall || {})
+}
+
+function _resolveExhibitHall(exhibit, hall) {
+  var fromArg = hall ? _normalizeHallForStorage(hall) : ''
+  if (fromArg) return fromArg
+  var fromExhibit = exhibit && exhibit.hall ? _normalizeHallForStorage(exhibit.hall) : ''
+  if (fromExhibit) return fromExhibit
+  return _tour.currentHall ? _normalizeHallForStorage(_tour.currentHall) : ''
+}
+
+function setCurrentExhibit(exhibit, hall) {
+  var normalized = _normalizeExhibitContext(exhibit)
+  var hallSlug = _resolveExhibitHall(normalized || exhibit, hall)
+  if (normalized && hallSlug && !normalized.hall) {
+    normalized.hall = hallSlug
+    normalized.hallDisplay = normalized.hallDisplay || banpoHalls.getHallDisplayName(hallSlug)
+  }
+  _tour.currentExhibit = normalized
+  if (hallSlug) {
+    _loadHallExhibitContexts()
+    if (normalized) {
+      _tour.currentExhibitByHall[hallSlug] = normalized
+    } else {
+      delete _tour.currentExhibitByHall[hallSlug]
+    }
+    _persistHallExhibitContexts()
+  }
 }
 
 /** Clear exhibit-focus mode (user tapped ✕ in the Context Bar). */
-function clearCurrentExhibit() {
+function clearCurrentExhibit(hall) {
+  var hallSlug = hall ? _normalizeHallForStorage(hall) : (_tour.currentHall ? _normalizeHallForStorage(_tour.currentHall) : '')
   _tour.currentExhibit = null
+  if (hallSlug) {
+    _loadHallExhibitContexts()
+    delete _tour.currentExhibitByHall[hallSlug]
+    _persistHallExhibitContexts()
+  }
 }
 
 /** @returns {object|null} shallow copy of currentExhibit, or null */
 function getCurrentExhibit() {
   return _tour.currentExhibit ? Object.assign({}, _tour.currentExhibit) : null
+}
+
+function getCurrentExhibitForHall(hall) {
+  var slug = hall ? _normalizeHallForStorage(hall) : (_tour.currentHall ? _normalizeHallForStorage(_tour.currentHall) : '')
+  if (!slug) return null
+  var map = _loadHallExhibitContexts()
+  return map[slug] ? Object.assign({}, map[slug]) : null
+}
+
+function applyHallExhibitContext(hall) {
+  var exhibit = getCurrentExhibitForHall(hall)
+  _tour.currentExhibit = exhibit ? Object.assign({}, exhibit) : null
+  return getCurrentExhibit()
+}
+
+function setSkipToHallOnReturn(entry) {
+  var hall = entry && entry.hall ? _normalizeHallForStorage(entry.hall) : (_tour.currentHall ? _normalizeHallForStorage(_tour.currentHall) : '')
+  if (!hall) return
+  var payload = Object.assign({}, entry || {}, { hall: hall, createdAt: Date.now() })
+  _tour.skipToHallOnReturn = payload
+  storage.set(STORAGE_KEYS.TOUR_SKIP_TO_HALL_ON_RETURN, payload)
+}
+
+function consumeSkipToHallOnReturn() {
+  var payload = _tour.skipToHallOnReturn || storage.get(STORAGE_KEYS.TOUR_SKIP_TO_HALL_ON_RETURN, null)
+  _tour.skipToHallOnReturn = null
+  storage.remove(STORAGE_KEYS.TOUR_SKIP_TO_HALL_ON_RETURN)
+  if (!payload || !payload.hall) return null
+  var hall = _normalizeHallForStorage(payload.hall)
+  if (!hall) return null
+  return Object.assign({}, payload, { hall: hall })
 }
 
 function setPendingDetailExhibit(exhibit) {
@@ -820,6 +962,9 @@ function addTourEvent(event) {
     _tour.visitedHalls = _tour.visitedHalls.concat(hallSlug)
     _persistVisitedHalls()
   }
+  if (eventType === 'exhibit_view') {
+    _rememberVisitedExhibit(entry)
+  }
   _tour.pendingEvents = _tour.pendingEvents.concat(entry)
   _persistPendingEvents()
 }
@@ -851,9 +996,17 @@ function restorePendingEvents(events) {
     if (VISITED_HALL_EVENT_TYPES[eventType] && hallSlug && _tour.visitedHalls.indexOf(hallSlug) === -1) {
       _tour.visitedHalls = _tour.visitedHalls.concat(hallSlug)
     }
+    if (eventType === 'exhibit_view') {
+      _rememberVisitedExhibit(event)
+    }
   })
   if (events && events.length) _persistVisitedHalls()
   _persistPendingEvents()
+}
+
+function getVisitedExhibitCount() {
+  _hydrateStoredTour()
+  return _normalizeVisitedExhibitIds(_tour.visitedExhibitIds).length
 }
 
 function _persistPendingEvents() {
@@ -1677,8 +1830,12 @@ module.exports = {
   setCurrentExhibit,
   clearCurrentExhibit,
   getCurrentExhibit,
+  getCurrentExhibitForHall,
+  applyHallExhibitContext,
   setPendingDetailExhibit,
   consumePendingDetailExhibit,
+  setSkipToHallOnReturn,
+  consumeSkipToHallOnReturn,
   setCurrentScannedExhibit,
   getCurrentScannedExhibit,
 
@@ -1686,6 +1843,7 @@ module.exports = {
   addTourEvent,
   drainPendingEvents,
   restorePendingEvents,
+  getVisitedExhibitCount,
   saveHallChatMessages,
   getHallChatMessages,
   saveCurrentHallChatMessages,

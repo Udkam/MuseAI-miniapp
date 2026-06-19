@@ -217,6 +217,16 @@ Page({
     }, 80)
   },
 
+  onShow: function () {
+    if (!tourStore.consumeSkipToHallOnReturn) return
+    var pending = tourStore.consumeSkipToHallOnReturn()
+    if (!pending || !pending.hall) return
+    tourStore.updateTourState({ currentHall: pending.hall, status: 'touring' }, { deferPersist: true })
+    setTimeout(function () {
+      wx.navigateBack({ delta: 1 })
+    }, 0)
+  },
+
   onUnload: function () {
     if (this._loadTimer) {
       clearTimeout(this._loadTimer)

@@ -35,8 +35,26 @@ function buildFallbackExhibit(name) {
 
 function reportableExhibitId(exhibit) {
   var id = exhibit && exhibit.id ? String(exhibit.id) : ''
-  if (!id || id.indexOf('local-') === 0 || id.indexOf('mock-') === 0) return undefined
-  return id
+  if (id && id.indexOf('local-') !== 0 && id.indexOf('mock-') !== 0) return id
+  return undefined
+}
+
+function hallIdFromSlug(slug) {
+  var normalized = banpoHalls.normalizeHallToSlug(slug)
+  var order = banpoHalls.DEFAULT_ORDER || []
+  var map = banpoHalls.HALLS_MAP || {}
+  for (var i = 0; i < order.length; i++) {
+    var id = order[i]
+    var hall = map[id]
+    if (hall && banpoHalls.normalizeHallToSlug(hall.backendSlug || hall.name) === normalized) {
+      return id
+    }
+  }
+  return ''
+}
+
+function makeClientEventId(prefix) {
+  return String(Date.now()) + '-' + (prefix || 'evt') + '-' + Math.random().toString(36).slice(2, 10)
 }
 
 Page({
@@ -46,6 +64,7 @@ Page({
   },
 
   _enterAt: 0,
+  _viewRecorded: false,
 
   onLoad: function (options) {
     var self = this
@@ -62,7 +81,9 @@ Page({
         ? tourStore.consumePendingDetailExhibit(name)
         : null
       if (cached && (!name || cached.name === name)) {
-        self.setData({ exhibit: cached, loading: false })
+        self.setData({ exhibit: cached, loading: false }, function () {
+          self._recordExhibitView(cached, null, 'detail_enter')
+        })
         wx.setNavigationBarTitle({ title: cached.name || '展项详情' })
       } else {
         self._useMock(name)
@@ -71,7 +92,9 @@ Page({
       api.exhibitsApi.get(id).then(function (res) {
         if (res.ok && res.data) {
           var ex = api.normalizeExhibit(res.data)
-          self.setData({ exhibit: ex, loading: false })
+          self.setData({ exhibit: ex, loading: false }, function () {
+            self._recordExhibitView(ex, null, 'detail_enter')
+          })
           wx.setNavigationBarTitle({ title: ex.name || '展品详情' })
         } else {
           self._loadByName(name)
@@ -98,7 +121,9 @@ Page({
         return api.exhibitsApi.get(best.id).then(function (dr) {
           if (dr.ok && dr.data) {
             var ex = api.normalizeExhibit(dr.data)
-            self.setData({ exhibit: ex, loading: false })
+            self.setData({ exhibit: ex, loading: false }, function () {
+              self._recordExhibitView(ex, null, 'detail_enter')
+            })
             wx.setNavigationBarTitle({ title: ex.name || '展品详情' })
           } else {
             self._useMock(name)
@@ -110,49 +135,100 @@ Page({
   },
 
   _useMock: function (name) {
+    var self = this
     var ex = MOCK_EXHIBITS[name] || buildFallbackExhibit(name)
-    this.setData({ exhibit: ex, loading: false })
+    this.setData({ exhibit: ex, loading: false }, function () {
+      self._recordExhibitView(ex, null, 'detail_enter')
+    })
     wx.setNavigationBarTitle({ title: ex.name || '展品详情' })
   },
 
+  _recordExhibitView: function (exhibit, durationSeconds, source) {
+    var state = tourStore.getTourState()
+    if (!exhibit || !exhibit.name) return
+    if (this._viewRecorded) return
+    var hall = exhibit.hall || state.currentHall || ''
+    if (!state.sessionId && !hall) return
+    this._viewRecorded = true
+    tourStore.addTourEvent({
+      eventType:       'exhibit_view',
+      exhibitId:       reportableExhibitId(exhibit),
+      hall:            hall,
+      durationSeconds: durationSeconds || null,
+      metadata: {
+        client_event_id: makeClientEventId('exhibit-view'),
+        exhibit_name: exhibit.name,
+        view_source: source || 'detail_enter',
+      },
+    })
+  },
+
   onUnload: function () {
+    if (this._viewRecorded) return
     var duration = this._enterAt
       ? Math.max(1, Math.round((Date.now() - this._enterAt) / 1000))
       : null
     var exhibit  = this.data.exhibit
-    var state    = tourStore.getTourState()
-    if (state.sessionId) {
-      tourStore.addTourEvent({
-        eventType:       'exhibit_view',
-        exhibitId:       reportableExhibitId(exhibit),
-        hall:            exhibit.hall || state.currentHall || '',
-        durationSeconds: duration,
-        metadata:        { exhibit_name: exhibit.name },
-      })
-    }
+    this._recordExhibitView(exhibit, duration, 'detail_leave')
   },
 
   goDeeper: function () {
+    var self = this
     var exhibit = this.data.exhibit
     var state   = tourStore.getTourState()
+    var hallSlug = banpoHalls.normalizeHallToSlug(exhibit.hall || state.currentHall || '')
 
     // Always set exhibit context before navigating so tour page can inject it
-    tourStore.setCurrentExhibit(exhibit)
+    tourStore.setCurrentExhibit(exhibit, hallSlug)
 
     var doNavigate = function (sid) {
-      wx.navigateTo({
-        url: '/pages/tour/tour?exhibit=' + encodeURIComponent(exhibit.name),
-      })
+      function navigateToTour() {
+        var pages = wx.getCurrentPages ? wx.getCurrentPages() : []
+        var tourDelta = 0
+        for (var i = pages.length - 2; i >= 0; i--) {
+          if (pages[i] && pages[i].route === 'pages/tour/tour') {
+            tourDelta = pages.length - 1 - i
+            break
+          }
+        }
+        if (tourDelta > 0) {
+          wx.navigateBack({ delta: tourDelta })
+        } else {
+          var hallDelta = 0
+          for (var j = pages.length - 2; j >= 0; j--) {
+            if (pages[j] && pages[j].route === 'pages/hall/hall') {
+              hallDelta = pages.length - 1 - j
+              break
+            }
+          }
+          if (hallDelta > 0 && tourStore.setSkipToHallOnReturn) {
+            tourStore.setSkipToHallOnReturn({
+              hall: hallSlug,
+              source: 'exhibit_deep_dive',
+            })
+          }
+          var hallId = hallIdFromSlug(hallSlug)
+          var url = '/pages/tour/tour?fromExhibit=1&directFromDetail=1&exhibit=' + encodeURIComponent(exhibit.name || '')
+          if (hallId) {
+            url += '&hallId=' + encodeURIComponent(hallId)
+          } else if (hallSlug) {
+            url += '&hall=' + encodeURIComponent(hallSlug)
+          }
+          wx.redirectTo({ url: url })
+        }
+      }
       if (sid) {
+        self._recordExhibitView(exhibit, null, 'detail_enter')
         setTimeout(function () {
           tourStore.addTourEvent({
             eventType: 'exhibit_deep_dive',
             exhibitId: exhibit.id   || exhibit.name || undefined,
-            hall:      exhibit.hall || state.currentHall || '',
+            hall:      hallSlug || exhibit.hall || state.currentHall || '',
             metadata:  { exhibit_name: exhibit.name },
           })
         }, 0)
       }
+      navigateToTour()
     }
 
     if (!state.sessionId) {
@@ -160,7 +236,7 @@ Page({
       var guestId = 'miniapp_guest_' + Date.now()
       tourStore.setStylePrefs({ answerLength: 'balanced', depth: 'standard', terminology: 'plain' })
       tourStore.createLocalTourState({ interestType: 'B', persona: 'B', assumption: 'D', personaId: 'B' })
-      tourStore.setCurrentExhibit(exhibit)
+      tourStore.setCurrentExhibit(exhibit, hallSlug)
       api.tourApi.createSession({ interest_type: 'B', persona: 'B', assumption: 'D', guest_id: guestId })
         .then(function (res) {
           var newId = null

@@ -188,3 +188,194 @@ npm.cmd run test:all
 ```
 
 结果：全部通过。额外用 Node VM 检查 SSE parser 可解析 CRLF + `data:` 无空格样本。
+## 2026-06-20 报告统计前端事件与展品详情返回栈修复
+
+### 修改文件
+
+- `api/index.js`
+- `pages/tour/tour.js`
+- `pages/exhibit-detail/exhibit-detail.js`
+- `store/tour.js`
+- `scripts/test-hall-chat-history.js`
+
+### 修改内容
+
+- 每次用户发送 AI 问题时生成 `client_event_id`，本地 `exhibit_question` 与后端自动补记使用同一个 ID，避免报告问题数翻倍。
+- `assistant_answer` 增加 `question_client_event_id`，仅用于报告摘要重建，不参与事件去重。
+- 展品详情页加载出展品后立即记录一次 `exhibit_view`，本地/mock 展品使用 `exhibit_name` 供后端去重统计。
+- “与 AI 进一步探讨”优先 `navigateBack` 回已有 `pages/tour/tour`，没有现有 tour 页时才 `redirectTo`，避免从 AI 对话左上角返回时嵌套回展品详情。
+- 已浏览展厅本地判定改为仅由 `exhibit_question` 或 `exhibit_view` 触发，`assistant_answer` 不再单独触发。
+
+### 验证
+
+```bash
+node --check pages/tour/tour.js
+node --check api/index.js
+node --check pages/exhibit-detail/exhibit-detail.js
+node --check store/tour.js
+node --check scripts/test-hall-chat-history.js
+npm.cmd run test:hall-chat
+npm.cmd run test:report
+npm.cmd run test:all
+```
+
+结果：全部通过。`test:preflight` 仍提示当前为本地 HTTP 调试配置和 `project.private.config.json` 的 `urlCheck=false`，发布前需要切回正式 HTTPS 与合法域名校验。
+## 2026-06-20 报告统计与展品浏览记录二次修复
+
+### 范围
+
+- 处理报告页“2 次提问显示 4 个问题”和“进入展品详情页后展品统计仍为 0”的前端侧原因。
+- 顺带修复继续上次游览在同毫秒多事件下可能取错最近展厅的问题。
+
+### 修改
+
+- `pages/exhibit-detail/exhibit-detail.js`：展品详情加载成功后立即记录一次 `exhibit_view`；只要有展厅上下文，即使当刻 `sessionId` 短暂不可用，也先进入 pending events，报告生成前统一上传。
+- `store/tour.js`：本地事件排序在 `client_event_id` 毫秒时间戳后加入 `fallback / 1000`，避免同毫秒事件排序并列导致继续上次游览取错展厅。
+
+### 验证
+
+```bash
+node --check pages/exhibit-detail/exhibit-detail.js
+node --check pages/tour/tour.js
+node --check store/tour.js
+npm.cmd run test:hall-chat
+npm.cmd run test:report
+npm.cmd run test:all
+```
+
+结果：全部通过。`test:preflight` 仍提示当前是本地 HTTP 调试 API 与 `urlCheck=false`，属于发布前配置提醒。
+## 2026-06-20 报告统计前端上传兼容补丁
+
+### 问题
+
+- 一次建议条提问仍显示为 2 个问题。
+- 进入一个展品详情页后报告展品数仍为 0。
+
+### 修复
+
+- `pages/tour/tour.js`：流式回答成功后移除本地 pending 中对应的 `exhibit_question`，避免报告页上传时与后端 stream 自动记录的问题事件重复。
+- `pages/exhibit-detail/exhibit-detail.js`：本地/mock/缓存展品不再让 `exhibit_id` 为空，而是生成稳定 `view-*` ID，使后端按 `exhibit_id` 统计时也能计入展品查看数。
+
+### 验证
+
+```bash
+node --check pages/exhibit-detail/exhibit-detail.js
+node --check pages/tour/tour.js
+npm.cmd run test:hall-chat
+npm.cmd run test:report
+npm.cmd run test:all
+```
+
+结果：全部通过。`test:preflight` 仍只有本地 HTTP 调试 API 与 `urlCheck=false` 的发布前提醒。
+## 2026-06-20 Report exhibit-count fix: local viewed-exhibit ledger
+
+### Scope
+
+- Fixed report exhibit statistics remaining at 0 after users opened exhibit detail pages.
+- Kept the change frontend-local except for preserving existing event upload behavior. No SSE protocol, backend contract, DB schema, or real `.env` changes.
+
+### Root Cause
+
+- `visitedExhibitIds` existed in tour state but was not written, persisted, restored, or used by the report page.
+- Report display trusted only `total_exhibits_viewed` from backend. Local/mock/cached exhibit views can fail to appear in that backend count while still being valid user activity.
+- Synthetic `view-*` `exhibit_id` values are not safe backend exhibit ids, so they should not be sent as if they were real backend ids.
+
+### Changes
+
+- `utils/storage.js`: added `TOUR_VISITED_EXHIBITS`.
+- `store/tour.js`: added deduped local exhibit-view ledger keyed by real id when available, otherwise `hall + exhibit_name`; persists/restores and clears it with new tour state.
+- `pages/exhibit-detail/exhibit-detail.js`: sends real `exhibit_id` only for real backend exhibits; local/mock detail views are counted locally and still carry `metadata.exhibit_name`.
+- `pages/report/report.js`: exhibit stat uses the larger value between backend count and local viewed-exhibit count.
+- Tests updated to cover duplicate exhibit views, local no-id exhibit views, reload persistence, and report display fallback.
+
+### Verification
+
+```bash
+node --check store/tour.js
+node --check utils/storage.js
+node --check pages/exhibit-detail/exhibit-detail.js
+node --check pages/report/report.js
+npm.cmd run test:hall-chat
+npm.cmd run test:report
+npm.cmd run test:all
+```
+
+Result: all passed. `test:preflight` only emitted expected dev API / urlCheck warnings.
+
+### Retest Notes
+
+- Views made before this patch will not be counted retroactively. Open the exhibit detail pages again after recompiling.
+- Expected: two unique detail pages count as 2 exhibits; reopening the same exhibit does not increment.
+## 2026-06-20 Exhibit deep-dive navigation and per-hall discussion context
+
+### Scope
+
+- Fixed native back behavior after entering AI chat from an exhibit detail page.
+- Added per-hall "currently discussing exhibit" state so different halls do not overwrite one another.
+
+### Changes
+
+- `utils/storage.js`: added `TOUR_HALL_EXHIBITS` and `TOUR_PENDING_TOUR_ENTRY`.
+- `store/tour.js`: stores active exhibit context by canonical hall slug, restores it per hall, clears it per hall, and exposes one-shot pending tour-entry helpers.
+- `pages/tour/tour.js`: fresh entry from hall restores the selected hall's exhibit context; clear button only clears the current hall.
+- `pages/exhibit-detail/exhibit-detail.js`: deep-dive stores context under the exhibit hall and, when no tour page exists underneath, routes through hall selection before opening tour so native back returns to hall.
+- `pages/hall/hall.js`: consumes pending tour entry and opens the requested hall tour once.
+- `scripts/test-hall-chat-history.js`: covers per-hall context isolation and one-shot pending entry consumption.
+
+### Verification
+
+```bash
+node --check store/tour.js
+node --check pages/exhibit-detail/exhibit-detail.js
+node --check pages/tour/tour.js
+node --check pages/hall/hall.js
+node --check utils/storage.js
+npm.cmd run test:hall-chat
+npm.cmd run test:suggestions
+npm.cmd run test:report
+npm.cmd run test:all
+```
+
+Result: all passed. Preflight warnings remain the expected temporary HTTP dev API / urlCheck release warnings.
+
+### Retest Notes
+
+- After tapping "与 AI 进一步探讨", tour should show "正在讨论：<exhibit>".
+- Native top-left back from tour should land on hall selection.
+- Re-entering the same hall should restore its exhibit context; another hall should keep its own context independently.
+## 2026-06-20 Correct exhibit deep-dive entry path
+
+### Scope
+
+- Fixed the deep-dive flow after the prior version visibly returned to hall selection before entering tour.
+- Desired behavior: tap "与 AI 进一步探讨" -> go directly to tour; top-left back from tour -> hall selection.
+
+### Changes
+
+- `pages/exhibit-detail/exhibit-detail.js`: direct `redirectTo` tour with `directFromDetail=1` when no existing tour page is under the detail page.
+- `pages/tour/tour.js`: treats `directFromDetail=1` as a fresh hall entry while preserving the saved exhibit context.
+- `pages/hall/hall.js`: removed pending tour auto-resume code.
+- `pages/exhibit-scan/exhibit-scan.js`: consumes a one-shot skip-to-hall flag when user backs from the direct tour path.
+- `store/tour.js` / `utils/storage.js`: renamed pending-tour mechanism to skip-to-hall-on-return and kept it one-shot.
+- `scripts/test-hall-chat-history.js`: updated regression coverage for one-shot return cleanup.
+
+### Verification
+
+```bash
+node --check pages/exhibit-detail/exhibit-detail.js
+node --check pages/exhibit-scan/exhibit-scan.js
+node --check pages/hall/hall.js
+node --check pages/tour/tour.js
+node --check store/tour.js
+npm.cmd run test:hall-chat
+npm.cmd run test:suggestions
+npm.cmd run test:report
+npm.cmd run test:all
+```
+
+Result: all passed. Preflight still only warns about temporary HTTP dev API and `urlCheck=false`.
+
+### Retest Notes
+
+- If the stack already has tour below detail, deep-dive should return directly to that tour.
+- If the stack is hall -> scan -> detail, deep-dive should open tour directly; backing from tour should land on hall selection via the one-shot return cleanup.

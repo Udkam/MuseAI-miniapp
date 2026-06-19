@@ -50,6 +50,12 @@ const messages = [
 
 tourStore.saveCurrentHallChatMessages(messages)
 assert.strictEqual(storage[storageUtil.KEYS.TOUR_HALL_CHATS].sessionId, 'session-1')
+tourStore.addTourEvent({ eventType: 'assistant_answer', hall: 'peony-garden' })
+assert.strictEqual(
+  tourStore.getTourState().visitedHalls.indexOf('peony-garden'),
+  -1,
+  'assistant answer alone should not mark a hall visited'
+)
 tourStore.addTourEvent({ eventType: 'exhibit_question', hall: 'kiln-hall' })
 assert.ok(
   tourStore.getTourState().visitedHalls.indexOf('kiln-hall') >= 0,
@@ -58,7 +64,7 @@ assert.ok(
 tourStore.addTourEvent({ eventType: 'assistant_answer', hall: 'kiln-hall' })
 assert.ok(
   tourStore.getTourState().visitedHalls.indexOf('kiln-hall') >= 0,
-  'visited hall should be tracked after an effective interaction'
+  'assistant answer should not remove an existing visited mark'
 )
 assert.ok(
   storage[storageUtil.KEYS.TOUR_VISITED_HALLS].indexOf('kiln-hall') >= 0,
@@ -68,6 +74,66 @@ tourStore.addTourEvent({ eventType: 'exhibit_view', hall: 'site-protection-hall'
 assert.ok(
   tourStore.getTourState().visitedHalls.indexOf('site-protection-hall') >= 0,
   'viewing an exhibit should mark its hall visited'
+)
+assert.strictEqual(
+  tourStore.getVisitedExhibitCount(),
+  1,
+  'viewing an exhibit should increment the visited exhibit count'
+)
+tourStore.addTourEvent({ eventType: 'exhibit_view', hall: 'site-protection-hall', exhibitId: 'exhibit-1' })
+assert.strictEqual(
+  tourStore.getVisitedExhibitCount(),
+  1,
+  'viewing the same exhibit again should not duplicate the exhibit count'
+)
+tourStore.addTourEvent({
+  eventType: 'exhibit_view',
+  hall: 'site-protection-hall',
+  metadata: { exhibit_name: 'local named exhibit' },
+})
+assert.strictEqual(
+  tourStore.getVisitedExhibitCount(),
+  2,
+  'local exhibit views without a backend id should count by hall and exhibit name'
+)
+tourStore.setCurrentExhibit({ id: 'basic-ex-1', name: 'Basic Exhibit', hall: 'basic-exhibition-hall' }, 'basic-exhibition-hall')
+tourStore.setCurrentExhibit({ id: 'kiln-ex-1', name: 'Kiln Exhibit', hall: 'kiln-hall' }, 'kiln-hall')
+assert.strictEqual(
+  tourStore.getCurrentExhibitForHall('basic-exhibition-hall').name,
+  'Basic Exhibit',
+  'basic hall should keep its own active exhibit context'
+)
+assert.strictEqual(
+  tourStore.getCurrentExhibitForHall('kiln-hall').name,
+  'Kiln Exhibit',
+  'kiln hall should keep its own active exhibit context'
+)
+assert.strictEqual(
+  tourStore.applyHallExhibitContext('basic-exhibition-hall').name,
+  'Basic Exhibit',
+  'entering a hall should restore that hall exhibit context'
+)
+tourStore.clearCurrentExhibit('basic-exhibition-hall')
+assert.strictEqual(
+  tourStore.getCurrentExhibitForHall('basic-exhibition-hall'),
+  null,
+  'clearing one hall exhibit context should remove only that hall'
+)
+assert.strictEqual(
+  tourStore.getCurrentExhibitForHall('kiln-hall').name,
+  'Kiln Exhibit',
+  'clearing one hall exhibit context should not remove another hall'
+)
+tourStore.setSkipToHallOnReturn({ hall: 'kiln-hall', source: 'test' })
+assert.strictEqual(
+  tourStore.consumeSkipToHallOnReturn().hall,
+  'kiln-hall',
+  'skip-to-hall return flag should be consumable by intermediate pages'
+)
+assert.strictEqual(
+  tourStore.consumeSkipToHallOnReturn(),
+  null,
+  'skip-to-hall return flag should only be consumed once'
 )
 assert.strictEqual(
   tourStore.getLastAnsweredHallDisplayName(),
@@ -92,6 +158,11 @@ assert.ok(
 assert.ok(
   restoredState.visitedHalls.indexOf('site-protection-hall') >= 0,
   'visited halls should restore from exhibit view events after reload'
+)
+assert.strictEqual(
+  tourStore.getVisitedExhibitCount(),
+  2,
+  'visited exhibit count should restore after store reload'
 )
 
 const notes = tourStore.summarizeStoredHallRecords()
@@ -125,6 +196,16 @@ assert.deepStrictEqual(
   tourStore.getTourState().visitedHalls,
   [],
   'new tour should not inherit previous visited hall badges'
+)
+assert.strictEqual(
+  tourStore.getVisitedExhibitCount(),
+  0,
+  'new tour should not inherit previous visited exhibit count'
+)
+assert.strictEqual(
+  tourStore.getCurrentExhibitForHall('kiln-hall'),
+  null,
+  'new tour should not inherit previous hall exhibit context'
 )
 
 chatStore.resetChat()

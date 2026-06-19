@@ -97,6 +97,11 @@ assert.deepStrictEqual(mapped.reflection, {
 })
 
 resetTour('B')
+tourStore.addTourEvent({
+  eventType: 'exhibit_view',
+  hall: 'basic-exhibition-hall',
+  metadata: { exhibit_name: 'local detail exhibit' },
+})
 page = makePage()
 mapped = page._mapReportData({
   total_duration_minutes: null,
@@ -116,6 +121,7 @@ assert.deepStrictEqual(mapped.recordNotes, [
 ])
 assert.strictEqual(mapped.dataNotice, '游览记录上传失败，请检查网络后重试。')
 assert.strictEqual(mapped.stats.duration, '-')
+assert.strictEqual(mapped.stats.exhibits, '1')
 
 page = makePage()
 page._applyUnavailable('服务器报告暂不可用，请稍后重试。', false)

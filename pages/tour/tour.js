@@ -9,6 +9,10 @@ const TTS_SEGMENT_MAX_CHARS = 72
 const TTS_SEGMENT_MAX_COUNT = 10
 const STREAM_FLUSH_INTERVAL_MS = 80
 
+function makeClientEventId(prefix) {
+  return String(Date.now()) + '-' + (prefix || 'evt') + '-' + Math.random().toString(36).slice(2, 10)
+}
+
 // Safe-area inset is device-constant; cache it across page entries so we don't
 // pay the synchronous system-info bridge cost during each slide-in transition.
 var _safeAreaBottomCache = null
@@ -176,13 +180,9 @@ Page({
     // Only reset chat on a fresh tour entry (hall page → tour).
     // When coming from exhibit-detail goDeeper(), options.exhibit is set —
     // preserve history so the user can still ask "我们刚才在讨论什么".
-    var freshEntry = !options.exhibit
+    var freshEntry = !options.exhibit || options.directFromDetail === '1'
     if (freshEntry) {
       chatStore.resetChat()
-      if (exhibit) {
-        tourStore.clearCurrentExhibit()
-        exhibit = null
-      }
     }
 
     if (!exhibit && exhibitNameFromQuery) {
@@ -204,6 +204,15 @@ Page({
       : (options.hall ? decodeURIComponent(options.hall) : (tourStore.getSavedCurrentHall() || null))
     var hallSlug = rawHall ? banpoHalls.normalizeHallToSlug(rawHall) : null
     var hallName = hallSlug ? banpoHalls.getHallDisplayName(hallSlug) : null
+
+    if (freshEntry) {
+      exhibit = hallSlug && tourStore.applyHallExhibitContext
+        ? tourStore.applyHallExhibitContext(hallSlug)
+        : null
+      if (!exhibit && !hallSlug) tourStore.clearCurrentExhibit()
+    } else if (exhibit && hallSlug && tourStore.setCurrentExhibit) {
+      tourStore.setCurrentExhibit(exhibit, hallSlug)
+    }
 
     var patch = { sessionId: state.sessionId || null, currentExhibit: exhibit }
     if (hallName) {
@@ -436,6 +445,7 @@ Page({
     var now = Date.now()
     self._perf = { sendAt: now, streamStartAt: now, firstChunkAt: 0, doneAt: 0 }
     self._streamText = ''
+    var questionClientEventId = makeClientEventId('question')
 
     // ── Append user bubble immediately ─────────────────────────────────────
     var userMsg = { id: Date.now(), role: 'user', content: text }
@@ -471,7 +481,10 @@ Page({
     tourStore.addTourEvent({
       eventType: 'exhibit_question',
       hall:      state.currentHall || banpoHalls.normalizeHallToSlug(self.data.hallName) || '',
-      metadata:  { message: text.slice(0, 200) },
+      metadata:  {
+        client_event_id: questionClientEventId,
+        message: text.slice(0, 200),
+      },
     })
     if (shouldCountQuestion) {
       tourStore.incrementAiConversationCount()
@@ -511,6 +524,7 @@ Page({
       style:     style,
       clientContext: clientContext,
       conversationHistory: recentMsgs.length ? recentMsgs : null,
+      clientEventId: questionClientEventId,
       exhibitId: currentExhibit ? currentExhibit.id : undefined,
 
       onChunk: function (chunk) {
@@ -569,16 +583,19 @@ Page({
 
         var traceId = payload.trace_id || null
         chatStore.finishAssistantMessage({ content: finalContent, traceId: traceId })
+        var answerHall = state.currentHall || banpoHalls.normalizeHallToSlug(self.data.hallName) || ''
         tourStore.addTourEvent({
           eventType: 'assistant_answer',
-          hall:      state.currentHall || banpoHalls.normalizeHallToSlug(self.data.hallName) || '',
+          hall:      answerHall,
           metadata: {
+            question_client_event_id: questionClientEventId,
             question: text.slice(0, 200),
             answer:   plainTextForTts(finalContent).slice(0, 600),
             trace_id: traceId,
             is_ceramic_question: !!(payload && payload.is_ceramic_question),
           },
         })
+        self._dropPendingQuestionEvent(text, answerHall, questionClientEventId)
 
         var aiMsg = {
           id:      Date.now(),
@@ -1252,17 +1269,23 @@ Page({
     }
   },
 
-  _dropPendingQuestionEvent: function (text, hall) {
+  _dropPendingQuestionEvent: function (text, hall, clientEventId) {
     var events = tourStore.drainPendingEvents()
     if (!events.length) return
     var targetHall = hall ? banpoHalls.normalizeHallToSlug(hall) : ''
+    var targetClientEventId = clientEventId ? String(clientEventId) : ''
+    var targetQuestion = String(text || '').slice(0, 200)
     var removed = false
     var kept = events.filter(function (event) {
       if (removed || event.event_type !== 'exhibit_question') return true
       var metadata = event.metadata || {}
       var question = metadata.message || metadata.question || ''
       var eventHall = event.hall ? banpoHalls.normalizeHallToSlug(event.hall) : ''
-      if (question === text && (!targetHall || eventHall === targetHall)) {
+      if (targetClientEventId && metadata.client_event_id === targetClientEventId) {
+        removed = true
+        return false
+      }
+      if (question === targetQuestion && (!targetHall || eventHall === targetHall)) {
         removed = true
         return false
       }
@@ -1430,7 +1453,9 @@ Page({
   // ── Exhibit context ───────────────────────────────────────────────────────
 
   clearExhibitContext: function () {
-    tourStore.clearCurrentExhibit()
+    var state = tourStore.getTourState()
+    var hall = state.currentHall || banpoHalls.normalizeHallToSlug(this.data.hallName) || null
+    tourStore.clearCurrentExhibit(hall)
     this.setData({ currentExhibit: null })
     this._loadSuggestions()
   },

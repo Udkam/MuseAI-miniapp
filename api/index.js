@@ -178,6 +178,7 @@ const tourApi = {
    * @param {object}   [opts.style]      Style preferences object
    * @param {string}   [opts.clientContext] Compact frontend context that should not affect retrieval
    * @param {Array}    [opts.conversationHistory] Recent user/assistant turns for answer continuity
+   * @param {string}   [opts.clientEventId] Stable ID for the user-send event; used to dedupe client/server event uploads
    * @param {object}   [opts.ttsOptions] TTS options object
    * @param {Function} [opts.onChunk]    (text) => void — content delta
    * @param {Function} [opts.onEvent]    (event) => void — rag_step / thinking
@@ -198,6 +199,7 @@ const tourApi = {
     // tts: bool  (MUST be bool, not null — backend default False)
     var body = { message: opts.message || '' }
     if (opts.exhibitId) body.exhibit_id = opts.exhibitId
+    if (opts.clientEventId) body.client_event_id = opts.clientEventId
     if (opts.style)     body.style      = opts.style
     if (opts.clientContext) body.client_context = opts.clientContext
     if (opts.conversationHistory && opts.conversationHistory.length) {
