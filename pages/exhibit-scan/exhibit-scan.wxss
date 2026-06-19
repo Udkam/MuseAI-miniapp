@@ -33,10 +33,11 @@
   margin-bottom: 32rpx;
 }
 
-.search-icon {
-  font-size: 30rpx;
-  line-height: 1;
+.search-icon-img {
+  width: 36rpx;
+  height: 36rpx;
   flex-shrink: 0;
+  display: block;
 }
 
 .search-input {
@@ -190,16 +191,14 @@
   gap: 20rpx;
 }
 
-.exhibit-card-icon {
+.exhibit-card-icon-img {
   width: 64rpx;
   height: 64rpx;
   border-radius: 22rpx;
   background: #FFF9F1;
   border: 2rpx solid #E6D8C6;
-  font-size: 40rpx;
-  line-height: 64rpx;
-  text-align: center;
   flex-shrink: 0;
+  display: block;
 }
 
 .exhibit-card-info {
@@ -249,9 +248,10 @@
   gap: 16rpx;
 }
 
-.empty-icon {
-  font-size: 72rpx;
-  line-height: 1;
+.empty-icon-img {
+  width: 96rpx;
+  height: 96rpx;
+  display: block;
 }
 
 .empty-text {

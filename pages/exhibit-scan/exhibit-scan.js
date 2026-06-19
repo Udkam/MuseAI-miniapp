@@ -2,6 +2,7 @@ const tourStore = require('../../store/tour')
 const api = require('../../api/index')
 const banpoHalls = require('../../constants/banpo-halls')
 const recognition = require('../../utils/exhibit-recognition')
+const preload = require('../../utils/preload')
 
 const ENABLE_HALL_DISCOVERY_LOG = false
 
@@ -193,6 +194,7 @@ Page({
   },
 
   _searchTimer: null,
+  _loadTimer: null,
   _reqSeq: 0,
   _cachedAll: null,
   _currentHallSlug: '',
@@ -206,8 +208,29 @@ Page({
     this.setData({
       hallHint: this._currentHallName ? '当前展厅：' + this._currentHallName : '半坡博物馆全部展项',
     })
+    this._preloadNext()
     if (ENABLE_HALL_DISCOVERY_LOG) this._discoverHallSlugs()
-    this._loadExhibits()
+    var self = this
+    this._loadTimer = setTimeout(function () {
+      self._loadTimer = null
+      self._loadExhibits()
+    }, 80)
+  },
+
+  onUnload: function () {
+    if (this._loadTimer) {
+      clearTimeout(this._loadTimer)
+      this._loadTimer = null
+    }
+    if (this._searchTimer) {
+      clearTimeout(this._searchTimer)
+      this._searchTimer = null
+    }
+  },
+
+  _preloadNext: function () {
+    preload.preloadPages(['/pages/exhibit-detail/exhibit-detail', '/pages/tour/tour'], 120)
+    preload.preloadImages(preload.TOUR_ICON_ASSETS, 160)
   },
 
   _discoverHallSlugs: function () {
@@ -367,6 +390,10 @@ Page({
   onSearchInput: function (e) {
     const val = e.detail.value
     this.setData({ searchText: val })
+    if (this._loadTimer) {
+      clearTimeout(this._loadTimer)
+      this._loadTimer = null
+    }
     clearTimeout(this._searchTimer)
     ++this._reqSeq
     if (!val.trim()) {

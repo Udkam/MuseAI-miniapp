@@ -26,7 +26,7 @@
   <!-- Actions -->
   <view class="action-row">
     <button class="btn-primary" bindtap="goDeeper">与 AI 深入探讨 →</button>
-    <button class="btn-secondary" style="margin-top:20rpx;" bindtap="goNext">返回上一步</button>
+    <button class="btn-secondary" style="margin-top:20rpx;" bindtap="goNext">返回</button>
   </view>
 
 </view>

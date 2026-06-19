@@ -43,6 +43,10 @@ const DEFAULT_TTS_PREFS = {
   enabled:  true,
 }
 
+const HALL_CHAT_MAX_MESSAGES = 28
+const HALL_CHAT_MAX_CONTENT_CHARS = 1600
+const HALL_CHAT_MAX_HALLS = 9
+
 const VISITED_HALL_EVENT_TYPES = {
   exhibit_question: true,
   assistant_answer: true,
@@ -184,6 +188,112 @@ function _makeClientEventId() {
   return String(Date.now()) + '-' + Math.random().toString(36).slice(2, 10)
 }
 
+function _getHallChatSessionKey() {
+  if (!_tour.sessionId) _hydrateStoredTour()
+  return _tour.sessionId || 'local'
+}
+
+function _getHallChatCache() {
+  var sessionKey = _getHallChatSessionKey()
+  var raw = storage.get(STORAGE_KEYS.TOUR_HALL_CHATS, null)
+  if (!raw || typeof raw !== 'object' || raw.sessionId !== sessionKey) {
+    return { sessionId: sessionKey, updatedAt: Date.now(), halls: {} }
+  }
+  if (!raw.halls || typeof raw.halls !== 'object') raw.halls = {}
+  return raw
+}
+
+function _writeHallChatCache(cache) {
+  storage.set(STORAGE_KEYS.TOUR_HALL_CHATS, cache)
+}
+
+function _migrateHallChatSession(fromSessionId, toSessionId) {
+  if (!fromSessionId || !toSessionId || fromSessionId === toSessionId) return
+  var raw = storage.get(STORAGE_KEYS.TOUR_HALL_CHATS, null)
+  if (!raw || typeof raw !== 'object' || raw.sessionId !== fromSessionId) return
+  raw.sessionId = toSessionId
+  raw.updatedAt = Date.now()
+  _writeHallChatCache(raw)
+}
+
+function _trimHallChatContent(value) {
+  var text = String(value || '')
+  if (text.length <= HALL_CHAT_MAX_CONTENT_CHARS) return text
+  return text.slice(0, HALL_CHAT_MAX_CONTENT_CHARS - 1) + '…'
+}
+
+function _sanitizeHallChatMessage(message, index) {
+  if (!message || (message.role !== 'user' && message.role !== 'assistant')) return null
+  if (message.isError) return null
+  var content = _trimHallChatContent(message.content)
+  if (!content) return null
+  var item = {
+    id: message.id || (Date.now() + index),
+    role: message.role,
+    content: content,
+    createdAt: message.createdAt || new Date().toISOString(),
+  }
+  if (message.role === 'assistant') {
+    item.traceId = message.traceId || null
+    item.ttsStatus = 'idle'
+  }
+  return item
+}
+
+function _sanitizeHallChatMessages(messages) {
+  return (Array.isArray(messages) ? messages : [])
+    .map(_sanitizeHallChatMessage)
+    .filter(Boolean)
+    .slice(-HALL_CHAT_MAX_MESSAGES)
+}
+
+function saveHallChatMessages(hall, messages, options) {
+  var slug = hall ? _normalizeHallForStorage(hall) : null
+  if (!slug) return []
+  var sanitized = _sanitizeHallChatMessages(messages)
+  if (!sanitized.length) return []
+
+  var write = function () {
+    var cache = _getHallChatCache()
+    cache.halls[slug] = {
+      messages: sanitized,
+      updatedAt: Date.now(),
+    }
+    var keys = Object.keys(cache.halls)
+    if (keys.length > HALL_CHAT_MAX_HALLS) {
+      keys.sort(function (a, b) {
+        return ((cache.halls[a] && cache.halls[a].updatedAt) || 0) -
+          ((cache.halls[b] && cache.halls[b].updatedAt) || 0)
+      })
+      keys.slice(0, keys.length - HALL_CHAT_MAX_HALLS).forEach(function (key) {
+        delete cache.halls[key]
+      })
+    }
+    cache.updatedAt = Date.now()
+    _writeHallChatCache(cache)
+  }
+
+  if (options && options.defer) {
+    setTimeout(write, 0)
+  } else {
+    write()
+  }
+  return sanitized
+}
+
+function getHallChatMessages(hall) {
+  var slug = hall ? _normalizeHallForStorage(hall) : null
+  if (!slug) return []
+  var cache = _getHallChatCache()
+  var record = cache.halls && cache.halls[slug]
+  return record ? _sanitizeHallChatMessages(record.messages) : []
+}
+
+function saveCurrentHallChatMessages(messages, options) {
+  if (!_tour.currentHall) return []
+  return saveHallChatMessages(_tour.currentHall, messages, options)
+}
+
 function _getCurrentHallDisplayName() {
   return _tour.currentHall ? banpoHalls.getHallDisplayName(_tour.currentHall) : ''
 }
@@ -227,6 +337,8 @@ function createLocalTourState(opts) {
   _tour = _makeEmptyTour()
   storage.setTourSession({ sessionId: null, sessionToken: null })
   storage.remove(STORAGE_KEYS.TOUR_CURRENT_HALL)
+  storage.remove(STORAGE_KEYS.TOUR_RECORD_SUMMARY)
+  storage.remove(STORAGE_KEYS.TOUR_HALL_CHATS)
   _tour.interestType = o.interestType || null
   _tour.persona      = o.persona      || null
   _tour.assumption   = o.assumption   || null
@@ -244,9 +356,11 @@ function createLocalTourState(opts) {
  * @param {{ sessionId: string, sessionToken: string }} param
  */
 function setTourSession(param) {
+  var previousSessionId = _tour.sessionId || 'local'
   _tour.sessionId    = param.sessionId    || null
   _tour.sessionToken = param.sessionToken || null
   storage.setTourSession({ sessionId: _tour.sessionId, sessionToken: _tour.sessionToken })
+  if (_tour.sessionId) _migrateHallChatSession(previousSessionId, _tour.sessionId)
   var stored = storage.getTourSession ? storage.getTourSession() : null
   _tour.aiConversationCount = stored ? Number(stored.aiConversationCount || 0) : 0
 }
@@ -300,7 +414,8 @@ function setOnboardingExtras(opts) {
  * Automatically re-persists session credentials if they changed.
  * @param {object} patch
  */
-function updateTourState(patch) {
+function updateTourState(patch, options) {
+  var opts = options || {}
   if (patch && patch.currentHall !== undefined) {
     patch = Object.assign({}, patch, { currentHall: _normalizeHallForStorage(patch.currentHall) })
   }
@@ -312,7 +427,13 @@ function updateTourState(patch) {
     storage.setTourSession({ sessionId: _tour.sessionId, sessionToken: _tour.sessionToken })
   }
   if (patch.currentHall !== undefined) {
-    storage.set(STORAGE_KEYS.TOUR_CURRENT_HALL, _tour.currentHall || '')
+    if (opts.deferPersist) {
+      setTimeout(function () {
+        storage.set(STORAGE_KEYS.TOUR_CURRENT_HALL, _tour.currentHall || '')
+      }, 0)
+    } else {
+      storage.set(STORAGE_KEYS.TOUR_CURRENT_HALL, _tour.currentHall || '')
+    }
   }
 }
 
@@ -577,8 +698,8 @@ function _extractMessagePairs(messages) {
   return pairs
 }
 
-function summarizeCurrentHallRecord(messages) {
-  var hall = _tour.currentHall ? _normalizeHallForStorage(_tour.currentHall) : null
+function _summarizeHallRecord(hall, messages) {
+  hall = hall ? _normalizeHallForStorage(hall) : null
   if (!hall) return []
   var pairs = _extractMessagePairs(messages)
   if (!pairs.length) return getRecordSummaryNotes()
@@ -601,6 +722,21 @@ function summarizeCurrentHallRecord(messages) {
   notes.sort(function (a, b) { return (a.updatedAt || 0) - (b.updatedAt || 0) })
   storage.set(STORAGE_KEYS.TOUR_RECORD_SUMMARY, notes.slice(-6))
   return notes.slice(-6)
+}
+
+function summarizeCurrentHallRecord(messages) {
+  var hall = _tour.currentHall ? _normalizeHallForStorage(_tour.currentHall) : null
+  return _summarizeHallRecord(hall, messages)
+}
+
+function summarizeStoredHallRecords() {
+  var cache = _getHallChatCache()
+  var halls = cache.halls || {}
+  Object.keys(halls).forEach(function (hall) {
+    var record = halls[hall] || {}
+    _summarizeHallRecord(hall, record.messages || [])
+  })
+  return getRecordSummaryNotes()
 }
 
 function getRecordSummaryNotes() {
@@ -780,6 +916,69 @@ function _isTemporaryHall(hall) {
   return ['temporary-hall-1', 'temporary-hall-2'].indexOf(normalized) >= 0
 }
 
+var SUGGESTION_FALLBACK_ICON_BY_TYPE = {
+  hall_intro:       'suggest-overview',
+  observation_task:'suggest-detail',
+  comparison:      'suggest-relation',
+  related_exhibit: 'suggest-exhibit',
+  next_step:       'suggest-back',
+}
+
+var SUGGESTION_ICON_RULES = [
+  { pattern: /返回|列表|退出|回到/, iconKey: 'suggest-back' },
+  { pattern: /对照|比较|关系|放回展厅|关联|连起来/, iconKey: 'suggest-relation' },
+  { pattern: /石器|骨器|工具|加工|制作工艺|工艺步骤|打磨|切割|钻孔|针|斧|铲|锥/, iconKey: 'suggest-tools' },
+  { pattern: /陶窑|烧成|火候|窑火|窑炉|制陶|陶器制作|烧制/, iconKey: 'suggest-kiln' },
+  { pattern: /聚落|布局|壕沟|边界|公共|空间|遗址保护/, iconKey: 'suggest-settlement' },
+  { pattern: /房屋|居住|居所|半穴居|建造|柱洞|灶/, iconKey: 'suggest-house' },
+  { pattern: /食物|饮食|炊煮|粮食|陶甑|取水|尖底瓶/, iconKey: 'suggest-food' },
+  { pattern: /纹样|彩陶|艺术|审美|图像|人面|鱼纹|鹿纹|装饰/, iconKey: 'suggest-pattern' },
+  { pattern: /考古|证据|判断|推理|不确定|遗址价值|信息来源|层位|出土/, iconKey: 'suggest-archaeology' },
+  { pattern: /体验|动手|手作|互动|复原|操作/, iconKey: 'suggest-hands' },
+  { pattern: /姑娘|人物|形象|雕塑|合影|记忆/, iconKey: 'suggest-figure' },
+  { pattern: /研学|记录|笔记|整理|问题|任务|复盘|小结/, iconKey: 'suggest-notes' },
+  { pattern: /休憩|环境|园林|牡丹|自然/, iconKey: 'suggest-garden' },
+  { pattern: /临展|现场主题|主题线索|策展|叙事|单元|展签|看展方法/, iconKey: 'suggest-curation' },
+  { pattern: /文物类型|文物种类|展品类型|本厅展品|器物种类|器物看法|代表器物/, iconKey: 'suggest-artifacts' },
+  { pattern: /细节|关键|用途|使用|原理|功能|观察/, iconKey: 'suggest-detail' },
+]
+
+function _suggestionIconKey(item) {
+  if (!item) return 'suggest-overview'
+  if (item.iconKey) return item.iconKey
+
+  var payload = item.payload || {}
+  var text = [
+    item.title,
+    item.type,
+    item.actionType,
+    payload.prompt,
+    payload.keyword,
+    payload.exhibitName,
+  ].filter(Boolean).join(' ')
+
+  for (var i = 0; i < SUGGESTION_ICON_RULES.length; i++) {
+    var rule = SUGGESTION_ICON_RULES[i]
+    if (rule.pattern.test(text)) return rule.iconKey
+  }
+
+  if (item.actionType === 'open_exhibit') return 'suggest-exhibit'
+  if (item.actionType === 'navigate_back') return 'suggest-back'
+  return SUGGESTION_FALLBACK_ICON_BY_TYPE[item.type] || 'suggest-overview'
+}
+
+function _decorateSuggestion(item) {
+  var iconKey = _suggestionIconKey(item)
+  return Object.assign({}, item, {
+    iconKey: iconKey,
+    iconSrc: '/assets/icons/' + iconKey + '.png',
+  })
+}
+
+function _decorateSuggestions(list) {
+  return (list || []).map(_decorateSuggestion)
+}
+
 /**
  * Generate guide suggestions for the current tour context.
  * Can be called with an optional list of real exhibits from the API to
@@ -858,7 +1057,7 @@ function generateGuideSuggestions(opts) {
       actionType: 'navigate_back', payload: {},
     })
 
-    return suggestions.slice(0, 4)
+    return _decorateSuggestions(suggestions.slice(0, 4))
   }
 
   // ── Hall mode: suggestions based on hall + persona ─────────────────────────
@@ -891,7 +1090,7 @@ function generateGuideSuggestions(opts) {
     })
   }
 
-  return suggestions
+  return _decorateSuggestions(suggestions)
 }
 
 // ─── Context question detection ────────────────────────────────────────────
@@ -1248,7 +1447,11 @@ module.exports = {
   addTourEvent,
   drainPendingEvents,
   restorePendingEvents,
+  saveHallChatMessages,
+  getHallChatMessages,
+  saveCurrentHallChatMessages,
   summarizeCurrentHallRecord,
+  summarizeStoredHallRecords,
   getRecordSummaryNotes,
 
   // API helpers

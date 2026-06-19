@@ -1,6 +1,7 @@
 const tourStore = require('../../store/tour')
 const api = require('../../api/index')
 const banpoHalls = require('../../constants/banpo-halls')
+const preload = require('../../utils/preload')
 
 var HALLS_MAP = banpoHalls.HALLS_MAP
 var DEFAULT_ORDER = banpoHalls.DEFAULT_ORDER
@@ -23,11 +24,13 @@ function _buildHallList(visitedSlugs) {
 Page({
   data: {
     halls: [],
-    entering: false,
   },
+
+  _entering: false,
 
   onLoad: function () {
     this._refresh()
+    this._preloadNext()
   },
 
   onShow: function () {
@@ -45,24 +48,38 @@ Page({
     this.setData({ halls: _buildHallList(visited) })
   },
 
+  _preloadNext: function () {
+    preload.preloadPages([
+      '/pages/tour/tour',
+      '/pages/route/route',
+      '/pages/exhibit-scan/exhibit-scan',
+    ], 120)
+    preload.preloadImages(preload.TOUR_ICON_ASSETS, 160)
+  },
+
   selectHall: function (e) {
-    if (this.data.entering) return
+    if (this._entering) return
     var self = this
     var hall = e.currentTarget.dataset.hall
     var state = tourStore.getTourState()
     var id = state.sessionId
     var token = state.sessionToken
 
-    self.setData({ entering: true })
+    self._entering = true
 
     var hallSlug = hall.backendSlug || banpoHalls.normalizeHallToSlug(hall.name)
-    tourStore.updateTourState({ currentHall: hallSlug, status: 'touring' })
-    tourStore.addTourEvent({ eventType: 'hall_enter', hall: hallSlug })
+    tourStore.updateTourState({ currentHall: hallSlug, status: 'touring' }, { deferPersist: true })
 
     wx.navigateTo({
-      url: '/pages/tour/tour?hall=' + encodeURIComponent(hall.name) + '&hallId=' + hall.id,
-      complete: function () { self.setData({ entering: false }) },
+      url: '/pages/tour/tour?hallId=' + hall.id,
+      complete: function () {
+        setTimeout(function () { self._entering = false }, 300)
+      },
     })
+
+    setTimeout(function () {
+      tourStore.addTourEvent({ eventType: 'hall_enter', hall: hallSlug })
+    }, 0)
 
     if (id) {
       api.tourApi.updateSession(id, {

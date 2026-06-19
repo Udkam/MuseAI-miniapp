@@ -246,6 +246,13 @@
   line-height: 1;
 }
 
+.sg-icon-img {
+  width: 34rpx;
+  height: 34rpx;
+  flex-shrink: 0;
+  display: block;
+}
+
 .sg-title {
   font-size: 24rpx;
   color: #5A3E2B;
@@ -302,9 +309,11 @@
   opacity: 0.8;
 }
 
-.exhibit-search-icon {
-  font-size: 26rpx;
-  line-height: 1;
+.exhibit-search-icon-img {
+  width: 34rpx;
+  height: 34rpx;
+  flex-shrink: 0;
+  display: block;
 }
 
 .exhibit-search-text {

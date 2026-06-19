@@ -1,6 +1,7 @@
 const api       = require('../../api/index')
 const tourStore = require('../../store/tour')
 const banpoHalls = require('../../constants/banpo-halls')
+const preload = require('../../utils/preload')
 
 const THEME_TITLES = {
   archaeology: '半坡考古研究报告',
@@ -120,8 +121,13 @@ Page({
     recordNotes: [],
   },
 
+  _reportTimer: null,
+
   onLoad: function () {
     var state = tourStore.getTourState()
+    tourStore.summarizeStoredHallRecords()
+    preload.preloadPages(['/pages/home/home', '/pages/hall/hall'], 120)
+    preload.preloadImages(preload.HALL_ICON_ASSETS, 160)
     this.setData({
       persona: tourStore.getPersonaLabel() || '',
       reportTitle: tourStore.getReportThemeTitle() || '半坡游览报告',
@@ -136,7 +142,18 @@ Page({
       return
     }
 
-    this._flushThenGenerate(state.sessionId, state.sessionToken)
+    var self = this
+    this._reportTimer = setTimeout(function () {
+      self._reportTimer = null
+      self._flushThenGenerate(state.sessionId, state.sessionToken)
+    }, 80)
+  },
+
+  onUnload: function () {
+    if (this._reportTimer) {
+      clearTimeout(this._reportTimer)
+      this._reportTimer = null
+    }
   },
 
   _flushThenGenerate: function (id, token) {

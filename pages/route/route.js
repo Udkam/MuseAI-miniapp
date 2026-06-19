@@ -1,6 +1,7 @@
 const api = require('../../api/index')
 const tourStore = require('../../store/tour')
 const banpoHalls = require('../../constants/banpo-halls')
+const preload = require('../../utils/preload')
 
 var HALLS_MAP = banpoHalls.HALLS_MAP
 var DEFAULT_ORDER = banpoHalls.DEFAULT_ORDER
@@ -217,8 +218,10 @@ Page({
   },
 
   _planSeq: 0,
+  _routePlanTimer: null,
   onLoad: function () {
     this._refresh()
+    this._preloadNext()
   },
 
   onShow: function () {
@@ -227,7 +230,14 @@ Page({
       return
     }
     if (!this.data.routeLoading) {
-      this._requestAiRoute()
+      this._scheduleAiRouteRequest()
+    }
+  },
+
+  onUnload: function () {
+    if (this._routePlanTimer) {
+      clearTimeout(this._routePlanTimer)
+      this._routePlanTimer = null
     }
   },
 
@@ -252,7 +262,21 @@ Page({
       aiRoutePending: true,
       loaded: true,
     })
-    this._requestAiRoute()
+    this._scheduleAiRouteRequest()
+  },
+
+  _preloadNext: function () {
+    preload.preloadPages(['/pages/hall/hall', '/pages/tour/tour'], 120)
+    preload.preloadImages(preload.HALL_ICON_ASSETS.concat(preload.TOUR_ICON_ASSETS), 160)
+  },
+
+  _scheduleAiRouteRequest: function () {
+    var self = this
+    if (self._routePlanTimer) clearTimeout(self._routePlanTimer)
+    self._routePlanTimer = setTimeout(function () {
+      self._routePlanTimer = null
+      self._requestAiRoute()
+    }, 120)
   },
 
   _requestAiRoute: function () {

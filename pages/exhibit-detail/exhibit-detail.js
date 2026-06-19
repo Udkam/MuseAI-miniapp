@@ -1,6 +1,7 @@
 const tourStore = require('../../store/tour')
 const api       = require('../../api/index')
 const banpoHalls = require('../../constants/banpo-halls')
+const preload = require('../../utils/preload')
 
 var MOCK_EXHIBITS = {
   '人面鱼纹盆': {
@@ -47,6 +48,7 @@ Page({
     var local = options.local === '1'
 
     this._enterAt = Date.now()
+    this._preloadNext()
     wx.setNavigationBarTitle({ title: name || '展品详情' })
 
     if (local) {
@@ -72,6 +74,11 @@ Page({
     } else {
       self.setData({ exhibit: DEFAULT_EXHIBIT, loading: false })
     }
+  },
+
+  _preloadNext: function () {
+    preload.preloadPages(['/pages/tour/tour', '/pages/exhibit-scan/exhibit-scan'], 120)
+    preload.preloadImages(preload.TOUR_ICON_ASSETS, 160)
   },
 
   _loadByName: function (name) {
@@ -107,13 +114,15 @@ Page({
     var exhibit  = this.data.exhibit
     var state    = tourStore.getTourState()
     if (state.sessionId) {
-      tourStore.addTourEvent({
-        eventType:       'exhibit_view',
-        exhibitId:       exhibit.id   || undefined,
-        hall:            exhibit.hall || state.currentHall || '',
-        durationSeconds: duration,
-        metadata:        { exhibit_name: exhibit.name },
-      })
+      setTimeout(function () {
+        tourStore.addTourEvent({
+          eventType:       'exhibit_view',
+          exhibitId:       exhibit.id   || undefined,
+          hall:            exhibit.hall || state.currentHall || '',
+          durationSeconds: duration,
+          metadata:        { exhibit_name: exhibit.name },
+        })
+      }, 0)
     }
   },
 
@@ -125,17 +134,19 @@ Page({
     tourStore.setCurrentExhibit(exhibit)
 
     var doNavigate = function (sid) {
-      if (sid) {
-        tourStore.addTourEvent({
-          eventType: 'exhibit_deep_dive',
-          exhibitId: exhibit.id   || exhibit.name || undefined,
-          hall:      exhibit.hall || state.currentHall || '',
-          metadata:  { exhibit_name: exhibit.name },
-        })
-      }
       wx.navigateTo({
         url: '/pages/tour/tour?exhibit=' + encodeURIComponent(exhibit.name),
       })
+      if (sid) {
+        setTimeout(function () {
+          tourStore.addTourEvent({
+            eventType: 'exhibit_deep_dive',
+            exhibitId: exhibit.id   || exhibit.name || undefined,
+            hall:      exhibit.hall || state.currentHall || '',
+            metadata:  { exhibit_name: exhibit.name },
+          })
+        }, 0)
+      }
     }
 
     if (!state.sessionId) {

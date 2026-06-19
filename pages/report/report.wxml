@@ -48,15 +48,15 @@
   <view wx:if="{{reflection}}" class="card reflection-card">
     <text class="section-label text-clay text-bold">复盘线索</text>
     <view class="reflection-row">
-      <text class="reflection-label">主线</text>
+      <text class="reflection-label">关注点</text>
       <text class="reflection-text">{{reflection.initial_assumption}}</text>
     </view>
     <view class="reflection-row">
-      <text class="reflection-label">证据</text>
+      <text class="reflection-label">核对点</text>
       <text class="reflection-text">{{reflection.observed_focus}}</text>
     </view>
     <view class="reflection-row">
-      <text class="reflection-label">再问</text>
+      <text class="reflection-label">追问点</text>
       <text class="reflection-text">{{reflection.change_summary}}</text>
     </view>
   </view>

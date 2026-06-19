@@ -1,5 +1,6 @@
 var tourStore = require('../../store/tour')
 var api       = require('../../api/index')
+var preload   = require('../../utils/preload')
 
 var PERSONA_NAMES = {
   A: '考古研究员',
@@ -154,9 +155,22 @@ Page({
 
   _navigating: false,
 
+  onLoad: function () {
+    this._preloadNext()
+  },
+
   onShow: function () {
     this._navigating = false
     if (this.data.loading) this.setData({ loading: false })
+  },
+
+  _preloadNext: function () {
+    preload.preloadPages([
+      '/pages/persona-reveal/persona-reveal',
+      '/pages/route/route',
+      '/pages/hall/hall',
+    ], 120)
+    preload.preloadImages(preload.ENTRY_ICON_ASSETS.concat(preload.HALL_ICON_ASSETS), 160)
   },
 
   selectFocus: function (e) {

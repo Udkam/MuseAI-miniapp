@@ -1,5 +1,6 @@
 var tourStore = require('../../store/tour')
 var api       = require('../../api/index')
+var preload   = require('../../utils/preload')
 
 Page({
   data: {
@@ -17,6 +18,17 @@ Page({
       resumeHallName: canResume ? (tourStore.getCurrentHallDisplayName() || '展厅选择') : '',
       aiConversationCount: state.aiConversationCount || 0,
     })
+    this._preloadNext()
+  },
+
+  _preloadNext: function () {
+    preload.preloadPages([
+      '/pages/onboarding/onboarding',
+      '/pages/hall/hall',
+      '/pages/persona-reveal/persona-reveal',
+      '/pages/route/route',
+    ], 120)
+    preload.preloadImages(preload.ENTRY_ICON_ASSETS.concat(preload.HALL_ICON_ASSETS), 160)
   },
 
   goOnboarding: function () {

@@ -1,5 +1,6 @@
 const tourStore = require('../../store/tour')
 const api       = require('../../api/index')
+const preload   = require('../../utils/preload')
 
 var PERSONA_MAP = {
   A: {
@@ -96,6 +97,12 @@ Page({
       guideModeTitle: state.guideModeTitle || '',
       routeTips: info.routeTips || [],
     })
+    this._preloadNext()
+  },
+
+  _preloadNext: function () {
+    preload.preloadPages(['/pages/route/route', '/pages/hall/hall'], 120)
+    preload.preloadImages(preload.HALL_ICON_ASSETS.concat(preload.TOUR_ICON_ASSETS), 160)
   },
 
   goHall: function () {

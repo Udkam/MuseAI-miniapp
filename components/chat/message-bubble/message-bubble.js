@@ -48,7 +48,10 @@ Component({
     // User messages keep blocks empty → plain text fallback.
     'role, content, isStreaming': function (role, content, isStreaming) {
       if (role === 'assistant' && content && !isStreaming) {
-        this.setData({ blocks: parseMarkdown(normalizeAssistantContent(content)) })
+        var self = this
+        this.setData({ blocks: parseMarkdown(normalizeAssistantContent(content)) }, function () {
+          self.triggerEvent('rendered', { messageId: self.properties.messageId })
+        })
       } else if (this.data.blocks.length) {
         this.setData({ blocks: [] })
       }

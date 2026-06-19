@@ -2,6 +2,7 @@ const api       = require('../../api/index')
 const chatStore = require('../../store/chat')
 const tourStore = require('../../store/tour')
 const banpoHalls = require('../../constants/banpo-halls')
+const preload = require('../../utils/preload')
 
 const TOUR_TTS_STYLE = '请用清晰、自然、亲切的博物馆导览语气朗读；语速稍快，比常规讲解更利落，句间停顿短一些，尾音不要拖长。不要额外补充文字，只朗读给定内容。'
 const TTS_SEGMENT_MAX_CHARS = 72
@@ -151,17 +152,22 @@ Page({
   _safeAreaBottom: 0,
   _keyboardLift: 0,
   _sessionRecoveryRetrying: false,
+  _suggestionFetchTimer: null,
+  _suggestionShowTimer: null,
+  _guideSuggestionsSig: '',
+  _postEnterTimer: null,
+  _scrollPulseTimers: null,
 
   // ── Lifecycle ─────────────────────────────────────────────────────────────
 
   onLoad: function (options) {
     this._loadedAt = Date.now()
+    var self = this
     var state   = tourStore.getTourState()
     var exhibit = state.currentExhibit || null
     var exhibitNameFromQuery = options && options.exhibit ? decodeURIComponent(options.exhibit) : ''
     var ttsPrefs = tourStore.getTtsPrefs()
     if (!this._ttsAudioCache) this._ttsAudioCache = {}
-    this._cleanupStaleTtsFiles()
     this._initSafeArea()
     // Only reset chat on a fresh tour entry (hall page → tour).
     // When coming from exhibit-detail goDeeper(), options.exhibit is set —
@@ -187,8 +193,6 @@ Page({
       exhibit = tourStore.getCurrentExhibit ? tourStore.getCurrentExhibit() : tourStore.getTourState().currentExhibit || null
     }
 
-    this._setupKeyboardLift()
-
     // URL param takes priority; fallback to saved canonical hall slug.
     var hallFromId = options.hallId ? banpoHalls.getHall(options.hallId) : null
     var rawHall = hallFromId
@@ -200,21 +204,31 @@ Page({
     var patch = { sessionId: state.sessionId || null, currentExhibit: exhibit }
     if (hallName) {
       wx.setNavigationBarTitle({ title: hallName })
-      tourStore.updateTourState({ currentHall: hallSlug })
+      tourStore.updateTourState({ currentHall: hallSlug }, { deferPersist: true })
       patch.hallName = hallName
     } else {
       hallName = this.data.hallName
     }
     if (freshEntry) {
-      var welcomeMsg = { id: 1, role: 'assistant', content: buildWelcomeMessage(hallSlug, hallName), ttsStatus: 'idle' }
-      chatStore.setMessages([welcomeMsg])
-      patch.messages = [welcomeMsg]
+      var cachedMessages = hallSlug ? tourStore.getHallChatMessages(hallSlug) : []
+      var messagesForPage = cachedMessages.length
+        ? cachedMessages
+        : [{ id: 1, role: 'assistant', content: buildWelcomeMessage(hallSlug, hallName), ttsStatus: 'idle' }]
+      chatStore.setMessages(messagesForPage)
+      patch.messages = messagesForPage
+      if (!cachedMessages.length && hallSlug) {
+        tourStore.saveHallChatMessages(hallSlug, messagesForPage, { defer: true })
+      }
     } else {
       var storedMessages = chatStore.getState().messages
       if (storedMessages && storedMessages.length) patch.messages = storedMessages
     }
     patch.ttsEnabled = ttsPrefs.enabled !== false
-    this.setData(patch)
+    var shouldScrollToBottom = !!(patch.messages && patch.messages.length)
+    this.setData(patch, function () {
+      self._deferPostEnterWork()
+      if (shouldScrollToBottom) self._scrollToBottomAfterRestore()
+    })
   },
 
   // Refresh exhibit context when navigating back to this page (also after goDeeper)
@@ -223,16 +237,47 @@ Page({
     var state = tourStore.getTourState()
     var hallName = state.currentHall ? banpoHalls.getHallDisplayName(state.currentHall) : this.data.hallName
     var ttsPrefs = tourStore.getTtsPrefs()
-    this.setData({ currentExhibit: state.currentExhibit || null, sessionId: state.sessionId || null, hallName: hallName, ttsEnabled: ttsPrefs.enabled !== false })
+    var patch = {}
+    var nextExhibit = state.currentExhibit || null
+    var nextSessionId = state.sessionId || null
+    var nextTtsEnabled = ttsPrefs.enabled !== false
+    if (this.data.currentExhibit !== nextExhibit) patch.currentExhibit = nextExhibit
+    if (this.data.sessionId !== nextSessionId) patch.sessionId = nextSessionId
+    if (this.data.hallName !== hallName) patch.hallName = hallName
+    if (this.data.ttsEnabled !== nextTtsEnabled) patch.ttsEnabled = nextTtsEnabled
+    if (Object.keys(patch).length) this.setData(patch)
+    this._preloadNext()
     // Defer the suggestion build + exhibit fetch past the page-transition frame
     // so the slide-in/back stays smooth; suggestions paint a tick later.
     var self = this
-    wx.nextTick(function () { self._loadSuggestions() })
+    if (self._suggestionShowTimer) clearTimeout(self._suggestionShowTimer)
+    self._suggestionShowTimer = setTimeout(function () {
+      self._suggestionShowTimer = null
+      self._loadSuggestions()
+    }, 80)
+  },
+
+  onHide: function () {
+    this._syncHallChatAndSummary()
   },
 
   onUnload: function () {
+    this._syncHallChatAndSummary()
     this._clearHintTimers()
     this._clearFlushTimer()
+    this._clearScrollPulseTimers()
+    if (this._suggestionFetchTimer) {
+      clearTimeout(this._suggestionFetchTimer)
+      this._suggestionFetchTimer = null
+    }
+    if (this._suggestionShowTimer) {
+      clearTimeout(this._suggestionShowTimer)
+      this._suggestionShowTimer = null
+    }
+    if (this._postEnterTimer) {
+      clearTimeout(this._postEnterTimer)
+      this._postEnterTimer = null
+    }
     if (this._streamTask) {
       this._streamTask.abort()
       this._streamTask = null
@@ -241,9 +286,47 @@ Page({
     this._destroyTtsAudio()
     this._cleanupOwnTtsFiles()
     this._teardownKeyboardLift()
-    tourStore.summarizeCurrentHallRecord(chatStore.getState().messages)
     // Fire-and-forget: best-effort flush of pending events on page leave
     this._flushEvents(null)
+  },
+
+  _persistCurrentHallChat: function () {
+    var state = tourStore.getTourState()
+    var hall = state.currentHall || banpoHalls.normalizeHallToSlug(this.data.hallName) || null
+    if (!hall) return []
+    return tourStore.saveHallChatMessages(hall, chatStore.getState().messages, { defer: true })
+  },
+
+  _syncHallChatAndSummary: function () {
+    this._persistCurrentHallChat()
+    tourStore.summarizeCurrentHallRecord(chatStore.getState().messages)
+  },
+
+  _deferPostEnterWork: function () {
+    var self = this
+    var run = function () {
+      self._setupKeyboardLift()
+      self._preloadNext()
+      if (self._postEnterTimer) clearTimeout(self._postEnterTimer)
+      self._postEnterTimer = setTimeout(function () {
+        self._postEnterTimer = null
+        self._cleanupStaleTtsFiles()
+      }, 500)
+    }
+    if (wx.nextTick) {
+      wx.nextTick(run)
+    } else {
+      setTimeout(run, 0)
+    }
+  },
+
+  _preloadNext: function () {
+    preload.preloadPages([
+      '/pages/exhibit-scan/exhibit-scan',
+      '/pages/exhibit-detail/exhibit-detail',
+      '/pages/report/report',
+    ], 120)
+    preload.preloadImages(preload.TOUR_ICON_ASSETS, 160)
   },
 
   // ── Input ─────────────────────────────────────────────────────────────────
@@ -323,6 +406,10 @@ Page({
       keyboardVisible: !!lift,
     })
     if (h) this._scrollToBottom()
+  },
+
+  onMessageRendered: function () {
+    this._scrollToBottomSettled()
   },
 
   // ── Send message ──────────────────────────────────────────────────────────
@@ -499,7 +586,8 @@ Page({
           // Re-show suggestion chips after each response so user can tap again
           showSuggestions:  self.data.guideSuggestions.length > 0,
         })
-        self._scrollToBottom()
+        self._syncHallChatAndSummary()
+        self._scrollToBottomSettled()
       },
 
       onError: function (err) {
@@ -535,7 +623,7 @@ Page({
           loadingHint:      '',
           showSuggestions:  self.data.guideSuggestions.length > 0,
         })
-        self._scrollToBottom()
+        self._scrollToBottomSettled()
       },
     })
   },
@@ -580,7 +668,8 @@ Page({
       ragSteps:         [],
       loadingHint:      '',
     })
-    self._scrollToBottom()
+    self._syncHallChatAndSummary()
+    self._scrollToBottomSettled()
   },
 
   // ── TTS playback ─────────────────────────────────────────────────────────
@@ -934,7 +1023,7 @@ Page({
       currentHall:    hall,
       exhibits:       [],
     })
-    self.setData({ guideSuggestions: initial, showSuggestions: initial.length > 0 })
+    self._applyGuideSuggestions(initial)
 
     // Phase 2 — enrich with real exhibit data from API (non-blocking)
     // exhibit.hall is already a backend slug; otherwise convert hall display name to slug.
@@ -943,7 +1032,10 @@ Page({
       : (state.currentHall ? banpoHalls.normalizeHallToSlug(state.currentHall) : (hall ? api.hallNameToSlug(hall) : null))
     if (!hallSlug) return
 
-    api.exhibitsApi.listByHall(hallSlug)
+    if (self._suggestionFetchTimer) clearTimeout(self._suggestionFetchTimer)
+    self._suggestionFetchTimer = setTimeout(function () {
+      self._suggestionFetchTimer = null
+      api.exhibitsApi.listByHall(hallSlug)
       .then(function (res) {
         if (seq !== self._suggestionSeq) return
         if (!res.ok || !res.data) return
@@ -954,14 +1046,30 @@ Page({
           currentHall:    self.data.hallName || banpoHalls.getHallDisplayName(tourStore.getTourState().currentHall) || null,
           exhibits:       normalized,
         })
-        if (enhanced.length > 0) {
-          self.setData({ guideSuggestions: enhanced, showSuggestions: true })
-        }
+        self._applyGuideSuggestions(enhanced)
       })
       .catch(function (err) {
         console.warn('[tour] suggestions: exhibit fetch failed', err)
         // Keep phase-1 suggestions — no user-visible error
       })
+    }, 160)
+  },
+
+  _applyGuideSuggestions: function (list) {
+    var suggestions = list || []
+    var show = suggestions.length > 0
+    var sig = suggestions.map(function (item) {
+      return [
+        item.type || '',
+        item.actionType || '',
+        item.title || '',
+        item.iconSrc || item.icon || '',
+        item.payload && (item.payload.exhibitId || item.payload.exhibitName || item.payload.prompt || item.payload.keyword) || '',
+      ].join(':')
+    }).join('|')
+    if (sig === this._guideSuggestionsSig && this.data.showSuggestions === show) return
+    this._guideSuggestionsSig = sig
+    this.setData({ guideSuggestions: suggestions, showSuggestions: show })
   },
 
   dismissSuggestions: function () {
@@ -1242,7 +1350,8 @@ Page({
           isThinking:       false,
           isStreaming:      false,
         })
-        self._scrollToBottom()
+        self._syncHallChatAndSummary()
+        self._scrollToBottomSettled()
         return
       }
       var ch = reply.charAt(i)
@@ -1255,7 +1364,31 @@ Page({
 
   // ── Scroll helper (debounced, toggles anchor ID to force re-scroll) ────────
 
-  _scrollToBottom: function () {
+  _scrollToBottomAfterRestore: function () {
+    this._scrollToBottomSettled()
+  },
+
+  _scrollToBottomSettled: function () {
+    var self = this
+    self._clearScrollPulseTimers()
+    self._scrollPulseTimers = []
+    ;[0, 120, 320, 720].forEach(function (wait) {
+      var timer = setTimeout(function () {
+        self._scrollToBottom(0)
+      }, wait)
+      self._scrollPulseTimers.push(timer)
+    })
+  },
+
+  _clearScrollPulseTimers: function () {
+    if (!this._scrollPulseTimers) return
+    this._scrollPulseTimers.forEach(function (timer) {
+      clearTimeout(timer)
+    })
+    this._scrollPulseTimers = null
+  },
+
+  _scrollToBottom: function (delay) {
     var self = this
     if (self._scrollPending) return
     self._scrollPending = true
@@ -1264,7 +1397,7 @@ Page({
       var cur  = self.data.scrollTarget
       var next = (cur === '' || cur === 'msg-bottom-a') ? 'msg-bottom-b' : 'msg-bottom-a'
       self.setData({ scrollTarget: next })
-    }, 80)
+    }, typeof delay === 'number' ? delay : 80)
   },
 
   // ── Exhibit context ───────────────────────────────────────────────────────
@@ -1289,7 +1422,8 @@ Page({
     if (self.data.isThinking || self.data.isStreaming) {
       self.stopStream()
     }
-    tourStore.summarizeCurrentHallRecord(chatStore.getState().messages)
+    self._syncHallChatAndSummary()
+    tourStore.summarizeStoredHallRecords()
 
     // Navigate first so a slow/cancelled event upload never makes the button feel dead.
     wx.navigateTo({

@@ -7,7 +7,7 @@
 
   <!-- Search bar -->
   <view class="search-bar">
-    <text class="search-icon">🔍</text>
+    <image class="search-icon-img" src="/assets/icons/action-search-exhibit.png" mode="aspectFit"></image>
     <input
       class="search-input"
       value="{{searchText}}"
@@ -67,7 +67,7 @@
       bindtap="selectExhibit"
       data-exhibit="{{item}}"
     >
-      <view class="exhibit-card-icon">🏺</view>
+      <image class="exhibit-card-icon-img" src="/assets/icons/exhibit-list-item.png" mode="aspectFit"></image>
       <view class="exhibit-card-info">
         <text class="exhibit-card-name">{{item.name}}</text>
         <view class="exhibit-card-tags">
@@ -82,7 +82,7 @@
 
   <!-- Empty state -->
   <view wx:elif="{{!loading}}" class="state-wrap">
-    <text class="empty-icon">🔍</text>
+    <image class="empty-icon-img" src="/assets/icons/exhibit-empty-search.png" mode="aspectFit"></image>
     <text class="empty-text text-muted">没有找到匹配展项</text>
     <text class="text-muted text-sm" style="display:block;margin-top:8rpx;">可以换成“陶器”“房屋”“墓葬”等关键词</text>
   </view>
