@@ -4,6 +4,7 @@ dist/
 miniprogram_npm/
 .DS_Store
 project.config.json
+project.private.config.json
 
 #codex
 codex.md

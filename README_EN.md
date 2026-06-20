@@ -6,21 +6,24 @@ MuseAI frontend is a native WeChat mini-program for the Banpo Museum guide exper
 
 ## Current Stage
 
-The frontend is currently in **Stage 13: pre-launch closed-loop validation and release preparation**.
+The frontend is now in the **launch preparation and release closeout stage**.
 
-The code-level MVP covers the main product flow. HTTPS status should be read in two parts:
+The planned mini-program features have completed real-device testing. The project should now focus on filing, real data, OCR decision-making, API-key governance, and release acceptance instead of expanding new features. See [上线准备.md](../project_materials/docs/上线准备.md) for the operational checklist.
+
+HTTPS status should be read in two parts:
 
 - Done (server side): `api.banpo-museai.xyz` DNS, SSL certificate, and Nginx 443 reverse proxy are configured; `https://api.banpo-museai.xyz/api/v1/health` returns healthy.
 - Current development state: because `banpo-museai.xyz` is still waiting for filing, the mini-program frontend temporarily uses the server HTTP dev endpoint `http://122.152.232.190:3000/api/v1`; the local backend `http://127.0.0.1:8000/api/v1` and the production HTTPS endpoint are both kept as adjacent code comments. Switch back to HTTPS after filing and WeChat legal request-domain approval.
-- Not done (WeChat side): domain filing, WeChat admin legal request-domain configuration, and a full real-device run with the DevTools "ignore legal domain" exemption turned off.
+- Not done (WeChat side): domain filing, WeChat admin legal request-domain configuration, and an official-environment real-device run with the DevTools "ignore legal domain" exemption turned off.
 
 Remaining blockers:
 
 - The mini-program filing subject has not been finalized.
-- OCR service ID is not configured.
-- OCR, TTS, keyboard adaptation, and report statistics still require multi-device real-device testing.
+- The current data is not the final official museum dataset.
+- OCR service has not been purchased or configured; if OCR is not launched, hide the entry or keep text-search fallback.
+- The Qwen LLM key currently consumes free or trial quota; quota, billing, and limits must be confirmed before release.
 - systemd hosting, log rotation, and PostgreSQL backups are not yet applied on the server (see `backend/deploy/`).
-- Full experience-version real-device acceptance is not complete.
+- Experience-version upload, tester distribution, and official acceptance with legal-domain checks enabled are not complete.
 
 ## Implemented Capabilities
 
@@ -59,14 +62,13 @@ Remaining blockers:
   - keyboard raise handling for the bottom input bar
   - basic compatibility across screen sizes
 
-## Not Complete Or Still Needs Retesting
+## Not Complete Or Still Needs Release Acceptance
 
 - Formal mini-program filing, experience-version upload, and tester distribution.
 - WeChat legal domains for request/uploadFile/downloadFile.
-- OCR service ID and real-device camera recognition stability.
-- TTS voice quality, speed, generation latency, and real-device playback stability.
-- iOS keyboard height, notch screens, large-font mode, and Android resolution matrix.
-- Official museum exhibit images, map, positions, and complete hall data.
+- OCR service purchase, service ID configuration, and real-device recognition stability.
+- Official museum exhibit images, map, positions, and complete hall data; the current data is not final real data.
+- API-key ownership, quota, billing, alerting, and rotation process.
 - Privacy policy, user agreement, and camera/voice permission notices.
 
 ## Tech Stack
@@ -246,5 +248,8 @@ node --check pages/exhibit-detail/exhibit-detail.js
 - Formal release needs a real AppID, developer permissions, upload permissions, and test members.
 - If using a mainland China server and custom domain, formal WeChat mini-program release usually requires filing and legal-domain configuration.
 - Current server resource budget is 2 CPU cores / 8 GB RAM. Real-device testing should watch streaming answer latency, TTS waits, and report fallback behavior under weak networks.
+- Current local and real-device testing still points directly to the server HTTP dev endpoint; after filing and WeChat legal-domain approval, switch back to `https://api.banpo-museai.xyz/api/v1`.
+- Current Qwen LLM calls consume free or trial quota. Before experience-version testing, confirm quota, billing, rate limits, and bill alerts in the provider console.
+- Current data is not the final official museum dataset. After replacing real data, revalidate hall filtering, exhibit stats, OCR search, and report summaries.
 - Any exposed AppSecret or API key must be rotated.
 - Privacy policy, user agreement, camera permission notice, and AI-generated-content notice should be ready before release.

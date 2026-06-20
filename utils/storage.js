@@ -21,7 +21,7 @@ const KEYS = {
 }
 
 const TOUR_SESSION_SCHEMA_VERSION = 'tour-session-v3'
-const TOUR_CACHE_SCHEMA_VERSION = 'tour-cache-v4'
+const TOUR_CACHE_SCHEMA_VERSION = 'tour-cache-v5'
 
 function get(key, defaultValue) {
   try {
