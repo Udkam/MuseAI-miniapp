@@ -695,6 +695,59 @@ git diff --check
 
 Result: all syntax and focused tests passed. `test:all` passed. Residual old-mechanism scan returned no matches. `git diff --check` reported only existing LF-to-CRLF warnings.
 
+## 2026-06-20 Transient Exhibit Discussion Navigation
+
+### Time
+
+- Work time: 2026-06-20 12:03-12:25 +08:00
+- Session ID: `museai-20260620-1203-transient-discussion-navigation`
+
+### Decision
+
+- “正在讨论：xx” is now a transient in-hall mode.
+- It is entered only by tapping “与 AI 深入探讨”.
+- It is cleared when the user leaves the AI tour page or taps the context-bar close button.
+- Re-entering a hall does not restore the previous discussion context.
+
+### Root Cause
+
+- Previous stack hardening used `wx.reLaunch` from exhibit detail to tour and from tour back to hall.
+- `reLaunch` prevents stale pages from remaining in the stack, but the user-visible transition is not the same native slide animation and can feel like a flicker on device.
+- The older hall-scoped exhibit context cache also conflicted with the new desired design because it could restore “正在讨论” after re-entering a hall.
+
+### Changes
+
+- `pages/exhibit-detail/exhibit-detail.js`
+  - Deep discussion now finds the existing `pages/tour/tour` page in the stack and uses `wx.navigateBack({ delta })` to return to it with native slide animation.
+  - If no existing tour page is found, it falls back to `wx.navigateTo`.
+- `pages/tour/tour.js`
+  - Fresh hall entry clears `currentExhibit`.
+  - `onShow` only applies pending deep-dive context or the current transient context; it no longer restores hall-scoped exhibit context.
+  - Leaving the tour page clears the current discussion context.
+  - Custom back now prefers `navigateBack` to the existing hall page, with `reLaunch` only as a fallback.
+- `pages/tour/tour.json`
+  - Added `disableSwipeBack: true` for platforms/base libraries that support page-level swipe-back disabling.
+- `store/tour.js`
+  - Removed hall-scoped exhibit context persistence APIs and storage usage from active state.
+- `scripts/test-hall-chat-history.js`
+  - Updated tests to assert transient exhibit discussion behavior instead of hall-restored behavior.
+
+### Verification
+
+```bash
+node --check pages/exhibit-detail/exhibit-detail.js
+node --check pages/tour/tour.js
+node --check store/tour.js
+node --check scripts/test-hall-chat-history.js
+npm.cmd run test:hall-chat
+npm.cmd run test:suggestions
+npm.cmd run test:all
+rg -n "currentExhibitByHall|getCurrentExhibitForHall|applyHallExhibitContext|_loadHallExhibitContexts|_persistHallExhibitContexts|redirectTo\\(\\{ url: url \\}\\)|wx\\.reLaunch\\(\\{ url: url \\}\\)|navigate_back|skipToHall|SkipToHall|TOUR_SKIP" store\\tour.js pages scripts constants -S
+git diff --check
+```
+
+Result: syntax checks passed. Focused tests passed. `test:all` passed. Residual old-mechanism scan returned no matches. `git diff --check` reported only LF-to-CRLF warnings.
+
 ## 2026-06-20 Restore explicit exhibit discussion trigger
 
 ### Time

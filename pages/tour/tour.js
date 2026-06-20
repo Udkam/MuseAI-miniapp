@@ -214,26 +214,22 @@ Page({
     var hallName = hallSlug ? banpoHalls.getHallDisplayName(hallSlug) : null
 
     if (freshEntry) {
-      var savedExhibit = hallSlug && tourStore.applyHallExhibitContext
-        ? tourStore.applyHallExhibitContext(hallSlug)
-        : null
-      if (savedExhibit) {
-        exhibit = savedExhibit
-      } else if (exhibit && hallSlug && tourStore.setCurrentExhibit) {
-        tourStore.setCurrentExhibit(exhibit, hallSlug)
-        exhibit = tourStore.getCurrentExhibit ? tourStore.getCurrentExhibit() : exhibit
-      } else if (exhibitNameFromQuery && hallSlug && tourStore.setCurrentExhibit) {
-        tourStore.setCurrentExhibit({
-          id: exhibitNameFromQuery,
-          name: exhibitNameFromQuery,
-          hall: hallSlug,
-          hallDisplay: banpoHalls.getHallDisplayName(hallSlug),
-          objectKind: '展品',
-        }, hallSlug)
-        exhibit = tourStore.getCurrentExhibit ? tourStore.getCurrentExhibit() : null
+      if (tourStore.clearCurrentExhibit) {
+        tourStore.clearCurrentExhibit()
       }
+      exhibit = null
     } else if (exhibit && hallSlug && tourStore.setCurrentExhibit) {
       tourStore.setCurrentExhibit(exhibit, hallSlug)
+      exhibit = tourStore.getCurrentExhibit ? tourStore.getCurrentExhibit() : exhibit
+    } else if (!freshEntry && exhibitNameFromQuery && hallSlug && tourStore.setCurrentExhibit) {
+      tourStore.setCurrentExhibit({
+        id: exhibitNameFromQuery,
+        name: exhibitNameFromQuery,
+        hall: hallSlug,
+        hallDisplay: banpoHalls.getHallDisplayName(hallSlug),
+        objectKind: '展品',
+      }, hallSlug)
+      exhibit = tourStore.getCurrentExhibit ? tourStore.getCurrentExhibit() : null
     }
 
     var patch = { sessionId: state.sessionId || null, currentExhibit: exhibit }
@@ -304,9 +300,12 @@ Page({
       state = tourStore.getTourState()
     }
     var hallChanged = hallSlug && this.data.hallName !== hallName
-    var nextExhibit = pendingDeepDiveExhibit || (hallSlug && tourStore.applyHallExhibitContext
-      ? tourStore.applyHallExhibitContext(hallSlug)
-      : (state.currentExhibit || null)) || state.currentExhibit || null
+    var stateExhibit = state.currentExhibit || null
+    if (stateExhibit && hallSlug) {
+      var stateExhibitHall = stateExhibit.hall ? banpoHalls.normalizeHallToSlug(stateExhibit.hall) : hallSlug
+      if (stateExhibitHall && stateExhibitHall !== hallSlug) stateExhibit = null
+    }
+    var nextExhibit = pendingDeepDiveExhibit || stateExhibit || null
     var nextSessionId = state.sessionId || null
     var nextTtsEnabled = ttsPrefs.enabled !== false
     var shouldScrollToBottom = false
@@ -348,6 +347,7 @@ Page({
 
   onUnload: function () {
     this._syncHallChatAndSummary()
+    this._clearCurrentExhibitOnLeave()
     this._clearHintTimers()
     this._clearFlushTimer()
     this._clearScrollPulseTimers()
@@ -1543,10 +1543,13 @@ Page({
 
   // ── Exhibit context ───────────────────────────────────────────────────────
 
+  _clearCurrentExhibitOnLeave: function () {
+    if (!this.data.currentExhibit && !(tourStore.getTourState().currentExhibit)) return
+    tourStore.clearCurrentExhibit()
+  },
+
   clearExhibitContext: function () {
-    var state = tourStore.getTourState()
-    var hall = state.currentHall || banpoHalls.normalizeHallToSlug(this.data.hallName) || null
-    tourStore.clearCurrentExhibit(hall)
+    tourStore.clearCurrentExhibit()
     this.setData({ currentExhibit: null })
     this._loadSuggestions()
   },
@@ -1555,6 +1558,14 @@ Page({
 
   goBackFromTour: function () {
     this._syncHallChatAndSummary()
+    this._clearCurrentExhibitOnLeave()
+    var pages = typeof getCurrentPages === 'function' ? getCurrentPages() : []
+    for (var i = pages.length - 2; i >= 0; i--) {
+      if (pages[i] && pages[i].route === 'pages/hall/hall') {
+        wx.navigateBack({ delta: pages.length - 1 - i })
+        return
+      }
+    }
     wx.reLaunch({ url: '/pages/hall/hall' })
   },
 

@@ -1,6 +1,7 @@
 {
   "navigationBarTitleText": "AI 导览",
   "navigationStyle": "custom",
+  "disableSwipeBack": true,
   "usingComponents": {
     "message-bubble": "/components/chat/message-bubble/message-bubble"
   }

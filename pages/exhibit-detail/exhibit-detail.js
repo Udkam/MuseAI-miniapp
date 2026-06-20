@@ -62,6 +62,16 @@ function resolveHallSlugForExhibit(exhibit) {
     ''
 }
 
+function findBackDeltaToTour() {
+  var pages = typeof getCurrentPages === 'function' ? getCurrentPages() : []
+  for (var i = pages.length - 2; i >= 0; i--) {
+    if (pages[i] && pages[i].route === 'pages/tour/tour') {
+      return pages.length - 1 - i
+    }
+  }
+  return 0
+}
+
 function makeClientEventId(prefix) {
   return String(Date.now()) + '-' + (prefix || 'evt') + '-' + Math.random().toString(36).slice(2, 10)
 }
@@ -209,7 +219,12 @@ Page({
         } else if (hallSlug) {
           url += '&hall=' + encodeURIComponent(hallSlug)
         }
-        wx.reLaunch({ url: url })
+        var deltaToTour = findBackDeltaToTour()
+        if (deltaToTour > 0) {
+          wx.navigateBack({ delta: deltaToTour })
+          return
+        }
+        wx.navigateTo({ url: url })
       }
       if (sid) {
         self._recordExhibitView(exhibit, null, 'detail_enter')

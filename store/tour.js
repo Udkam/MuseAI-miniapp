@@ -108,8 +108,7 @@ function _makeEmptyTour() {
     assumption:        null,
     currentHall:       null,
     currentExhibitId:  null,
-    currentExhibit:    null,   // full exhibit object; set by exhibit-detail before goDeeper
-    currentExhibitByHall: {},
+    currentExhibit:    null,   // transient exhibit focus; cleared when leaving the hall
     pendingDetailExhibit: null, // transient detail-page payload; not AI discussion context
     currentScannedExhibitId: null,
     currentScannedExhibitName: null,
@@ -825,23 +824,6 @@ function _normalizeExhibitContext(exhibit) {
   }
 }
 
-function _loadHallExhibitContexts() {
-  var raw = storage.get(STORAGE_KEYS.TOUR_HALL_EXHIBITS, {})
-  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) raw = {}
-  var normalized = {}
-  Object.keys(raw).forEach(function (hall) {
-    var slug = _normalizeHallForStorage(hall)
-    var exhibit = _normalizeExhibitContext(raw[hall])
-    if (slug && exhibit && exhibit.name) normalized[slug] = exhibit
-  })
-  _tour.currentExhibitByHall = normalized
-  return normalized
-}
-
-function _persistHallExhibitContexts() {
-  storage.set(STORAGE_KEYS.TOUR_HALL_EXHIBITS, _tour.currentExhibitByHall || {})
-}
-
 function _resolveExhibitHall(exhibit, hall) {
   var fromArg = hall ? _normalizeHallForStorage(hall) : ''
   if (fromArg) return fromArg
@@ -858,44 +840,16 @@ function setCurrentExhibit(exhibit, hall) {
     normalized.hallDisplay = normalized.hallDisplay || banpoHalls.getHallDisplayName(hallSlug)
   }
   _tour.currentExhibit = normalized
-  if (hallSlug) {
-    _loadHallExhibitContexts()
-    if (normalized) {
-      _tour.currentExhibitByHall[hallSlug] = normalized
-    } else {
-      delete _tour.currentExhibitByHall[hallSlug]
-    }
-    _persistHallExhibitContexts()
-  }
 }
 
 /** Clear exhibit-focus mode (user tapped ✕ in the Context Bar). */
-function clearCurrentExhibit(hall) {
-  var hallSlug = hall ? _normalizeHallForStorage(hall) : (_tour.currentHall ? _normalizeHallForStorage(_tour.currentHall) : '')
+function clearCurrentExhibit() {
   _tour.currentExhibit = null
-  if (hallSlug) {
-    _loadHallExhibitContexts()
-    delete _tour.currentExhibitByHall[hallSlug]
-    _persistHallExhibitContexts()
-  }
 }
 
 /** @returns {object|null} shallow copy of currentExhibit, or null */
 function getCurrentExhibit() {
   return _tour.currentExhibit ? Object.assign({}, _tour.currentExhibit) : null
-}
-
-function getCurrentExhibitForHall(hall) {
-  var slug = hall ? _normalizeHallForStorage(hall) : (_tour.currentHall ? _normalizeHallForStorage(_tour.currentHall) : '')
-  if (!slug) return null
-  var map = _loadHallExhibitContexts()
-  return map[slug] ? Object.assign({}, map[slug]) : null
-}
-
-function applyHallExhibitContext(hall) {
-  var exhibit = getCurrentExhibitForHall(hall)
-  _tour.currentExhibit = exhibit ? Object.assign({}, exhibit) : null
-  return getCurrentExhibit()
 }
 
 function setPendingDetailExhibit(exhibit) {
@@ -1809,8 +1763,6 @@ module.exports = {
   setCurrentExhibit,
   clearCurrentExhibit,
   getCurrentExhibit,
-  getCurrentExhibitForHall,
-  applyHallExhibitContext,
   setPendingDetailExhibit,
   consumePendingDetailExhibit,
   setCurrentScannedExhibit,

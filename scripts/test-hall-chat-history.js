@@ -97,32 +97,16 @@ assert.strictEqual(
   'local exhibit views without a backend id should count by hall and exhibit name'
 )
 tourStore.setCurrentExhibit({ id: 'basic-ex-1', name: 'Basic Exhibit', hall: 'basic-exhibition-hall' }, 'basic-exhibition-hall')
-tourStore.setCurrentExhibit({ id: 'kiln-ex-1', name: 'Kiln Exhibit', hall: 'kiln-hall' }, 'kiln-hall')
 assert.strictEqual(
-  tourStore.getCurrentExhibitForHall('basic-exhibition-hall').name,
+  tourStore.getCurrentExhibit().name,
   'Basic Exhibit',
-  'basic hall should keep its own active exhibit context'
+  'active exhibit context should be available during the current tour page'
 )
+tourStore.clearCurrentExhibit()
 assert.strictEqual(
-  tourStore.getCurrentExhibitForHall('kiln-hall').name,
-  'Kiln Exhibit',
-  'kiln hall should keep its own active exhibit context'
-)
-assert.strictEqual(
-  tourStore.applyHallExhibitContext('basic-exhibition-hall').name,
-  'Basic Exhibit',
-  'entering a hall should restore that hall exhibit context'
-)
-tourStore.clearCurrentExhibit('basic-exhibition-hall')
-assert.strictEqual(
-  tourStore.getCurrentExhibitForHall('basic-exhibition-hall'),
+  tourStore.getCurrentExhibit(),
   null,
-  'clearing one hall exhibit context should remove only that hall'
-)
-assert.strictEqual(
-  tourStore.getCurrentExhibitForHall('kiln-hall').name,
-  'Kiln Exhibit',
-  'clearing one hall exhibit context should not remove another hall'
+  'leaving the hall or tapping close should clear the active exhibit context'
 )
 assert.strictEqual(
   tourStore.getLastAnsweredHallDisplayName(),
@@ -192,9 +176,9 @@ assert.strictEqual(
   'new tour should not inherit previous visited exhibit count'
 )
 assert.strictEqual(
-  tourStore.getCurrentExhibitForHall('kiln-hall'),
+  tourStore.getCurrentExhibit(),
   null,
-  'new tour should not inherit previous hall exhibit context'
+  'new tour should not inherit previous exhibit discussion context'
 )
 
 chatStore.resetChat()
