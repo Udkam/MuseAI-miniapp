@@ -1,43 +1,57 @@
-<view class="page-wrap hall">
-
-  <view class="hall-header">
-    <view class="hall-title-row">
-      <view class="hall-title-copy">
-        <text class="hall-title">选择你的探索区域</text>
+<view class="hall-page">
+  <view class="hall-topbar" style="{{topbarStyle}}">
+    <view class="hall-topbar-row" style="{{topbarRowStyle}}">
+      <view class="hall-topbar-back" bindtap="goBackFromHall" aria-label="返回">
+        <view class="hall-topbar-chevron"></view>
       </view>
-      <view class="hall-header-actions">
-        <view class="route-entry" bindtap="goRoute">
-          <image class="route-entry-img" src="/assets/icons/action-route-path.png" mode="aspectFit"></image>
-          <text class="route-entry-text">路线</text>
-        </view>
-        <view class="route-entry" bindtap="goReport">
-          <image class="route-entry-img" src="/assets/icons/action-report-scroll.png" mode="aspectFit"></image>
-          <text class="route-entry-text">报告</text>
-        </view>
-      </view>
+      <text class="hall-topbar-title">选择展厅</text>
+      <view class="hall-topbar-right-spacer"></view>
     </view>
   </view>
 
-  <view class="hall-list">
-    <view
-      wx:for="{{halls}}"
-      wx:key="id"
-      class="hall-card{{item.isVisited ? ' visited' : ''}}"
-      bindtap="selectHall"
-      data-hall="{{item}}"
-    >
-      <view class="hall-order">{{item.order}}</view>
-      <view class="hall-icon-wrap">
-        <image wx:if="{{item.iconSrc}}" class="hall-icon-img" src="{{item.iconSrc}}" mode="aspectFit"></image>
-        <text wx:else class="hall-icon">{{item.icon}}</text>
-      </view>
-      <view class="hall-info">
-        <text class="hall-name">{{item.name}}</text>
-        <text class="hall-desc text-muted">{{item.desc}}</text>
-      </view>
-      <text wx:if="{{item.isVisited}}" class="hall-visited-badge">已浏览</text>
-      <text class="hall-arrow text-clay">›</text>
-    </view>
-  </view>
+  <scroll-view class="hall-scroll" scroll-y enhanced="{{true}}" show-scrollbar="{{false}}">
+    <view class="page-wrap hall">
 
+      <view class="hall-header">
+        <view class="hall-title-row">
+          <view class="hall-title-copy">
+            <text class="hall-title">选择你的探索区域</text>
+          </view>
+          <view class="hall-header-actions">
+            <view class="route-entry" bindtap="goRoute">
+              <image class="route-entry-img" src="/assets/icons/action-route-path.png" mode="aspectFit"></image>
+              <text class="route-entry-text">路线</text>
+            </view>
+            <view class="route-entry" bindtap="goReport">
+              <image class="route-entry-img" src="/assets/icons/action-report-scroll.png" mode="aspectFit"></image>
+              <text class="route-entry-text">报告</text>
+            </view>
+          </view>
+        </view>
+      </view>
+
+      <view class="hall-list">
+        <view
+          wx:for="{{halls}}"
+          wx:key="id"
+          class="hall-card{{item.isVisited ? ' visited' : ''}}"
+          bindtap="selectHall"
+          data-hall="{{item}}"
+        >
+          <view class="hall-order">{{item.order}}</view>
+          <view class="hall-icon-wrap">
+            <image wx:if="{{item.iconSrc}}" class="hall-icon-img" src="{{item.iconSrc}}" mode="aspectFit"></image>
+            <text wx:else class="hall-icon">{{item.icon}}</text>
+          </view>
+          <view class="hall-info">
+            <text class="hall-name">{{item.name}}</text>
+            <text class="hall-desc text-muted">{{item.desc}}</text>
+          </view>
+          <text wx:if="{{item.isVisited}}" class="hall-visited-badge">已浏览</text>
+          <text class="hall-arrow text-clay">›</text>
+        </view>
+      </view>
+
+    </view>
+  </scroll-view>
 </view>

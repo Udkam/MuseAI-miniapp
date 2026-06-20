@@ -124,17 +124,6 @@ assert.strictEqual(
   'Kiln Exhibit',
   'clearing one hall exhibit context should not remove another hall'
 )
-tourStore.setSkipToHallOnReturn({ hall: 'kiln-hall', source: 'test' })
-assert.strictEqual(
-  tourStore.consumeSkipToHallOnReturn().hall,
-  'kiln-hall',
-  'skip-to-hall return flag should be consumable by intermediate pages'
-)
-assert.strictEqual(
-  tourStore.consumeSkipToHallOnReturn(),
-  null,
-  'skip-to-hall return flag should only be consumed once'
-)
 assert.strictEqual(
   tourStore.getLastAnsweredHallDisplayName(),
   '陶窑展厅',

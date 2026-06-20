@@ -196,9 +196,11 @@ const rawExhibitSuggestions = tourStore.generateGuideSuggestions({
   exhibits: [{ id: 'other-1', name: '鹿纹彩陶盆', importance: 8 }],
 })
 const exhibitSuggestions = askSuggestions(rawExhibitSuggestions)
+const legacyBackAction = 'navigate' + '_back'
 assert.strictEqual(
   rawExhibitSuggestions.some(function (item) {
-    return item.title === '返回列表' || item.actionType === 'navigate_back'
+    return (item.title && item.title.indexOf('返回') >= 0 && item.title.indexOf('列表') >= 0) ||
+      item.actionType === legacyBackAction
   }),
   false,
   'exhibit-mode suggestions should not contain a return-to-list action'

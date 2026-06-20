@@ -23,8 +23,8 @@
 
   <view class="scan-action-card">
     <view class="scan-action-text">
-      <text class="scan-action-title">拍照识别展项</text>
-      <text class="scan-action-desc">对准展签或展品名称拍照，MuseAI 会尝试匹配最接近的展项。</text>
+      <text class="scan-action-title">拍照识别展品</text>
+      <text class="scan-action-desc">对准展签或展品名称拍照，MuseAI 会尝试匹配最接近的展品。</text>
     </view>
     <button class="scan-photo-btn" loading="{{scanning}}" disabled="{{scanning}}" bindtap="startPhotoScan">
       {{scanning ? '识别中…' : '拍照识别'}}
@@ -83,7 +83,7 @@
   <!-- Empty state -->
   <view wx:elif="{{!loading}}" class="state-wrap">
     <image class="empty-icon-img" src="/assets/icons/exhibit-empty-search.png" mode="aspectFit"></image>
-    <text class="empty-text text-muted">没有找到匹配展项</text>
+    <text class="empty-text text-muted">没有找到匹配展品</text>
     <text class="text-muted text-sm" style="display:block;margin-top:8rpx;">可以换成“陶器”“房屋”“墓葬”等关键词</text>
   </view>
 

@@ -10,7 +10,7 @@ function makeFallbackExhibit(id, hall, name, category, description, importance) 
   return {
     id: 'local-' + id,
     name: name,
-    category: category || '代表性展项',
+    category: category || '代表性展品',
     hall: hall,
     hallDisplay: banpoHalls.getHallDisplayName(hall),
     era: '新石器时代·仰韶文化',
@@ -159,7 +159,7 @@ function confirmCameraUsage() {
   return new Promise(function (resolve) {
     wx.showModal({
       title: '开始拍摄',
-      content: '将打开相机拍摄展签或展项名称',
+      content: '将打开相机拍摄展签或展品名称',
       confirmText: '确认',
       cancelText: '取消',
       success: function (res) { resolve(!!res.confirm) },
@@ -206,7 +206,7 @@ Page({
     this._currentHallSlug = storedHall ? banpoHalls.normalizeHallToSlug(storedHall) : ''
     this._currentHallName = this._currentHallSlug ? banpoHalls.getHallDisplayName(this._currentHallSlug) : ''
     this.setData({
-      hallHint: this._currentHallName ? '当前展厅：' + this._currentHallName : '半坡博物馆全部展项',
+      hallHint: this._currentHallName ? '当前展厅：' + this._currentHallName : '半坡博物馆全部展品',
     })
     this._preloadNext()
     if (ENABLE_HALL_DISCOVERY_LOG) this._discoverHallSlugs()
@@ -215,16 +215,6 @@ Page({
       self._loadTimer = null
       self._loadExhibits()
     }, 80)
-  },
-
-  onShow: function () {
-    if (!tourStore.consumeSkipToHallOnReturn) return
-    var pending = tourStore.consumeSkipToHallOnReturn()
-    if (!pending || !pending.hall) return
-    tourStore.updateTourState({ currentHall: pending.hall, status: 'touring' }, { deferPersist: true })
-    setTimeout(function () {
-      wx.navigateBack({ delta: 1 })
-    }, 0)
   },
 
   onUnload: function () {
@@ -280,14 +270,14 @@ Page({
           self._cachedAll = list
           self.setData({ exhibits: list, loading: false, empty: false, dataNotice: '' })
         } else if (!localList.length) {
-          self._useFallback('当前展厅数据库暂无馆方展品清单，先展示可用于导览的代表性展项。')
+          self._useFallback('当前展厅数据库暂无馆方展品清单，先展示可用于导览的代表性展品。')
         }
       } else if (!localList.length) {
-        self._useFallback('展品接口暂时不可用，先展示本地代表性展项。')
+        self._useFallback('展品接口暂时不可用，先展示本地代表性展品。')
       }
     }).catch(function () {
       if (seq !== self._reqSeq) return
-      if (!localList.length) self._useFallback('展品接口暂时不可用，先展示本地代表性展项。')
+      if (!localList.length) self._useFallback('展品接口暂时不可用，先展示本地代表性展品。')
     })
   },
 
@@ -321,7 +311,7 @@ Page({
         if (!res || !res.ok) {
           const code = res && res.code
           if (code === 'OCR_NOT_CONFIGURED' || code === 'OCR_UNAVAILABLE') {
-            self.setData({ scanNotice: '当前环境未配置 OCR 服务，可先用文字搜索展项。' })
+            self.setData({ scanNotice: '当前环境未配置 OCR 服务，可先用文字搜索展品。' })
           }
           throw new Error(code || 'OCR_FAILED')
         }
@@ -382,7 +372,7 @@ Page({
       scanResult: Object.assign({}, exhibit, { confidence: confidence }),
       exhibits: list,
       empty: false,
-      scanNotice: '已匹配到最接近的展项。',
+      scanNotice: '已匹配到最接近的展品。',
     })
   },
 
@@ -438,7 +428,7 @@ Page({
       empty: mergedLocal.length === 0,
       scanResult: null,
       scanNotice: '',
-      dataNotice: mergedLocal.length ? '' : '本地代表展项未命中，正在尝试从服务器搜索完整清单。',
+      dataNotice: mergedLocal.length ? '' : '本地代表展品未命中，正在尝试从服务器搜索完整清单。',
     })
 
     api.exhibitsApi.search(keyword).then(function (apiRes) {
@@ -455,14 +445,14 @@ Page({
         loading: false,
         empty: merged.length === 0,
         dataNotice: merged.some(function (ex) { return ex.isLocalFallback })
-          ? '部分结果来自本地代表性展项；完整展品清单仍需馆方数据导入。'
+          ? '部分结果来自本地代表性展品；完整展品清单仍需馆方数据导入。'
           : '',
       })
     }).catch(function (err) {
       if (seq !== self._reqSeq) return
       console.error('[search] error:', err)
       if (!localMatches.length) {
-        self.setData({ dataNotice: '展品接口暂时不可用，本地代表展项也没有匹配结果。' })
+        self.setData({ dataNotice: '展品接口暂时不可用，本地代表展品也没有匹配结果。' })
       }
     })
   },

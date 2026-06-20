@@ -379,3 +379,348 @@ Result: all passed. Preflight still only warns about temporary HTTP dev API and 
 
 - If the stack already has tour below detail, deep-dive should return directly to that tour.
 - If the stack is hall -> scan -> detail, deep-dive should open tour directly; backing from tour should land on hall selection via the one-shot return cleanup.
+
+## 2026-06-20 Multi-agent protocol and deep-dive navigation follow-up
+
+### Session
+
+- Session ID: `museai-20260620-0650-deep-dive-navigation`
+- Main agent: `main-codex`
+- Explorer agent: `019ee210-c2d2-7a63-a759-6410fdcb04e0`
+- Work time: 2026-06-20 06:50-07:03 +08:00
+
+### Changes
+
+- `pages/exhibit-detail/exhibit-detail.js`
+  - Added robust hall resolution for exhibit details.
+  - Falls back from `exhibit.hall` to current/saved hall when the exhibit payload does not carry a canonical slug.
+  - Updates `currentHall` and saves the exhibit discussion context before entering tour.
+- `pages/exhibit-scan/exhibit-scan.js`
+  - Delays one-shot return-to-hall cleanup slightly so WeChat page lifecycle has settled.
+  - Adds a redirect fallback if native stack cleanup fails.
+
+### Verification
+
+```bash
+node --check pages/exhibit-detail/exhibit-detail.js
+node --check pages/exhibit-scan/exhibit-scan.js
+node --check pages/tour/tour.js
+node --check store/tour.js
+node --check utils/storage.js
+npm.cmd run test:hall-chat
+npm.cmd run test:suggestions
+npm.cmd run test:report
+npm.cmd run test:all
+```
+
+Result: all passed. Preflight warnings are limited to the current temporary HTTP dev API and `urlCheck=false`.
+
+### Retest Notes
+
+- From tour -> exhibit search -> detail -> deep discussion, the tour page should show the exhibit discussion context and suggestions.
+- Native top-left back from that tour should end on hall selection, not exhibit detail or exhibit search.
+
+## 2026-06-20 Deep-dive navigation corrective patch
+
+### Time
+
+- Work time: 2026-06-20 07:04-07:18 +08:00
+- Session ID: `museai-20260620-0650-deep-dive-navigation`
+
+### Root Cause
+
+- Previous route detection only checked `page.route`; the real page stack can expose route as `__route__`.
+- If the old tour page is not detected, the app opens a new tour above exhibit search, which keeps the wrong native back target.
+- Direct tour entry also needed a pending exhibit fallback to guarantee the context bar and suggestions have exhibit data.
+
+### Changes
+
+- `pages/exhibit-detail/exhibit-detail.js`: check `route || __route__`, normalize the context exhibit with canonical hall, and save pending detail exhibit before navigation.
+- `pages/exhibit-scan/exhibit-scan.js`: check `route || __route__` while finding hall page for one-shot cleanup.
+- `pages/tour/tour.js`: consume pending detail exhibit for `directFromDetail=1` before hall context restoration.
+
+### Verification
+
+```bash
+node --check pages/exhibit-detail/exhibit-detail.js
+node --check pages/exhibit-scan/exhibit-scan.js
+node --check pages/tour/tour.js
+npm.cmd run test:hall-chat
+npm.cmd run test:report
+npm.cmd run test:all
+```
+
+Result: all passed. Preflight warnings are unchanged release-configuration warnings.
+
+## 2026-06-20 Deep-Dive Back Target and Suggestions Audit
+
+### Time
+
+- Work time: 2026-06-20 09:08 +08:00 ongoing
+- Session ID: `museai-20260620-0908-deep-dive-back-suggestions`
+
+### Phase
+
+- Investigating the remaining navigation bug where deep discussion shows the exhibit context but native back still returns to exhibit search.
+- Auditing exhibit suggestion prompt templates for natural question wording and better fit with the selected exhibit.
+
+### Initial Findings
+
+- `pages/exhibit-detail/exhibit-detail.js` currently falls back to `redirectTo('/pages/tour/tour?...')` if it cannot identify the previous tour page; this fallback can leave exhibit search under the tour page.
+- `store/tour.js` still includes instruction-like suggestion prompts that should be rewritten as direct visitor questions.
+
+### Changes
+
+- `pages/exhibit-detail/exhibit-detail.js`
+  - Extended old tour page detection with a data-shape fallback (`messages`, `guideSuggestions`, `currentExhibit`, `hallName`) so hidden tour page instances are still recognized when route metadata is unreliable.
+  - Added explicit scan-page detection for the stack pattern `tour -> exhibit-scan -> exhibit-detail`; when matched, deep discussion navigates back two levels to the existing tour page instead of opening a new tour page above exhibit search.
+- `store/tour.js`
+  - Rewrote exhibit-focused suggestion prompts into direct visitor questions.
+  - Removed the awkward `应该先观察...再决定...` wording.
+  - Softened several `应该/最该`临展 and研学 prompts into more natural questions.
+
+### Verification
+
+```bash
+node --check pages/exhibit-detail/exhibit-detail.js
+node --check pages/exhibit-scan/exhibit-scan.js
+node --check pages/tour/tour.js
+node --check store/tour.js
+npm.cmd run test:suggestions
+npm.cmd run test:hall-chat
+npm.cmd run test:all
+```
+
+Result: all passed. `test:preflight` only warns about the known temporary HTTP dev API and `project.private.config.json` `urlCheck=false` release setting.
+
+### Manual Retest Required
+
+- Path: hall selection -> AI tour -> exhibit search -> exhibit detail -> `与 AI 深入探讨`.
+- Expected: AI tour shows `正在讨论：<exhibit>`, shows exhibit-focused suggestions, and native top-left back returns to hall selection instead of exhibit search.
+- Expected: re-entering the same hall restores that hall's discussion exhibit; entering other halls should keep their own discussion context separate.
+
+## 2026-06-20 Deterministic Tour Back Button
+
+### Time
+
+- Work time: 2026-06-20 09:42 +08:00
+- Session ID: `museai-20260620-0942-tour-custom-back`
+
+### Root Cause
+
+- WeChat native top-left back always follows the real page stack.
+- If deep discussion enters a new/replaced tour page above `exhibit-scan`, the native back target is still `exhibit-scan`; JavaScript cannot intercept the native navigation bar back event with the default navigation bar.
+- The tour page also initialized `exhibit` from global `currentExhibit` before knowing whether the entry came from exhibit detail, which could carry one hall's discussion object into another hall.
+
+### Changes
+
+- `pages/tour/tour.json`
+  - Enabled `navigationStyle: "custom"` for the tour page only.
+- `pages/tour/tour.wxml` / `pages/tour/tour.wxss`
+  - Added a custom top-left back button styled like the existing dark WeChat navigation area.
+- `pages/tour/tour.js`
+  - Added `goBackFromTour()`: syncs current hall chat/report summary, finds the nearest hall selection page in the stack, and navigates back to it; falls back to `/pages/hall/hall`.
+  - Added custom topbar safe-area padding.
+  - Changed exhibit initialization so ordinary hall entry does not inherit another hall's active discussion object.
+  - Removed automatic `clearCurrentExhibit()` during ambiguous page entry; discussion context should only be cleared by the user's `X` on the context bar.
+  - Fixed a mojibake fallback object type string to `展品`.
+
+### Verification
+
+```bash
+node --check pages/tour/tour.js
+node --check pages/exhibit-detail/exhibit-detail.js
+node --check store/tour.js
+npm.cmd run test:hall-chat
+npm.cmd run test:suggestions
+npm.cmd run test:all
+```
+
+Result: all passed. `test:preflight` still only warns about the temporary HTTP dev API and release-domain `urlCheck=false`.
+
+Additional check: scanned touched tour/suggestion files for common mojibake fragments; no matches remained in the checked files.
+
+## 2026-06-20 Tour Back Stack Relaunch and Exhibit Naming Cleanup
+
+### Time
+
+- Work time: 2026-06-20 10:16 +08:00 ongoing
+- Session ID: `museai-20260620-1016-tour-stack-exhibit-naming`
+
+### User Feedback
+
+- The previous custom back still was not enough:
+  - Returning to hall selection and re-entering could land on exhibit detail instead of the AI tour with `正在讨论`.
+  - Later exits from an active discussion could still reveal exhibit search.
+- The tour topbar no longer matched the previous native-looking dark navigation UI.
+- All app/admin language should use `展品`; deprecated stack-return code should be removed.
+
+### Planned Fix
+
+- Change tour back to `wx.reLaunch('/pages/hall/hall')` after syncing local hall chat and report state, so search/detail pages cannot remain under the stack.
+- Remove the old `skipToHallOnReturn` flow from store, scan page, and tests.
+- Keep custom navigation only for controllable back behavior, but tune the topbar to match the original dark nav and replace the text chevron with a CSS chevron.
+- Replace older exhibit wording with `展品` in active source/product copy.
+
+### Manual Retest Required
+
+- Deep-dive path: `展厅选择页 -> AI问答页 -> 搜展品 -> 展品详情 -> 与 AI 深入探讨 -> 左上角返回`.
+- Expected: the custom left button returns directly to `展厅选择页`, not `搜展品页`.
+- Expected: `正在讨论：<展品>` remains saved for that hall until the user taps `X`.
+
+### Implemented
+
+- `pages/exhibit-detail/exhibit-detail.js`
+  - Removed the stack-reuse branch that searched for an older tour page and `navigateBack`-ed to it.
+  - Deep discussion now `reLaunch`es a fresh tour page with the exhibit context stored first, so `搜展品` and `展品详情` cannot remain under the AI page in the stack.
+  - Removed now-unused tour/scan page-shape helpers.
+- `pages/tour/tour.js`
+  - `goBackFromTour()` now syncs current hall data and uses `wx.reLaunch('/pages/hall/hall')`, clearing any search/detail pages below the current tour page.
+  - Deep-dive entry restores chat history from in-memory messages first, then the per-hall cache, so clearing the stack does not lose the visible conversation.
+  - Kept discussion context persistent per hall; only the context-bar `X` clears it.
+  - Removed the unused `navigate_back` suggestion action branch so suggestions cannot trigger stack-relative back navigation.
+- `pages/tour/tour.wxml` / `pages/tour/tour.wxss`
+  - Replaced the text-rendered chevron with a CSS chevron and aligned the custom dark topbar closer to the previous native-looking UI.
+- `store/tour.js`, `utils/storage.js`, `scripts/test-hall-chat-history.js`
+  - Removed the deprecated `skipToHallOnReturn` storage/state/test path.
+- `pages/exhibit-detail/*`, `pages/exhibit-scan/*`, `pages/tour/tour.js`, `store/tour.js`
+  - Replaced product wording with `展品`.
+
+### Pending Verification
+
+- Completed after backend naming cleanup.
+
+### Verification
+
+```bash
+node --check pages/tour/tour.js
+node --check pages/exhibit-detail/exhibit-detail.js
+node --check pages/exhibit-scan/exhibit-scan.js
+node --check store/tour.js
+npm.cmd run test:hall-chat
+npm.cmd run test:suggestions
+npm.cmd run test:report
+npm.cmd run test:all
+```
+
+Result: all passed. `test:preflight` still reports the expected development warnings: temporary HTTP API base and `project.private.config.json` `urlCheck=false`.
+
+### Residual Scan
+
+```bash
+rg -n "展项" . -S
+rg -n "SkipToHall|skipToHall|TOUR_SKIP|consumeSkipToHallOnReturn|setSkipToHallOnReturn" pages store utils scripts constants -S
+```
+
+Result: no active frontend source matches.
+
+## 2026-06-20 Deep-Dive Stack Hardening
+
+### Time
+
+- Work time: 2026-06-20 10:58 +08:00 ongoing
+- Session ID: `museai-20260620-1058-deep-dive-stack-hardening`
+
+### Root Cause
+
+- `展品详情 -> AI问答页` still used `redirectTo`.
+- With the original stack `展厅选择页 -> AI问答页 -> 搜展品 -> 展品详情`, `redirectTo` produced `展厅选择页 -> AI问答页旧 -> 搜展品 -> AI问答页新`.
+- If the top-left return missed the custom handler or the system back path was used, `搜展品` was still underneath the current page.
+
+### Changes
+
+- `pages/exhibit-detail/exhibit-detail.js`
+  - Changed deep-dive navigation from `wx.redirectTo` to `wx.reLaunch` after persisting the exhibit context.
+  - Effective user flow stays `展厅选择页 -> AI问答页 -> 搜展品 -> 展品详情 -> AI问答页`, but the actual page stack is reset at the last step, so back cannot reveal `搜展品`.
+- `pages/tour/tour.js`
+  - Deep-dive tour entry now restores messages from memory or per-hall cache after `reLaunch`.
+  - Removed unused `navigate_back` suggestion handling.
+- `store/tour.js`
+  - Removed unused `navigate_back` icon special-case.
+
+### Pending Verification
+
+- Completed.
+
+### Verification
+
+```bash
+rg -n "skipToHall|SkipToHall|TOUR_SKIP|consumeSkipToHallOnReturn|setSkipToHallOnReturn|tourDelta|isTourPage|isScanPage|navigate_back|redirectTo\\(\\{ url: url \\}\\)|navigateBack\\(\\{ delta: tourDelta|返回列表" pages store utils scripts constants -S
+node --check pages/exhibit-detail/exhibit-detail.js
+node --check pages/tour/tour.js
+node --check store/tour.js
+node --check scripts/test-guide-suggestions.js
+npm.cmd run test:suggestions
+npm.cmd run test:hall-chat
+npm.cmd run test:all
+```
+
+Result: residual mechanism scan returned no matches. Syntax checks passed. Focused tests passed. `test:all` passed; preflight still only reports expected temporary HTTP API and `urlCheck=false` release warnings.
+
+## 2026-06-20 Hall/Tour Topbar Alignment
+
+### Time
+
+- Work time: 2026-06-20 11:23-11:35 +08:00
+- Session ID: `museai-20260620-1123-topbar-alignment`
+
+### Root Cause
+
+- 真机页面切换时，`hall` 页使用微信原生导航栏，`tour` 页使用 `navigationStyle: custom` 自绘导航栏。
+- 原生导航栏和自绘导航栏在滑动/切页动画中由不同渲染层处理，状态栏高度、胶囊避让和深棕背景不能完全逐像素同步，导致顶部边缘出现轻微露边或错位。
+
+### Changes
+
+- `pages/hall/hall.json`
+  - 将展厅选择页切换为 `navigationStyle: custom`。
+- `pages/hall/hall.wxml`
+  - 增加与 AI 问答页一致的自绘顶栏结构。
+  - 将原展厅列表内容放入滚动容器，避免自绘导航栏覆盖内容。
+- `pages/hall/hall.js`
+  - 复用与 `tour` 页一致的胶囊/状态栏高度计算方式。
+  - 增加自绘返回按钮：有页面栈时 `navigateBack`，无页面栈时回首页。
+- `pages/hall/hall.wxss`
+  - 增加与 `tour` 页一致的深棕顶栏、返回箭头、标题、右侧胶囊避让和背景样式。
+
+### Verification
+
+```bash
+node --check pages/hall/hall.js
+npm.cmd run test:hall-chat
+npm.cmd run test:suggestions
+npm.cmd run test:all
+rg -n "skipToHall|SkipToHall|TOUR_SKIP|consumeSkipToHallOnReturn|setSkipToHallOnReturn|tourDelta|isTourPage|isScanPage|navigate_back|redirectTo\\(\\{ url: url \\}\\)|navigateBack\\(\\{ delta: tourDelta|返回列表" pages store utils scripts constants -S
+git diff --check
+```
+
+Result: all syntax and focused tests passed. `test:all` passed. Residual old-mechanism scan returned no matches. `git diff --check` reported only existing LF-to-CRLF warnings.
+
+## 2026-06-20 Restore explicit exhibit discussion trigger
+
+### Time
+
+- Work time: 2026-06-20 07:19-07:28 +08:00
+- Session ID: `museai-20260620-0650-deep-dive-navigation`
+
+### Changes
+
+- `pages/exhibit-detail/exhibit-detail.js`
+  - Deep discussion now explicitly writes the context exhibit into store, pending detail cache, and the existing hidden tour page via `setData` before `navigateBack`.
+  - Added page instance fallbacks for old tour and hall detection.
+- `pages/tour/tour.js`
+  - `onShow` consumes pending deep-dive exhibit and reapplies it before rendering `currentExhibit`.
+- `pages/exhibit-scan/exhibit-scan.js`
+  - Hall lookup for one-shot cleanup also checks the page instance method `selectHall`.
+
+### Verification
+
+```bash
+node --check pages/exhibit-detail/exhibit-detail.js
+node --check pages/exhibit-scan/exhibit-scan.js
+node --check pages/tour/tour.js
+npm.cmd run test:hall-chat
+npm.cmd run test:suggestions
+npm.cmd run test:all
+```
+
+Result: all passed. Preflight warnings are unchanged release-configuration warnings.

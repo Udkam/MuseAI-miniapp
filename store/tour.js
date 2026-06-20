@@ -111,7 +111,6 @@ function _makeEmptyTour() {
     currentExhibit:    null,   // full exhibit object; set by exhibit-detail before goDeeper
     currentExhibitByHall: {},
     pendingDetailExhibit: null, // transient detail-page payload; not AI discussion context
-    skipToHallOnReturn: null,
     currentScannedExhibitId: null,
     currentScannedExhibitName: null,
     lastScanTimestamp: null,
@@ -530,7 +529,6 @@ function createLocalTourState(opts) {
   storage.remove(STORAGE_KEYS.TOUR_VISITED_HALLS)
   storage.remove(STORAGE_KEYS.TOUR_VISITED_EXHIBITS)
   storage.remove(STORAGE_KEYS.TOUR_HALL_EXHIBITS)
-  storage.remove(STORAGE_KEYS.TOUR_SKIP_TO_HALL_ON_RETURN)
   storage.remove(STORAGE_KEYS.TOUR_PENDING_EVENTS)
   storage.remove(STORAGE_KEYS.TOUR_RECORD_SUMMARY)
   storage.remove(STORAGE_KEYS.TOUR_HALL_CHATS)
@@ -681,25 +679,25 @@ function inferDiscussionObjectKind(exhibit) {
   if (/雕塑|园|中心|空间|展厅/.test(text)) {
     return '空间'
   }
-  return '展项'
+  return '展品'
 }
 
 function buildObjectPrompt(kind, name, intent) {
   var n = name ? '“' + name + '”' : '这个' + kind
   if (intent === 'details') {
-    if (kind === '遗迹') return '请带我观察' + n + '：哪些是现场能看到的遗存，哪些只是合理推测？'
-    if (kind === '资料') return n + '里最值得抓住的关键信息是什么？它能帮助我理解哪个半坡问题？'
-    return '请带我观察' + n + '的关键细节：材料、形态、痕迹或纹样里哪些最能说明问题？'
+    if (kind === '遗迹') return '看' + n + '时，哪些痕迹能在现场直接看到，哪些只是根据位置关系做出的推测？'
+    if (kind === '资料') return n + '里哪些关键信息能帮助我理解半坡？'
+    return n + '的材料、形态、痕迹或纹样里，哪些细节最值得先看？'
   }
   if (intent === 'function') {
-    if (kind === '遗迹') return n + '在半坡聚落中可能承担什么功能？我们能从哪些现象判断？'
+    if (kind === '遗迹') return n + '在半坡聚落中可能承担什么功能，哪些现象能支持这种判断？'
     if (kind === '资料') return n + '和半坡人的生活、生产或信仰有什么关系？'
     if (kind === '空间') return n + '为什么安排在这里？它和参观路线里的其他内容有什么关系？'
     return n + '可能怎么使用？哪些痕迹或形态能支持这个判断？'
   }
   if (kind === '遗迹') return n + '和周围的房址、墓葬、壕沟或作坊之间有什么关系？'
   if (kind === '资料') return n + '可以和展厅里的哪些实物或遗迹互相印证？'
-  if (kind === '空间') return n + '适合帮我复盘前面哪些观察？'
+  if (kind === '空间') return n + '能帮我复盘前面哪些观察线索？'
   return n + '能和展厅里哪些对象放在一起比较？比较后能看出什么？'
 }
 
@@ -730,7 +728,7 @@ function _buildExhibitSuggestionPool(exhibit, persona) {
       type: 'observation_task',
       icon: '🎨',
       title: '读纹样线索',
-      prompt: '请围绕' + label + '的纹样或装饰说明：哪些信息能直接观察，哪些属于可能解释？',
+      prompt: label + '的纹样或装饰中，哪些是直接可见的线索，哪些需要结合展厅解释？',
     })
   } else if (_textHasAny(text, ['石器', '骨器', '工具', '针', '斧', '锥', '磨', '钻'])) {
     pool.push({
@@ -744,7 +742,7 @@ function _buildExhibitSuggestionPool(exhibit, persona) {
       type: 'observation_task',
       icon: '🔥',
       title: '找火候证据',
-      prompt: '观察' + label + '时，可以从颜色、残片、结构或位置关系判断哪些烧制信息？',
+      prompt: label + '的颜色、残片、结构或位置关系，能提示哪些烧制信息？',
     })
   } else if (kind === '遗迹' || _textHasAny(text, ['房屋', '壕沟', '墓葬', '作坊', '灶', '空间'])) {
     pool.push({
@@ -771,22 +769,22 @@ function _buildExhibitSuggestionPool(exhibit, persona) {
     B: {
       icon: '📝',
       title: '记成笔记',
-      prompt: '如果把' + label + '写进研学笔记，最该记录哪三个观察点和一个追问？',
+      prompt: '如果把' + label + '写进研学笔记，可以记录哪三个观察点和一个追问？',
     },
     C: {
       icon: '🧩',
       title: '连到社会',
-      prompt: label + '能连接到半坡人的共同生活、分工或礼俗吗？请把证据和推测分开说。',
+      prompt: label + '能连接到半坡人的共同生活、分工或礼俗吗？哪些是证据，哪些还只是推测？',
     },
     D: {
       icon: '🏺',
       title: '器物细读',
-      prompt: '请按材料、器形、纹饰、痕迹和使用场景来细读' + label + '。',
+      prompt: '从材料、器形、纹饰、痕迹和使用场景看，' + label + '最值得细读的地方是什么？',
     },
     default: {
       icon: '📍',
       title: '先看什么',
-      prompt: '第一次看' + label + '时，应该先观察哪些可见信息，再决定要不要解释它的用途或意义？',
+      prompt: '第一次看' + label + '时，哪些可见信息最能帮助判断它的用途或意义？',
     },
   }
   var personaItem = personaPrompts[persona] || personaPrompts.default
@@ -898,24 +896,6 @@ function applyHallExhibitContext(hall) {
   var exhibit = getCurrentExhibitForHall(hall)
   _tour.currentExhibit = exhibit ? Object.assign({}, exhibit) : null
   return getCurrentExhibit()
-}
-
-function setSkipToHallOnReturn(entry) {
-  var hall = entry && entry.hall ? _normalizeHallForStorage(entry.hall) : (_tour.currentHall ? _normalizeHallForStorage(_tour.currentHall) : '')
-  if (!hall) return
-  var payload = Object.assign({}, entry || {}, { hall: hall, createdAt: Date.now() })
-  _tour.skipToHallOnReturn = payload
-  storage.set(STORAGE_KEYS.TOUR_SKIP_TO_HALL_ON_RETURN, payload)
-}
-
-function consumeSkipToHallOnReturn() {
-  var payload = _tour.skipToHallOnReturn || storage.get(STORAGE_KEYS.TOUR_SKIP_TO_HALL_ON_RETURN, null)
-  _tour.skipToHallOnReturn = null
-  storage.remove(STORAGE_KEYS.TOUR_SKIP_TO_HALL_ON_RETURN)
-  if (!payload || !payload.hall) return null
-  var hall = _normalizeHallForStorage(payload.hall)
-  if (!hall) return null
-  return Object.assign({}, payload, { hall: hall })
 }
 
 function setPendingDetailExhibit(exhibit) {
@@ -1307,7 +1287,7 @@ _HALL_SUGGEST_TEMPLATES['牡丹园'] = {
 }
 _HALL_SUGGEST_TEMPLATES['临展厅一'] = {
   default: [
-    { type: 'hall_intro', icon: '🖼️', title: '现场主题', prompt: '这个临展厅的当期内容以现场展签为准；如果还不知道主题，我应该先看哪些线索？' },
+    { type: 'hall_intro', icon: '🖼️', title: '现场主题', prompt: '这个临展厅的当期内容以现场展签为准；还不知道主题时，先看哪些线索更可靠？' },
     { type: 'observation_task', icon: '🔎', title: '看展方法', prompt: '面对临展或临时展览，怎样通过标题、导语、展品组合和动线判断策展思路？' },
   ],
   A: [
@@ -1315,7 +1295,7 @@ _HALL_SUGGEST_TEMPLATES['临展厅一'] = {
     { type: 'observation_task', icon: '🧭', title: '策展证据', prompt: '在临展厅里，怎样从展览标题、单元划分和展品顺序判断策展问题？' },
   ],
   B: [
-    { type: 'hall_intro', icon: '📝', title: '记录方法', prompt: '参观临展时，如果当期展品清单还不完整，我的研学笔记应该先记录哪些现场信息？' },
+    { type: 'hall_intro', icon: '📝', title: '记录方法', prompt: '参观临展时，如果当期展品清单还不完整，研学笔记可以先记录哪些现场信息？' },
     { type: 'observation_task', icon: '🔎', title: '主题线索', prompt: '我可以怎样用标题、导语和展品组合快速判断这个临展想讲什么？' },
   ],
   C: [
@@ -1324,7 +1304,7 @@ _HALL_SUGGEST_TEMPLATES['临展厅一'] = {
   ],
   D: [
     { type: 'hall_intro', icon: '🏺', title: '器物看法', prompt: '在临展厅里观察器物时，怎样先看材料、器形、说明牌和展柜组合？' },
-    { type: 'observation_task', icon: '🔎', title: '现场细节', prompt: '如果不知道临展当期清单，我应该如何从现场展签判断哪些器物值得细看？' },
+    { type: 'observation_task', icon: '🔎', title: '现场细节', prompt: '如果不知道临展当期清单，怎样从现场展签判断哪些器物值得细看？' },
   ],
 }
 _HALL_SUGGEST_TEMPLATES['临展厅二'] = _HALL_SUGGEST_TEMPLATES['临展厅一']
@@ -1381,7 +1361,6 @@ function _suggestionIconKey(item) {
   }
 
   if (item.actionType === 'open_exhibit') return 'suggest-exhibit'
-  if (item.actionType === 'navigate_back') return 'suggest-back'
   return SUGGESTION_FALLBACK_ICON_BY_TYPE[item.type] || 'suggest-overview'
 }
 
@@ -1834,8 +1813,6 @@ module.exports = {
   applyHallExhibitContext,
   setPendingDetailExhibit,
   consumePendingDetailExhibit,
-  setSkipToHallOnReturn,
-  consumeSkipToHallOnReturn,
   setCurrentScannedExhibit,
   getCurrentScannedExhibit,
 

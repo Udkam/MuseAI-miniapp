@@ -24,13 +24,40 @@ function _buildHallList(visitedSlugs) {
 Page({
   data: {
     halls: [],
+    topbarStyle: '',
+    topbarRowStyle: '',
   },
 
   _entering: false,
 
   onLoad: function () {
+    this._initCustomTopbar()
     this._refresh()
     this._preloadNext()
+  },
+
+  _initCustomTopbar: function () {
+    try {
+      var info = wx.getWindowInfo
+        ? wx.getWindowInfo()
+        : (wx.getSystemInfoSync ? wx.getSystemInfoSync() : null)
+      var status = info && info.statusBarHeight ? Number(info.statusBarHeight) : 0
+      var menu = wx.getMenuButtonBoundingClientRect ? wx.getMenuButtonBoundingClientRect() : null
+      if (menu && menu.top && menu.height && menu.bottom) {
+        var totalHeight = Math.ceil(menu.bottom + Math.max(6, menu.top - status))
+        this.setData({
+          topbarStyle: 'height:' + totalHeight + 'px;padding-top:' + Math.round(menu.top) + 'px;',
+          topbarRowStyle: 'height:' + Math.round(menu.height) + 'px;',
+        })
+      } else if (status > 0) {
+        this.setData({
+          topbarStyle: 'height:' + (status + 44) + 'px;padding-top:' + status + 'px;',
+          topbarRowStyle: 'height:44px;',
+        })
+      }
+    } catch (_) {
+      // Keep the default topbar padding on unsupported environments.
+    }
   },
 
   onShow: function () {
@@ -107,5 +134,14 @@ Page({
         setTimeout(function () { self._reportNavigating = false }, 600)
       },
     })
+  },
+
+  goBackFromHall: function () {
+    var pages = typeof getCurrentPages === 'function' ? getCurrentPages() : []
+    if (pages && pages.length > 1) {
+      wx.navigateBack({ delta: 1 })
+      return
+    }
+    wx.reLaunch({ url: '/pages/home/home' })
   },
 })

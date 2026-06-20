@@ -1,8 +1,14 @@
 <view class="tour-page">
 
   <!-- Top bar -->
-  <view class="tour-topbar">
-    <text class="topbar-hall">{{hallName}}</text>
+  <view class="tour-topbar" style="{{topbarStyle}}">
+    <view class="tour-topbar-row" style="{{topbarRowStyle}}">
+      <view class="topbar-back" bindtap="goBackFromTour" aria-label="返回展厅选择">
+        <view class="topbar-back-chevron"></view>
+      </view>
+      <text class="topbar-hall">{{hallName}}</text>
+      <view class="topbar-right-spacer"></view>
+    </view>
   </view>
 
   <!-- Exhibit Context Bar (only shown when entered via exhibit-detail goDeeper) -->
