@@ -12,13 +12,12 @@ MuseAI 前端是面向西安半坡博物馆导览体验的微信小程序。当�
 
 HTTPS 状态需要拆开看：
 
-- 已完成（服务器侧）：`api.banpo-museai.xyz` DNS 解析、SSL 证书、Nginx 443 反代均已配置，`https://api.banpo-museai.xyz/api/v1/health` 已返回 healthy。
-- 当前开发状态：因 `banpo-museai.xyz` 仍在备案中，小程序前端暂时使用服务器 HTTP 调试入口 `http://122.152.232.190:3000/api/v1`；本地后端 `http://127.0.0.1:8000/api/v1` 与正式 HTTPS 地址均保留在代码注释中，备案和微信 request 合法域名通过后再切回 HTTPS。
-- 未完成（微信侧）：备案、微信公众平台 request 合法域名配置、关闭开发者工具“不校验合法域名”豁免后的正式环境真机联调。
+- 已完成：`banpo-museai.xyz` ICP 备案已通过；`api.banpo-museai.xyz` DNS 解析、SSL 证书、Nginx 443 反代均已配置。
+- 当前开发状态：小程序前端已切换为正式 HTTPS API：`https://api.banpo-museai.xyz/api/v1`；本地后端和旧公网 HTTP 调试入口仅作为注释中的临时 fallback。
+- 已完成（微信侧）：微信公众平台 request 合法域名已配置，开发者工具关闭“不校验合法域名”豁免后已通过真机测试。
 
 其余阻断项：
 
-- 小程序备案主体尚未最终确认。
 - 当前数据仍非最终馆方真实数据。
 - OCR 服务尚未购买或配置；如不上线 OCR，应隐藏入口或保留文字搜索 fallback。
 - Qwen LLM key 当前消耗免费额度或试用额度，上线前需确认额度、付费和限流。
@@ -65,7 +64,7 @@ HTTPS 状态需要拆开看：
 ## 尚未完成或仍需发布验收
 
 - 正式小程序备案、体验版上传和测试成员分发。
-- 微信后台 request/uploadFile/downloadFile 合法域名配置。
+- 如后续改为上传文件或下载远程文件 URL，还需确认 uploadFile/downloadFile 合法域名；当前核心 request 链路已通过真机测试。
 - OCR 服务购买、服务 ID 配置和真机拍照识别稳定性确认。
 - 官方馆方展品图片、地图、点位和完整展厅数据接入；当前仍不是真实最终数据。
 - API key 负责人、额度、付费、告警和轮换流程确认。
@@ -135,10 +134,10 @@ npm install
 | `api/stream.js` | SSE 流式导览请求 |
 | `api/index.js` | 部分直连 API、TTS、OCR、展品/路线封装 |
 
-备案期间开发者工具默认使用服务器 HTTP 调试入口：
+当前默认使用正式 HTTPS API：
 
 ```text
-http://122.152.232.190:3000/api/v1
+https://api.banpo-museai.xyz/api/v1
 ```
 
 如果本机已启动后端，也可以临时切到：
@@ -147,20 +146,20 @@ http://122.152.232.190:3000/api/v1
 http://127.0.0.1:8000/api/v1
 ```
 
-正式上线时切回：
+旧公网 HTTP 调试入口只作为紧急 fallback 或历史排查使用：
 
 ```text
-https://api.banpo-museai.xyz/api/v1
+http://122.152.232.190:3000/api/v1
 ```
 
-HTTPS 真机验证通过后，公网 HTTP 调试入口应在服务器侧关闭。
+HTTPS request 真机验证已通过；公网 HTTP 调试入口应在服务器侧关闭或限制访问。
 
 正式域名在微信正式环境可用还必须同时满足：
 
 - 域名备案通过。
 - HTTPS 证书有效。
-- 微信公众平台已配置 request/uploadFile/downloadFile 合法域名。
-- 开发者工具关闭“不校验合法域名、web-view、TLS 版本以及 HTTPS 证书”后仍能正常请求。
+- 微信公众平台已配置 request 合法域名。
+- 开发者工具关闭“不校验合法域名、web-view、TLS 版本以及 HTTPS 证书”后已完成真机 request 链路测试。
 
 ## TTS 说明
 
@@ -239,7 +238,7 @@ node --check pages/exhibit-scan/exhibit-scan.js
 node --check pages/exhibit-detail/exhibit-detail.js
 ```
 
-`test:preflight` 会检查小程序打包范围内是否残留非白名单开发地址、`localhost`、`:3000`、明显密钥形态，并对关键 JS 文件执行语法检查。备案期间允许 `http://122.152.232.190:3000/api/v1` 或 `http://127.0.0.1:8000/api/v1`，但会警告发布前必须切回 `https://api.banpo-museai.xyz/api/v1`。它不会读取或修改真实 `.env`。
+`test:preflight` 会检查小程序打包范围内是否残留非白名单开发地址、`localhost`、`:3000`、明显密钥形态，并对关键 JS 文件执行语法检查。当前正式测试应使用 `https://api.banpo-museai.xyz/api/v1`；如果临时切到 `http://122.152.232.190:3000/api/v1` 或 `http://127.0.0.1:8000/api/v1`，脚本会警告发布前必须切回 HTTPS。它不会读取或修改真实 `.env`。
 
 ## 真机测试重点
 
@@ -257,7 +256,7 @@ node --check pages/exhibit-detail/exhibit-detail.js
 - 需要正式 AppID、开发者权限、体验版上传权限和测试成员。
 - 若使用中国大陆服务器和自有域名，正式小程序通常需要完成备案并配置合法域名。
 - 当前服务器资源口径为 2 核 / 8 GB RAM；前端真机测试时应关注流式回答、TTS 和报告页在弱网下的等待与重试体验。
-- 当前本地和真机测试仍直接挂载服务器 HTTP 调试入口；备案和微信合法域名通过后必须切回 `https://api.banpo-museai.xyz/api/v1`。
+- 当前前端已切到 `https://api.banpo-museai.xyz/api/v1`，且关闭开发者工具合法域名豁免后已通过真机测试；体验版上传前仍需做完整回归。
 - 当前 Qwen LLM 调用消耗免费额度或试用额度，体验版前必须在服务商控制台确认额度、付费、限流和账单告警。
 - 当前数据不是最终馆方真实数据；替换真实数据后必须重新验证展厅筛选、展品统计、OCR 搜索和报告摘要。
 - 曾暴露过的 AppSecret、API key 必须重置。

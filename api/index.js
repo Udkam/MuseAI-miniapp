@@ -1,9 +1,9 @@
 /**
  * MuseAI Mini Program — API layer
  *
- * BASE_URL: http://122.152.232.190:3000/api/v1  (set in utils/request.js)
+ * BASE_URL: https://api.banpo-museai.xyz/api/v1  (set in utils/request.js)
  * Local backend alternative: http://127.0.0.1:8000/api/v1
- * Production after ICP filing: https://api.banpo-museai.xyz/api/v1
+ * Temporary server HTTP fallback: http://122.152.232.190:3000/api/v1
  * Health endpoint is under /api/v1.
  * Streaming endpoints use api/stream.js (wx.request enableChunked).
  */

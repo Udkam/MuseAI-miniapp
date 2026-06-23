@@ -12,13 +12,12 @@ The planned mini-program features have completed real-device testing. The projec
 
 HTTPS status should be read in two parts:
 
-- Done (server side): `api.banpo-museai.xyz` DNS, SSL certificate, and Nginx 443 reverse proxy are configured; `https://api.banpo-museai.xyz/api/v1/health` returns healthy.
-- Current development state: because `banpo-museai.xyz` is still waiting for filing, the mini-program frontend temporarily uses the server HTTP dev endpoint `http://122.152.232.190:3000/api/v1`; the local backend `http://127.0.0.1:8000/api/v1` and the production HTTPS endpoint are both kept as adjacent code comments. Switch back to HTTPS after filing and WeChat legal request-domain approval.
-- Not done (WeChat side): domain filing, WeChat admin legal request-domain configuration, and an official-environment real-device run with the DevTools "ignore legal domain" exemption turned off.
+- Done: ICP filing for `banpo-museai.xyz` has passed; `api.banpo-museai.xyz` DNS, SSL certificate, and Nginx 443 reverse proxy are configured.
+- Current development state: the mini-program frontend now uses the production HTTPS API `https://api.banpo-museai.xyz/api/v1`; the local backend and old public HTTP development endpoint remain only as commented fallback options.
+- Done (WeChat side): the WeChat request legal domain is configured, and real-device testing passed with the DevTools "ignore legal domain" exemption turned off.
 
 Remaining blockers:
 
-- The mini-program filing subject has not been finalized.
 - The current data is not the final official museum dataset.
 - OCR service has not been purchased or configured; if OCR is not launched, hide the entry or keep text-search fallback.
 - The Qwen LLM key currently consumes free or trial quota; quota, billing, and limits must be confirmed before release.
@@ -64,8 +63,8 @@ Remaining blockers:
 
 ## Not Complete Or Still Needs Release Acceptance
 
-- Formal mini-program filing, experience-version upload, and tester distribution.
-- WeChat legal domains for request/uploadFile/downloadFile.
+- Experience-version upload and tester distribution.
+- If future features upload files or download remote file URLs, confirm uploadFile/downloadFile legal domains. The current request flow has passed real-device testing.
 - OCR service purchase, service ID configuration, and real-device recognition stability.
 - Official museum exhibit images, map, positions, and complete hall data; the current data is not final real data.
 - API-key ownership, quota, billing, alerting, and rotation process.
@@ -135,10 +134,10 @@ Mini-program request endpoints are currently configured across three files. Chec
 | `api/stream.js` | SSE guide streaming requests |
 | `api/index.js` | direct API wrappers for TTS, OCR, exhibits, and routes |
 
-During filing, WeChat DevTools uses the server HTTP dev endpoint by default:
+The default API endpoint is now the production HTTPS API:
 
 ```text
-http://122.152.232.190:3000/api/v1
+https://api.banpo-museai.xyz/api/v1
 ```
 
 If the backend is running on this machine, you can temporarily switch to:
@@ -147,19 +146,19 @@ If the backend is running on this machine, you can temporarily switch to:
 http://127.0.0.1:8000/api/v1
 ```
 
-Formal release should switch back to:
+The old public HTTP development endpoint is only for emergency fallback or historical debugging:
 
 ```text
-https://api.banpo-museai.xyz/api/v1
+http://122.152.232.190:3000/api/v1
 ```
 
-The public HTTP dev entry should be closed on the server once the HTTPS real-device validation passes.
+The HTTPS request flow has passed real-device validation. The public HTTP dev entry should now be closed or restricted on the server.
 
 The formal endpoint is only release-ready in the official WeChat environment when:
 
 - domain filing is accepted;
 - the HTTPS certificate is valid;
-- WeChat legal domains are configured for request/uploadFile/downloadFile;
+- the WeChat request legal domain is configured;
 - WeChat DevTools works after disabling "ignore legal domain, web-view, TLS version and HTTPS certificate checks".
 
 ## TTS Notes
@@ -248,7 +247,7 @@ node --check pages/exhibit-detail/exhibit-detail.js
 - Formal release needs a real AppID, developer permissions, upload permissions, and test members.
 - If using a mainland China server and custom domain, formal WeChat mini-program release usually requires filing and legal-domain configuration.
 - Current server resource budget is 2 CPU cores / 8 GB RAM. Real-device testing should watch streaming answer latency, TTS waits, and report fallback behavior under weak networks.
-- Current local and real-device testing still points directly to the server HTTP dev endpoint; after filing and WeChat legal-domain approval, switch back to `https://api.banpo-museai.xyz/api/v1`.
+- The frontend now points to `https://api.banpo-museai.xyz/api/v1`, and real-device testing has passed with the DevTools legal-domain exemption disabled. Run a full regression again before experience-version upload.
 - Current Qwen LLM calls consume free or trial quota. Before experience-version testing, confirm quota, billing, rate limits, and bill alerts in the provider console.
 - Current data is not the final official museum dataset. After replacing real data, revalidate hall filtering, exhibit stats, OCR search, and report summaries.
 - Any exposed AppSecret or API key must be rotated.
