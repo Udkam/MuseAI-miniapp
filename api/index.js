@@ -175,6 +175,7 @@ const tourApi = {
    * @param {string}   opts.message      User message text
    * @param {string}   [opts.token]      X-Session-Token (falls back to storage)
    * @param {string}   [opts.exhibitId]  Current exhibit ID
+   * @param {string}   [opts.exhibitContext] Current exhibit facts for pronoun/short-question grounding
    * @param {object}   [opts.style]      Style preferences object
    * @param {string}   [opts.clientContext] Compact frontend context that should not affect retrieval
    * @param {Array}    [opts.conversationHistory] Recent user/assistant turns for answer continuity
@@ -199,6 +200,7 @@ const tourApi = {
     // tts: bool  (MUST be bool, not null — backend default False)
     var body = { message: opts.message || '' }
     if (opts.exhibitId) body.exhibit_id = opts.exhibitId
+    if (opts.exhibitContext) body.exhibit_context = opts.exhibitContext
     if (opts.clientEventId) body.client_event_id = opts.clientEventId
     if (opts.style)     body.style      = opts.style
     if (opts.clientContext) body.client_context = opts.clientContext

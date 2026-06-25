@@ -35,6 +35,21 @@ function buildWelcomeMessage(hallSlug, hallName) {
   return '欢迎来到' + name + '。我会优先围绕你当前看到的展厅回答，不把其他展厅的内容混进来。\n你可以直接问一个展品、一个细节，或让 MuseAI 帮你整理观察重点。'
 }
 
+function buildExhibitContextForRequest(exhibit) {
+  if (!exhibit) return ''
+  var parts = []
+  if (exhibit.name) parts.push('名称：' + exhibit.name)
+  var hallDisplay = exhibit.hallDisplay || (exhibit.hall ? banpoHalls.getHallDisplayName(exhibit.hall) : '')
+  if (hallDisplay || exhibit.hall) parts.push('展厅：' + (hallDisplay || exhibit.hall))
+  var objectKind = exhibit.objectKind || exhibit.kind || ''
+  if (objectKind) parts.push('对象类型：' + objectKind)
+  if (exhibit.category) parts.push('类别：' + exhibit.category)
+  if (exhibit.era) parts.push('年代：' + exhibit.era)
+  var desc = exhibit.description || exhibit.summary || exhibit.desc || ''
+  if (desc) parts.push('简介：' + String(desc).replace(/\s+/g, ' ').slice(0, 360))
+  return parts.join('\n').slice(0, 1000)
+}
+
 function plainTextForTts(content) {
   return String(content || '')
     .replace(/```[\s\S]*?```/g, function (block) {
@@ -571,15 +586,33 @@ Page({
       }
     }, 8000)
 
+    // Refresh the runtime context right before recording and streaming. When the
+    // user returns from exhibit-detail via navigateBack, onLoad params are not
+    // replayed, so the latest store/page context is the only reliable source.
+    state = tourStore.getTourState()
+    var currentExhibit = state.currentExhibit || self.data.currentExhibit || null
+    var currentHall = state.currentHall
+      || (currentExhibit && currentExhibit.hall)
+      || banpoHalls.normalizeHallToSlug(self.data.hallName)
+      || ''
+    currentHall = banpoHalls.normalizeHallToSlug(currentHall) || currentHall || ''
+    if (currentExhibit && currentHall && tourStore.setCurrentExhibit) {
+      tourStore.setCurrentExhibit(currentExhibit, currentHall)
+      currentExhibit = tourStore.getCurrentExhibit ? tourStore.getCurrentExhibit() : currentExhibit
+    }
+
     // ── Record exhibit_question event ──────────────────────────────────────
     var shouldCountQuestion = !self._resendWithoutQuestionCount
     self._resendWithoutQuestionCount = false
     tourStore.addTourEvent({
       eventType: 'exhibit_question',
-      hall:      state.currentHall || banpoHalls.normalizeHallToSlug(self.data.hallName) || '',
+      exhibitId: currentExhibit ? (currentExhibit.id || undefined) : undefined,
+      hall:      currentHall,
       metadata:  {
         client_event_id: questionClientEventId,
         message: text.slice(0, 200),
+        exhibit_name: currentExhibit ? (currentExhibit.name || '') : '',
+        exhibit_kind: currentExhibit ? (currentExhibit.objectKind || currentExhibit.kind || '') : '',
       },
     })
     if (shouldCountQuestion) {
@@ -595,7 +628,6 @@ Page({
     // Detect referential questions and inject prior history only. The current
     // question is already sent as `message`; duplicating it in history can make
     // the backend take the slower context-rewrite path before the first token.
-    var currentExhibit = state.currentExhibit || null
     var recentMsgs     = recentMsgsBeforeSend
 
     // Keep the retrieval query clean: send the user's original question as message.
@@ -622,6 +654,7 @@ Page({
       conversationHistory: recentMsgs.length ? recentMsgs : null,
       clientEventId: questionClientEventId,
       exhibitId: currentExhibit ? currentExhibit.id : undefined,
+      exhibitContext: buildExhibitContextForRequest(currentExhibit),
 
       onChunk: function (chunk) {
         if (!chunk) return
@@ -679,9 +712,10 @@ Page({
 
         var traceId = payload.trace_id || null
         chatStore.finishAssistantMessage({ content: finalContent, traceId: traceId })
-        var answerHall = state.currentHall || banpoHalls.normalizeHallToSlug(self.data.hallName) || ''
+        var answerHall = currentHall || state.currentHall || banpoHalls.normalizeHallToSlug(self.data.hallName) || ''
         tourStore.addTourEvent({
           eventType: 'assistant_answer',
+          exhibitId: currentExhibit ? (currentExhibit.id || undefined) : undefined,
           hall:      answerHall,
           metadata: {
             question_client_event_id: questionClientEventId,
@@ -689,6 +723,8 @@ Page({
             answer:   plainTextForTts(finalContent).slice(0, 600),
             trace_id: traceId,
             is_ceramic_question: !!(payload && payload.is_ceramic_question),
+            exhibit_name: currentExhibit ? (currentExhibit.name || '') : '',
+            exhibit_kind: currentExhibit ? (currentExhibit.objectKind || currentExhibit.kind || '') : '',
           },
         })
         self._dropPendingQuestionEvent(text, answerHall, questionClientEventId)
