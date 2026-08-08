@@ -2,9 +2,19 @@
   "scripts": {
     "test:markdown": "node scripts/test-markdown.js",
     "test:suggestions": "node scripts/test-guide-suggestions.js",
+    "test:hall-data": "node scripts/test-hall-data.js",
     "test:hall-chat": "node scripts/test-hall-chat-history.js",
     "test:report": "node scripts/test-report-stats.js",
+    "test:resume": "node scripts/test-resume-route.js",
+    "test:route-data": "node scripts/test-route-data.js",
+    "test:page-first": "node scripts/test-page-first-session.js",
+    "test:stream": "node scripts/test-stream-utf8.js",
+    "test:tour-sync": "node scripts/test-tour-sync.js",
+    "test:tour-chat-recovery": "node scripts/test-tour-chat-recovery.js",
+    "test:tts-audio": "node scripts/test-tts-audio.js",
+    "test:event-flush": "node scripts/test-event-flush.js",
+    "test:exhibit-catalog": "node scripts/test-exhibit-catalog.js",
     "test:preflight": "node scripts/preflight-wechat-release.js",
-    "test:all": "npm run test:markdown && npm run test:suggestions && npm run test:hall-chat && npm run test:report && npm run test:preflight"
+    "test:all": "npm run test:markdown && npm run test:suggestions && npm run test:hall-data && npm run test:route-data && npm run test:exhibit-catalog && npm run test:page-first && npm run test:hall-chat && npm run test:report && npm run test:resume && npm run test:stream && npm run test:tour-sync && npm run test:tour-chat-recovery && npm run test:tts-audio && npm run test:event-flush && npm run test:preflight"
   }
 }

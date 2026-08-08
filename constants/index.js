@@ -26,20 +26,22 @@ const TOUR_STATUS = {
 
 // Storage key names — single source of truth (mirrors utils/storage.js KEYS)
 const STORAGE_KEYS = {
-  AUTH_TOKEN:            'auth_token',
-  USER:                  'user',
-  USER_ROLE:             'user_role',
   TOUR_SESSION_ID:       'tour_session_id',
   TOUR_SESSION_TOKEN:    'tour_session_token',
   TOUR_SESSION_CREATED_AT: 'tour_session_created_at',
+  TOUR_SESSION_LAST_ACTIVE_AT: 'tour_session_last_active_at',
+  TOUR_SESSION_EXPIRES_AT: 'tour_session_expires_at',
   TOUR_SESSION_SCHEMA_VERSION: 'tour_session_schema_version',
   TOUR_AI_CONVERSATION_COUNT: 'tour_ai_conversation_count',
   TOUR_CACHE_SCHEMA_VERSION: 'tour_cache_schema_version',
   TOUR_PENDING_EVENTS:   'tour_pending_events',
   TOUR_RECORD_SUMMARY:   'tour_record_summary',
   TOUR_HALL_CHATS:       'tour_hall_chats',
+  TOUR_STATE:            'tour_state',
   TOUR_CURRENT_HALL:     'tour_current_hall',
   TOUR_VISITED_HALLS:    'tour_visited_halls',
+  TOUR_VISITED_EXHIBITS: 'tour_visited_exhibits',
+  TOUR_HALL_EXHIBITS:    'tour_hall_exhibits',
   TOUR_UI_PREFS:         'tour_workbench_ui_prefs',
   TOUR_STYLE_PREFS:      'tour_workbench_style_prefs',
   TOUR_TTS_PREFS:        'tour_workbench_tts_prefs',
@@ -64,7 +66,7 @@ const EXHIBIT_CATEGORIES = [
   { value: 'sculpture',   label: '雕塑' },
 ]
 
-// Answer style maps (used by buildStyledPrompt in store/tour.js)
+// Answer style labels shared by mini-program preference controls.
 const ANSWER_LENGTH_MAP = {
   brief:    '简短',
   balanced: '适中',

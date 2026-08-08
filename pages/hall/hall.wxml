@@ -31,6 +31,12 @@
       </view>
 
       <view class="hall-list">
+        <view wx:if="{{loading && !halls.length}}" class="state-wrap">
+          <text class="text-muted text-sm">加载开放展厅中…</text>
+        </view>
+        <view wx:elif="{{!halls.length}}" class="state-wrap">
+          <text class="text-muted text-sm">当前暂无开放展厅</text>
+        </view>
         <view
           wx:for="{{halls}}"
           wx:key="id"

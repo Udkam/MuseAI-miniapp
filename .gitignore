@@ -8,3 +8,6 @@ project.private.config.json
 
 #codex
 codex.md
+/AGENTS.md
+/docs/DESIGN.md
+/docs/CURRENT_TASK.md

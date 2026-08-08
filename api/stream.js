@@ -34,9 +34,6 @@ function _buildHeaders(extra) {
     'Accept':       'text/event-stream',  // tells FastAPI to use SSE path
   }
 
-  var authToken = storage.getToken()
-  if (authToken) headers['Authorization'] = 'Bearer ' + authToken
-
   var tour = storage.getTourSession()
   if (tour && tour.sessionToken) {
     headers['X-Session-Token'] = tour.sessionToken
@@ -91,6 +88,54 @@ function _decodeBuffer(buffer) {
   }
 
   return result
+}
+
+function _concatBytes(left, right) {
+  var a = left && left.length ? left : new Uint8Array(0)
+  var b = right && right.length ? right : new Uint8Array(0)
+  var out = new Uint8Array(a.length + b.length)
+  out.set(a, 0)
+  out.set(b, a.length)
+  return out
+}
+
+function _utf8SequenceLength(byte) {
+  if (byte < 0x80) return 1
+  if ((byte & 0xE0) === 0xC0) return 2
+  if ((byte & 0xF0) === 0xE0) return 3
+  if ((byte & 0xF8) === 0xF0) return 4
+  return 1
+}
+
+function _createUtf8StreamDecoder(options) {
+  var forceManual = !!(options && options.forceManual)
+  var decoder = !forceManual && typeof TextDecoder !== 'undefined'
+    ? new TextDecoder('utf-8')
+    : null
+  var pending = new Uint8Array(0)
+
+  return {
+    write: function (buffer) {
+      var bytes = buffer instanceof Uint8Array ? buffer : new Uint8Array(buffer || new ArrayBuffer(0))
+      if (decoder) return decoder.decode(bytes, { stream: true })
+
+      var combined = _concatBytes(pending, bytes)
+      var index = 0
+      while (index < combined.length) {
+        var length = _utf8SequenceLength(combined[index])
+        if (index + length > combined.length) break
+        index += length
+      }
+      pending = combined.slice(index)
+      return index ? _decodeBuffer(combined.slice(0, index).buffer) : ''
+    },
+    end: function () {
+      if (decoder) return decoder.decode()
+      if (!pending.length) return ''
+      pending = new Uint8Array(0)
+      return '\uFFFD'
+    },
+  }
 }
 
 // ─── SSE parser ────────────────────────────────────────────────────────────
@@ -151,6 +196,28 @@ function _flushBuffer(buf) {
   return { events: events, remaining: remaining }
 }
 
+function _responseDataToText(data) {
+  if (typeof data === 'string') return data
+  if (Object.prototype.toString.call(data) === '[object ArrayBuffer]') {
+    return _decodeBuffer(data)
+  }
+  if (data instanceof Uint8Array) {
+    var exact = data.buffer.slice(data.byteOffset, data.byteOffset + data.byteLength)
+    return _decodeBuffer(exact)
+  }
+  return ''
+}
+
+function _parseResponseEvents(data) {
+  if (data && typeof data === 'object' &&
+      Object.prototype.toString.call(data) !== '[object ArrayBuffer]' &&
+      !(data instanceof Uint8Array) && (data.event || data.type)) {
+    return [data]
+  }
+  var text = _responseDataToText(data)
+  return text.trim() ? _flushBuffer(text + '\n\n').events : []
+}
+
 // ─── Event dispatcher ──────────────────────────────────────────────────────
 
 function _makeDispatcher(options, stateRef) {
@@ -173,6 +240,7 @@ function _makeDispatcher(options, stateRef) {
       case 'chunk':
         // Backend: { event:"chunk", data:{ content:"..." } }
         var chunkText = (ev.data && ev.data.content) || ev.content || ''
+        stateRef.contentChunkCount += 1
         if (onChunk) onChunk(chunkText)
         break
 
@@ -223,7 +291,7 @@ function _makeDispatcher(options, stateRef) {
  * @param {string}   options.path          API path, e.g. '/tour/sessions/:id/chat/stream'
  * @param {string}   [options.method]      HTTP method (default 'POST')
  * @param {object}   [options.data]        JSON request body
- * @param {object}   [options.headers]     Extra headers merged after auth headers
+ * @param {object}   [options.headers]     Extra session/request headers
  * @param {Function} [options.onChunk]     (text: string) => void — content delta
  * @param {Function} [options.onEvent]     (event: object) => void — rag_step / thinking / etc.
  * @param {Function} [options.onDone]      (payload: object) => void — stream completed
@@ -237,8 +305,9 @@ function streamRequest(options) {
   var data    = options.data   || null
   var headers = _buildHeaders(options.headers)
 
-  var state   = { aborted: false, done: false }
+  var state   = { aborted: false, done: false, contentChunkCount: 0 }
   var buffer  = ''
+  var utf8Decoder = _createUtf8StreamDecoder()
   var dispatch = _makeDispatcher(options, state)
 
   var requestTask = wx.request({
@@ -251,7 +320,11 @@ function streamRequest(options) {
 
     success: function (res) {
       if (state.aborted) return
+      if (res.statusCode >= 200 && res.statusCode < 300 && storage.touchTourSession) {
+        storage.touchTourSession()
+      }
 
+      buffer += utf8Decoder.end()
       // Flush any remaining buffered text on connection close
       if (buffer.trim()) {
         var result = _flushBuffer(buffer + '\n\n')
@@ -259,12 +332,40 @@ function streamRequest(options) {
         result.events.forEach(dispatch)
       }
 
+      if (res.statusCode >= 200 && res.statusCode < 300 && !state.done) {
+        // WeChat devtools/proxies can split delivery across both APIs: content
+        // arrives through onChunkReceived while the terminal done/error is only
+        // present in success.data. Parse the final payload in both cases. Once
+        // content chunks were already dispatched, accept only terminal events
+        // from success.data so a full-body replay cannot duplicate answer text.
+        var successEvents = _parseResponseEvents(res.data)
+        if (state.contentChunkCount > 0) {
+          successEvents = successEvents.filter(function (event) {
+            var type = event && (event.event || event.type)
+            return type === 'done' || type === 'error'
+          })
+        }
+        successEvents.forEach(dispatch)
+      }
+
       // If an HTTP error arrived as a full response body (not SSE)
       if (res.statusCode >= 400 && !state.done) {
         var d   = res.data || {}
         var msg = d.detail || d.message || ('服务器错误 ' + res.statusCode)
+        state.done = true
         if (options.onError) {
           options.onError({ type: 'error', message: msg, status: res.statusCode })
+        }
+      } else if (res.statusCode >= 200 && res.statusCode < 300 && !state.done) {
+        // A closed 2xx connection without the terminal done/error event used to
+        // leave the page permanently in "thinking/streaming" state.
+        state.done = true
+        if (options.onError) {
+          options.onError({
+            type: 'error',
+            code: 'STREAM_INCOMPLETE',
+            message: '流式响应意外结束，请重试',
+          })
         }
       }
     },
@@ -279,7 +380,7 @@ function streamRequest(options) {
   requestTask.onChunkReceived(function (response) {
     if (state.aborted || state.done) return
 
-    var text = _decodeBuffer(response.data)
+    var text = utf8Decoder.write(response.data)
     buffer  += text
 
     var result = _flushBuffer(buffer)
@@ -296,4 +397,8 @@ function streamRequest(options) {
   }
 }
 
-module.exports = { streamRequest: streamRequest }
+module.exports = {
+  streamRequest: streamRequest,
+  _createUtf8StreamDecoder: _createUtf8StreamDecoder,
+  _flushBuffer: _flushBuffer,
+}

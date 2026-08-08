@@ -2,41 +2,21 @@ const tourStore = require('../../store/tour')
 const api       = require('../../api/index')
 const banpoHalls = require('../../constants/banpo-halls')
 const preload = require('../../utils/preload')
+const tourSync = require('../../utils/tour-sync')
+const tourSession = require('../../utils/tour-session')
 
-var MOCK_EXHIBITS = {
-  '人面鱼纹盆': {
-    id: 'mock-1', name: '人面鱼纹盆', category: '彩陶', era: '距今约6000年',
-    hall: 'basic-exhibition-hall', hallDisplay: '基本陈列展厅',
-    description: '仰韶文化半坡类型彩陶的代表作。陶盆内壁绘有两组人面与鱼纹交错的纹样，人面额头绘鱼纹，嘴角伸出鱼，充满神秘的巫术意味，是研究半坡先民精神世界的重要实物。',
-  },
-  '尖底瓶': {
-    id: 'mock-2', name: '尖底瓶', category: '汲水陶器', era: '距今约6000年',
-    hall: 'basic-exhibition-hall', hallDisplay: '基本陈列展厅',
-    description: '半坡遗址最具特色的日用陶器之一。尖底设计利用水的浮力自动扶正，是新石器时代先民的巧妙发明，体现了半坡人高超的物理智慧。',
-  },
-}
+const ENABLE_DEV_MOCK_EXHIBITS = false
 
 var DEFAULT_EXHIBIT = {
-  id: '', name: '', category: '展品', objectKind: '展品', era: '新石器时代',
-  hall: 'basic-exhibition-hall', hallDisplay: '基本陈列展厅',
-  description: '该展品资料待馆方完整清单确认。你可以先围绕它的名称、所在展厅和现场观察向 MuseAI 追问。',
-}
-
-function buildFallbackExhibit(name) {
-  var state = tourStore.getTourState()
-  var hall = state.currentHall ? banpoHalls.normalizeHallToSlug(state.currentHall) : DEFAULT_EXHIBIT.hall
-  return Object.assign({}, DEFAULT_EXHIBIT, {
-    id: 'local-' + (name || 'unknown'),
-    name: name || '未知展品',
-    hall: hall,
-    hallDisplay: banpoHalls.getHallDisplayName(hall),
-  })
+  id: '', name: '', category: '展品', objectKind: '展品', era: '',
+  hall: '', hallDisplay: '', description: '',
 }
 
 function reportableExhibitId(exhibit) {
-  var id = exhibit && exhibit.id ? String(exhibit.id) : ''
-  if (id && id.indexOf('local-') !== 0 && id.indexOf('mock-') !== 0) return id
-  return undefined
+  var id = tourStore.normalizeBackendExhibitUuid
+    ? tourStore.normalizeBackendExhibitUuid(exhibit && exhibit.id)
+    : null
+  return id || undefined
 }
 
 function hallIdFromSlug(slug) {
@@ -80,6 +60,8 @@ Page({
   data: {
     exhibit: DEFAULT_EXHIBIT,
     loading: true,
+    loadError: false,
+    errorMessage: '',
   },
 
   _enterAt: 0,
@@ -90,39 +72,53 @@ Page({
     var id   = options.id   ? decodeURIComponent(options.id)   : ''
     var name = options.name ? decodeURIComponent(options.name) : ''
     var local = options.local === '1'
+    var cached = tourStore.consumePendingDetailExhibit
+      ? tourStore.consumePendingDetailExhibit(name)
+      : null
+    tourStore.markCurrentPage('pages/exhibit-detail/exhibit-detail', {
+      id: id,
+      name: name,
+      local: local ? '1' : '0',
+    })
 
     this._enterAt = Date.now()
     this._preloadNext()
     wx.setNavigationBarTitle({ title: name || '展品详情' })
 
     if (local) {
-      var cached = tourStore.consumePendingDetailExhibit
-        ? tourStore.consumePendingDetailExhibit(name)
+      var cachedTrustedId = tourStore.normalizeBackendExhibitUuid
+        ? tourStore.normalizeBackendExhibitUuid(cached && cached.id)
         : null
-      if (cached && (!name || cached.name === name)) {
-        self.setData({ exhibit: cached, loading: false }, function () {
-          self._recordExhibitView(cached, null, 'detail_enter')
-        })
-        wx.setNavigationBarTitle({ title: cached.name || '展品详情' })
+      if (cachedTrustedId && (!name || cached.name === name)) {
+        self._showExhibit(cached)
       } else {
-        self._useMock(name)
+        self._showUnavailable(name)
       }
     } else if (id) {
+      var trustedId = tourStore.normalizeBackendExhibitUuid
+        ? tourStore.normalizeBackendExhibitUuid(id)
+        : null
+      var cachedId = tourStore.normalizeBackendExhibitUuid
+        ? tourStore.normalizeBackendExhibitUuid(cached && cached.id)
+        : null
+      var trustedCached = trustedId && cachedId === trustedId ? cached : null
+      if (!trustedId) {
+        self._showUnavailable(name)
+        return
+      }
       api.exhibitsApi.get(id).then(function (res) {
         if (res.ok && res.data) {
           var ex = api.normalizeExhibit(res.data)
-          self.setData({ exhibit: ex, loading: false }, function () {
-            self._recordExhibitView(ex, null, 'detail_enter')
-          })
-          wx.setNavigationBarTitle({ title: ex.name || '展品详情' })
+          if (ex) self._showExhibit(ex)
+          else self._showTrustedOrUnavailable(trustedCached, name)
         } else {
-          self._loadByName(name)
+          self._showTrustedOrUnavailable(trustedCached, name)
         }
-      }).catch(function () { self._loadByName(name) })
+      }).catch(function () { self._showTrustedOrUnavailable(trustedCached, name) })
     } else if (name) {
-      self._loadByName(name)
+      self._loadByName(name, cached)
     } else {
-      self.setData({ exhibit: DEFAULT_EXHIBIT, loading: false })
+      self._showUnavailable('')
     }
   },
 
@@ -131,35 +127,64 @@ Page({
     preload.preloadImages(preload.TOUR_ICON_ASSETS, 160)
   },
 
-  _loadByName: function (name) {
+  _loadByName: function (name, cached) {
     var self = this
-    if (!name) { self.setData({ exhibit: DEFAULT_EXHIBIT, loading: false }); return }
+    var cachedId = tourStore.normalizeBackendExhibitUuid
+      ? tourStore.normalizeBackendExhibitUuid(cached && cached.id)
+      : null
+    var trustedCached = cachedId ? cached : null
+    if (!name) { self._showTrustedOrUnavailable(trustedCached, name); return }
     api.exhibitsApi.search(name).then(function (res) {
       if (res.ok && res.data && res.data.exhibits && res.data.exhibits.length) {
         var best = res.data.exhibits[0]
+        var bestId = tourStore.normalizeBackendExhibitUuid
+          ? tourStore.normalizeBackendExhibitUuid(best && best.id)
+          : null
+        if (!bestId) {
+          self._showTrustedOrUnavailable(trustedCached, name)
+          return
+        }
         return api.exhibitsApi.get(best.id).then(function (dr) {
           if (dr.ok && dr.data) {
             var ex = api.normalizeExhibit(dr.data)
-            self.setData({ exhibit: ex, loading: false }, function () {
-              self._recordExhibitView(ex, null, 'detail_enter')
-            })
-            wx.setNavigationBarTitle({ title: ex.name || '展品详情' })
+            if (ex) self._showExhibit(ex)
+            else self._showTrustedOrUnavailable(trustedCached, name)
           } else {
-            self._useMock(name)
+            self._showTrustedOrUnavailable(trustedCached, name)
           }
-        })
+        }).catch(function () { self._showTrustedOrUnavailable(trustedCached, name) })
       }
-      self._useMock(name)
-    }).catch(function () { self._useMock(name) })
+      self._showTrustedOrUnavailable(trustedCached, name)
+    }).catch(function () { self._showTrustedOrUnavailable(trustedCached, name) })
   },
 
-  _useMock: function (name) {
+  _showExhibit: function (exhibit) {
     var self = this
-    var ex = MOCK_EXHIBITS[name] || buildFallbackExhibit(name)
-    this.setData({ exhibit: ex, loading: false }, function () {
-      self._recordExhibitView(ex, null, 'detail_enter')
+    self.setData({ exhibit: exhibit, loading: false, loadError: false, errorMessage: '' }, function () {
+      self._recordExhibitView(exhibit, null, 'detail_enter')
     })
-    wx.setNavigationBarTitle({ title: ex.name || '展品详情' })
+    wx.setNavigationBarTitle({ title: exhibit.name || '展品详情' })
+  },
+
+  _showTrustedOrUnavailable: function (cached, name) {
+    if (cached) {
+      this._showExhibit(cached)
+      return
+    }
+    this._showUnavailable(name)
+  },
+
+  _showUnavailable: function (name) {
+    this.setData({
+      exhibit: Object.assign({}, DEFAULT_EXHIBIT, {
+        id: '',
+        name: name || '展品资料',
+        description: '',
+      }),
+      loading: false,
+      loadError: true,
+      errorMessage: '馆方展品资料暂不可用，请返回后重试。',
+    })
   },
 
   _recordExhibitView: function (exhibit, durationSeconds, source) {
@@ -169,6 +194,16 @@ Page({
     var hall = resolveHallSlugForExhibit(exhibit) || state.currentHall || ''
     if (!state.sessionId && !hall) return
     this._viewRecorded = true
+    var realId = reportableExhibitId(exhibit) || null
+    tourStore.updateTourState({
+      currentHall: hall || state.currentHall || null,
+      currentExhibitId: realId,
+    })
+    tourSync.queueSessionSnapshot({
+      status: 'touring',
+      current_hall: hall || state.currentHall || null,
+      current_exhibit_id: realId,
+    }, { defer: true, maxAttempts: 3 })
     tourStore.addTourEvent({
       eventType:       'exhibit_view',
       exhibitId:       reportableExhibitId(exhibit),
@@ -183,6 +218,7 @@ Page({
   },
 
   onUnload: function () {
+    if (this.data.loading || this.data.loadError) return
     if (this._viewRecorded) return
     var duration = this._enterAt
       ? Math.max(1, Math.round((Date.now() - this._enterAt) / 1000))
@@ -192,6 +228,7 @@ Page({
   },
 
   goDeeper: function () {
+    if (this.data.loading || this.data.loadError) return
     var self = this
     var exhibit = this.data.exhibit
     var state   = tourStore.getTourState()
@@ -231,7 +268,7 @@ Page({
         setTimeout(function () {
           tourStore.addTourEvent({
             eventType: 'exhibit_deep_dive',
-            exhibitId: exhibit.id   || exhibit.name || undefined,
+            exhibitId: tourStore.getTourState().currentExhibitId || undefined,
             hall:      hallSlug || exhibit.hall || state.currentHall || '',
             metadata:  { exhibit_name: exhibit.name },
           })
@@ -242,17 +279,15 @@ Page({
 
     if (!state.sessionId) {
       // No session: create a quick-start one before entering the tour page.
-      var guestId = 'miniapp_guest_' + Date.now()
       tourStore.setStylePrefs({ answerLength: 'balanced', depth: 'standard', terminology: 'plain' })
-      tourStore.createLocalTourState({ interestType: 'B', persona: 'B', assumption: 'D', personaId: 'B' })
+      tourStore.createLocalTourState({ interestType: 'default', persona: 'default', assumption: 'D', personaId: 'default' })
       tourStore.setCurrentExhibit(exhibit, hallSlug)
-      api.tourApi.createSession({ interest_type: 'B', persona: 'B', assumption: 'D', guest_id: guestId })
+      tourSession.ensureTourSession()
         .then(function (res) {
           var newId = null
           if (res.ok) {
-            var d = res.data || {}
-            newId = d.id || d.session_id || null
-            tourStore.setTourSession({ sessionId: newId, sessionToken: d.session_token || null })
+            newId = res.sessionId || null
+            tourSync.queueSessionSnapshot({}, { defer: true, maxAttempts: 3 })
           }
           doNavigate(newId)
         })

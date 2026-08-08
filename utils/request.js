@@ -13,7 +13,7 @@ const DEFAULT_BASE_DELAY = 150
 
 const HTTP_ERRORS = {
   400: '请求参数有误',
-  401: '请先登录',
+  401: '导览会话无效',
   403: '权限不足',
   404: '资源不存在',
   422: '数据格式错误',
@@ -24,11 +24,6 @@ const HTTP_ERRORS = {
 
 function buildHeaders(extra) {
   const headers = { 'Content-Type': 'application/json' }
-
-  const authToken = storage.getToken()
-  if (authToken) {
-    headers['Authorization'] = `Bearer ${authToken}`
-  }
 
   const { sessionToken } = storage.getTourSession()
   if (sessionToken) {
@@ -62,16 +57,19 @@ function wait(ms) {
 }
 
 /**
- * Core request with automatic auth injection and retry.
+ * Core request with automatic guest-session injection and retry.
  *
- * @param {string} path            - API path (e.g. '/auth/login')
+ * @param {string} path            - API path (e.g. '/tour/sessions/:id')
  * @param {object} [options]
  * @param {string} [options.method='GET']
  * @param {object} [options.data]          - Request body (will be JSON-serialised by wx)
- * @param {object} [options.headers]       - Extra headers (merged after auth headers)
+ * @param {object} [options.headers]       - Extra session/request headers
  * @param {number} [options.timeout]       - Per-attempt timeout in ms
  * @param {number} [options.retries]       - Max retry attempts on network/5xx/429 errors
  * @param {number} [options.baseDelayMs]   - Initial retry back-off delay in ms
+ * @param {boolean} [options.skipActivityUpdate=false] - Leave session activity ownership to the caller
+ * @param {string} [options.expectedSessionId] - Only update activity while this session is still current
+ * @param {string} [options.expectedSessionToken] - Token paired with expectedSessionId
  * @returns {Promise<{ok: boolean, status: number, data: object}>}
  */
 async function request(path, options) {
@@ -82,6 +80,7 @@ async function request(path, options) {
     timeout     = DEFAULT_TIMEOUT,
     retries     = DEFAULT_RETRIES,
     baseDelayMs = DEFAULT_BASE_DELAY,
+    skipActivityUpdate = false,
   } = options || {}
 
   const url    = `${BASE_URL}${path}`
@@ -98,9 +97,22 @@ async function request(path, options) {
     const responseData = res.data || {}
     const ok           = status >= 200 && status < 300
 
-    if (status === 401) {
-      // Token expired or invalid — wipe local auth state
-      storage.clearAuth()
+    let activityOwnerMatches = true
+    const hasExpectedSessionId = !!options && Object.prototype.hasOwnProperty.call(options, 'expectedSessionId')
+    const hasExpectedSessionToken = !!options && Object.prototype.hasOwnProperty.call(options, 'expectedSessionToken')
+    if (hasExpectedSessionId || hasExpectedSessionToken) {
+      const currentSession = storage.getTourSession ? storage.getTourSession() : {}
+      activityOwnerMatches = (
+        (!hasExpectedSessionId || currentSession.sessionId === options.expectedSessionId) &&
+        (!hasExpectedSessionToken || currentSession.sessionToken === options.expectedSessionToken)
+      )
+    }
+
+    if (ok && path.indexOf('/tour/sessions/') === 0 && !skipActivityUpdate && activityOwnerMatches) {
+      const usedServerActivity = storage.updateTourSessionActivity
+        ? storage.updateTourSessionActivity(responseData)
+        : false
+      if (!usedServerActivity && storage.touchTourSession) storage.touchTourSession()
     }
 
     if (!ok && HTTP_ERRORS[status]) {

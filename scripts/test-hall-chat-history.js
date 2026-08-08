@@ -16,6 +16,7 @@ global.wx = {
 const storageUtil = require('../utils/storage')
 let tourStore = require('../store/tour')
 const chatStore = require('../store/chat')
+const TRUSTED_EXHIBIT_ID = '123e4567-e89b-12d3-a456-426614174000'
 
 function resetStorage() {
   Object.keys(storage).forEach(function (key) { delete storage[key] })
@@ -70,7 +71,7 @@ assert.ok(
   storage[storageUtil.KEYS.TOUR_VISITED_HALLS].indexOf('kiln-hall') >= 0,
   'visited hall should be persisted'
 )
-tourStore.addTourEvent({ eventType: 'exhibit_view', hall: 'site-protection-hall', exhibitId: 'exhibit-1' })
+tourStore.addTourEvent({ eventType: 'exhibit_view', hall: 'site-protection-hall', exhibitId: TRUSTED_EXHIBIT_ID })
 assert.ok(
   tourStore.getTourState().visitedHalls.indexOf('site-protection-hall') >= 0,
   'viewing an exhibit should mark its hall visited'
@@ -80,7 +81,7 @@ assert.strictEqual(
   1,
   'viewing an exhibit should increment the visited exhibit count'
 )
-tourStore.addTourEvent({ eventType: 'exhibit_view', hall: 'site-protection-hall', exhibitId: 'exhibit-1' })
+tourStore.addTourEvent({ eventType: 'exhibit_view', hall: 'site-protection-hall', exhibitId: TRUSTED_EXHIBIT_ID })
 assert.strictEqual(
   tourStore.getVisitedExhibitCount(),
   1,
@@ -93,8 +94,8 @@ tourStore.addTourEvent({
 })
 assert.strictEqual(
   tourStore.getVisitedExhibitCount(),
-  2,
-  'local exhibit views without a backend id should count by hall and exhibit name'
+  1,
+  'local exhibit views without a backend id must not count as trusted museum exhibits'
 )
 tourStore.setCurrentExhibit({ id: 'basic-ex-1', name: 'Basic Exhibit', hall: 'basic-exhibition-hall' }, 'basic-exhibition-hall')
 assert.strictEqual(
@@ -134,7 +135,7 @@ assert.ok(
 )
 assert.strictEqual(
   tourStore.getVisitedExhibitCount(),
-  2,
+  1,
   'visited exhibit count should restore after store reload'
 )
 
@@ -181,6 +182,50 @@ assert.strictEqual(
   'new tour should not inherit previous exhibit discussion context'
 )
 
+tourStore.setTourSession({ sessionId: 'hall-isolation-session', sessionToken: 'hall-isolation-token' })
+const hallA = 'basic-exhibition-hall'
+const hallB = 'kiln-hall'
+const hallAMessages = []
+const hallBMessages = []
+for (let index = 0; index < 35; index++) {
+  hallAMessages.push({
+    id: 'a-' + index,
+    role: index % 2 ? 'user' : 'assistant',
+    content: 'A厅消息-' + index,
+  })
+  hallBMessages.push({
+    id: 'b-' + index,
+    role: index % 2 ? 'user' : 'assistant',
+    content: 'B厅消息-' + index,
+  })
+}
+tourStore.saveHallChatMessages(hallA, hallAMessages)
+tourStore.saveHallChatMessages(hallB, hallBMessages)
+
+const restoredHallA = tourStore.getHallChatMessages(hallA)
+const restoredHallB = tourStore.getHallChatMessages(hallB)
+assert.strictEqual(restoredHallA.length, 30, 'hall A should retain its latest 30 messages')
+assert.strictEqual(restoredHallB.length, 30, 'hall B should retain its latest 30 messages')
+assert.strictEqual(restoredHallA[0].content, 'A厅消息-5')
+assert.strictEqual(restoredHallA[29].content, 'A厅消息-34')
+assert.strictEqual(restoredHallB[0].content, 'B厅消息-5')
+assert.strictEqual(restoredHallB[29].content, 'B厅消息-34')
+assert.ok(restoredHallA.every(function (message) {
+  return message.content.indexOf('A厅消息-') === 0
+}), 'hall A history must never contain hall B messages')
+assert.ok(restoredHallB.every(function (message) {
+  return message.content.indexOf('B厅消息-') === 0
+}), 'hall B history must never contain hall A messages')
+
+tourStore.updateTourState({ currentHall: hallB })
+chatStore.setMessages(tourStore.getHallChatMessages(hallB))
+assert.strictEqual(chatStore.getState().messages[0].content, 'B厅消息-5')
+tourStore.updateTourState({ currentHall: hallA })
+chatStore.setMessages(tourStore.getHallChatMessages(hallA))
+assert.strictEqual(chatStore.getState().messages.length, 30, 'returning to hall A should restore the latest 30 messages')
+assert.strictEqual(chatStore.getState().messages[0].content, 'A厅消息-5')
+assert.strictEqual(chatStore.getState().messages[29].content, 'A厅消息-34')
+
 chatStore.resetChat()
 chatStore.setMessages([
   { id: 101, role: 'assistant', content: '长'.repeat(1400) },
@@ -195,5 +240,28 @@ assert.deepStrictEqual(
   ['assistant', 'user'],
   'history should preserve roles after compaction'
 )
+
+tourStore.setTourSession({ sessionId: 'bounded-history-session', sessionToken: 'bounded-token' })
+for (let hallIndex = 0; hallIndex < 11; hallIndex++) {
+  const oversized = []
+  for (let messageIndex = 0; messageIndex < 35; messageIndex++) {
+    oversized.push({
+      id: hallIndex + '-' + messageIndex,
+      role: messageIndex % 2 ? 'user' : 'assistant',
+      content: '历'.repeat(1200) + messageIndex,
+      debug: 'must-not-sync',
+    })
+  }
+  tourStore.saveHallChatMessages('dynamic-hall-' + hallIndex, oversized)
+}
+const boundedPayload = tourStore.getHallChatHistoryPayload()
+assert.strictEqual(Object.keys(boundedPayload).length, 9, 'only the nine most recently used halls should be restored')
+assert.ok(boundedPayload['dynamic-hall-10'], 'the newest hall history should be retained')
+Object.keys(boundedPayload).forEach(function (hall) {
+  assert.strictEqual(boundedPayload[hall].length, 30, 'each hall should retain only its latest 30 messages')
+  assert.ok(boundedPayload[hall].every(function (message) {
+    return message.content.length <= 1000 && Object.keys(message).sort().join(',') === 'content,role'
+  }), 'restored messages should be bounded role/content records')
+})
 
 console.log('hall chat history checks passed')

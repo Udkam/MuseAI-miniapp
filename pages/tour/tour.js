@@ -3,51 +3,68 @@ const chatStore = require('../../store/chat')
 const tourStore = require('../../store/tour')
 const banpoHalls = require('../../constants/banpo-halls')
 const preload = require('../../utils/preload')
+const tourSync = require('../../utils/tour-sync')
+const tourSession = require('../../utils/tour-session')
+const eventFlush = require('../../utils/event-flush')
+const ttsAudio = require('../../utils/tts-audio')
 
 const TOUR_TTS_STYLE = '请用清晰、自然、亲切的博物馆导览语气朗读；语速稍快，比常规讲解更利落，句间停顿短一些，尾音不要拖长。不要额外补充文字，只朗读给定内容。'
 const TTS_SEGMENT_MAX_CHARS = 72
 const TTS_SEGMENT_MAX_COUNT = 10
+const TTS_PLAY_START_TIMEOUT_MS = 5000
 const STREAM_FLUSH_INTERVAL_MS = 80
-
 function makeClientEventId(prefix) {
   return String(Date.now()) + '-' + (prefix || 'evt') + '-' + Math.random().toString(36).slice(2, 10)
+}
+
+function assistantClientEventId(questionClientEventId) {
+  var questionId = String(questionClientEventId || '').trim()
+  return questionId
+    ? questionId.slice(0, 110) + ':assistant'
+    : makeClientEventId('assistant')
+}
+
+function localExhibitIdFromName(name) {
+  return 'local-' + String(name || 'unknown').slice(0, 94)
 }
 
 // Safe-area inset is device-constant; cache it across page entries so we don't
 // pay the synchronous system-info bridge cost during each slide-in transition.
 var _safeAreaBottomCache = null
 
-var HALL_WELCOME_COPY = {
-  'basic-exhibition-hall': '这里是基本陈列展厅。先把半坡看成一个完整的生活系统：房屋、工具、陶器、装饰品，都在回答同一个问题：六千年前的人怎样组织日常生活。\n你可以从一件器物、一个纹样，或“他们怎么吃住劳动”问起。',
-  'site-protection-hall': '这里是遗址保护大厅。这里看的不是单件文物，而是半坡聚落的真实空间：房址、墓葬、壕沟、作坊和灶址之间的关系。\n建议你先观察“什么在一起、什么被分开”，再问我这些空间关系说明了什么。',
-  'kiln-hall': '这里是陶窑展厅。陶器不是凭空出现的，它要经过选泥、成型、干燥、装饰和烧成。\n你可以把这里当作“生产现场”来看：窑炉结构、火候痕迹和失败残片，都能解释一件陶器为什么会变成现在的样子。',
-  'prehistoric-workshop': '这里是史前工坊。它适合把刚才看到的工具、陶器和材料，转化成可以亲手理解的过程。\n如果你正在研学，可以重点记录：哪一步最难、需要什么经验、它和展厅里的展品有什么对应关系。',
-  'education-center': '这里是教研中心。它更适合整理问题，而不是只继续看展。\n你可以把前面看到的展厅内容变成三类记录：一个最有证据的发现、一个仍不确定的问题、一个可以继续讨论的观点。',
-  'banpo-girl-sculpture': '这里是半坡姑娘雕塑。它不是考古原件，而是现代人根据半坡文化想象出的公共形象。\n我们可以一起区分：哪些来自考古证据，哪些属于艺术再现，哪些影响了今天观众对半坡人的第一印象。',
-  'peony-garden': '这里是牡丹园，也是参观中的休整空间。\n如果你刚看完展厅，可以在这里做一次简短复盘：刚才哪个细节最有证据？哪个问题还没有答案？下一步要去哪里验证？',
-  'temporary-hall-1': '这里是临展空间。当期主题和展品需要以现场展签与馆方清单为准。\n你可以把看到的展览标题、展签关键词或具体对象告诉我，我会基于现场信息帮你梳理。',
-  'temporary-hall-2': '这里是临展空间。当期主题和展品需要以现场展签与馆方清单为准。\n你可以把看到的展览标题、展签关键词或具体对象告诉我，我会基于现场信息帮你梳理。',
-}
-
 function buildWelcomeMessage(hallSlug, hallName) {
-  if (hallSlug && HALL_WELCOME_COPY[hallSlug]) return HALL_WELCOME_COPY[hallSlug]
   var name = hallName || '这个展厅'
   return '欢迎来到' + name + '。我会优先围绕你当前看到的展厅回答，不把其他展厅的内容混进来。\n你可以直接问一个展品、一个细节，或让 MuseAI 帮你整理观察重点。'
 }
 
-function buildExhibitContextForRequest(exhibit) {
-  if (!exhibit) return ''
-  var parts = []
-  if (exhibit.name) parts.push('名称：' + exhibit.name)
-  var hallDisplay = exhibit.hallDisplay || (exhibit.hall ? banpoHalls.getHallDisplayName(exhibit.hall) : '')
-  if (hallDisplay || exhibit.hall) parts.push('展厅：' + (hallDisplay || exhibit.hall))
-  var objectKind = exhibit.objectKind || exhibit.kind || ''
-  if (objectKind) parts.push('对象类型：' + objectKind)
-  if (exhibit.category) parts.push('类别：' + exhibit.category)
-  if (exhibit.era) parts.push('年代：' + exhibit.era)
-  var desc = exhibit.description || exhibit.summary || exhibit.desc || ''
-  if (desc) parts.push('简介：' + String(desc).replace(/\s+/g, ' ').slice(0, 360))
-  return parts.join('\n').slice(0, 1000)
+function hallChatSignature(messages) {
+  return (Array.isArray(messages) ? messages : []).map(function (message) {
+    return [message && message.role || '', message && message.content || ''].join(':')
+  }).join('\n')
+}
+
+function hallMessagesFromResumePayload(payload, hallSlug) {
+  if (!payload || !hallSlug) return null
+  var resume = payload.resume_state && typeof payload.resume_state === 'object'
+    ? payload.resume_state
+    : payload
+  var histories = payload.hall_chat_history || resume.hall_chat_history
+  if (Array.isArray(histories)) {
+    for (var i = 0; i < histories.length; i++) {
+      var record = histories[i]
+      if (!record || banpoHalls.normalizeHallToSlug(record.hall) !== hallSlug) continue
+      return Array.isArray(record.messages) ? record.messages : []
+    }
+    return null
+  }
+  if (!histories || typeof histories !== 'object') return null
+  var keys = Object.keys(histories)
+  for (var j = 0; j < keys.length; j++) {
+    if (banpoHalls.normalizeHallToSlug(keys[j]) !== hallSlug) continue
+    var value = histories[keys[j]]
+    return Array.isArray(value) ? value : (value && Array.isArray(value.messages) ? value.messages : [])
+  }
+  return null
 }
 
 function plainTextForTts(content) {
@@ -127,6 +144,17 @@ function pcm16ToWavArrayBuffer(pcmBuffer) {
   return wavBuffer
 }
 
+function ttsErrorDetail(stage, err) {
+  var source = err || {}
+  var errCode = source.errCode
+  if (errCode === undefined || errCode === null || errCode === '') errCode = source.code || 'UNKNOWN_TTS_ERROR'
+  return {
+    stage: stage || source.stage || 'unknown',
+    errCode: errCode,
+    errMsg: source.errMsg || source.message || String(err || 'unknown TTS error'),
+  }
+}
+
 Page({
   data: {
     hallName:         '展厅',
@@ -165,6 +193,20 @@ Page({
   _hintTimer8:    null,   // upgrades loadingHint text at 8 s
   _chunkBuffer:   '',     // chunk text accumulator pending the next throttled flush
   _streamText:    '',     // local streaming accumulator; avoids reading stale setData state
+
+  _buildWelcomeMessage: buildWelcomeMessage,
+  _assistantClientEventId: assistantClientEventId,
+
+  _applyStreamStateVersion: function (payload) {
+    var nextVersion = Number(payload && payload.state_version)
+    if (!isFinite(nextVersion) || nextVersion < 1 || Math.floor(nextVersion) !== nextVersion) return null
+    var currentVersion = Number(tourStore.getTourState().serverStateVersion)
+    if (!isFinite(currentVersion) || nextVersion >= currentVersion) {
+      tourStore.updateTourState({ serverStateVersion: nextVersion })
+      return nextVersion
+    }
+    return currentVersion
+  },
   _flushTimer:    null,   // timer ID for scheduled _chunkBuffer flush
   _loadedAt:      0,      // timestamp (ms) of last onLoad/onShow — ghost-tap guard
   _suggestionSeq: 0,      // prevents stale Phase-2 suggestions from overwriting the next hall/exhibit
@@ -172,16 +214,25 @@ Page({
   _ttsAudioCache: null,
   _ttsQueue:      null,
   _ttsRequestSeq: 0,
+  _ttsStartTimer: null,
   _keyboardHandler: null,
   _safeAreaBottom: 0,
   _keyboardLift: 0,
   _sessionRecoveryRetrying: false,
   _suggestionFetchTimer: null,
   _suggestionShowTimer: null,
+  _suggestionLoadingSeq: 0,
   _guideSuggestionsSig: '',
   _postEnterTimer: null,
   _scrollPulseTimers: null,
-  _resendWithoutQuestionCount: false,
+  _retryQuestionEvent: null,
+  _contextSyncing: false,
+  _skipContextSyncOnce: false,
+  _pageHallSlug: null,
+  _pageHallName: '',
+  _pageLocalTourId: null,
+  _pageOwnedChatSig: '',
+  _renderedHallSlug: null,
 
   // ── Lifecycle ─────────────────────────────────────────────────────────────
 
@@ -189,6 +240,7 @@ Page({
     this._loadedAt = Date.now()
     var self = this
     var state   = tourStore.getTourState()
+    tourStore.markCurrentPage('pages/tour/tour', options || null)
     var fromExhibitDetail = !!(options && (options.directFromDetail === '1' || options.exhibit))
     var exhibit = fromExhibitDetail ? (state.currentExhibit || null) : null
     var exhibitNameFromQuery = options && options.exhibit ? decodeURIComponent(options.exhibit) : ''
@@ -203,15 +255,16 @@ Page({
     // Only reset chat on a fresh tour entry (hall page → tour).
     // When coming from exhibit-detail goDeeper(), options.exhibit is set —
     // preserve history so the user can still ask "我们刚才在讨论什么".
-    var freshEntry = !fromExhibitDetail
+    var resumeEntry = !!(options && options.resume === '1')
+    var freshEntry = !fromExhibitDetail && !resumeEntry
     if (freshEntry) {
       chatStore.resetChat()
     }
 
     if (!exhibit && exhibitNameFromQuery) {
-      var fallbackHall = state.currentHall || (options.hall ? decodeURIComponent(options.hall) : '')
+      var fallbackHall = options.hall ? decodeURIComponent(options.hall) : (state.currentHall || '')
       tourStore.setCurrentExhibit({
-        id: exhibitNameFromQuery,
+        id: localExhibitIdFromName(exhibitNameFromQuery),
         name: exhibitNameFromQuery,
         hall: fallbackHall ? banpoHalls.normalizeHallToSlug(fallbackHall) : '',
         hallDisplay: fallbackHall ? banpoHalls.getHallDisplayName(fallbackHall) : '',
@@ -222,11 +275,18 @@ Page({
 
     // URL param takes priority; fallback to saved canonical hall slug.
     var hallFromId = options.hallId ? banpoHalls.getHall(options.hallId) : null
+    var hallNameFromQuery = options.hallName ? decodeURIComponent(options.hallName) : ''
     var rawHall = hallFromId
       ? hallFromId.backendSlug
       : (options.hall ? decodeURIComponent(options.hall) : (tourStore.getSavedCurrentHall() || null))
     var hallSlug = rawHall ? banpoHalls.normalizeHallToSlug(rawHall) : null
-    var hallName = hallSlug ? banpoHalls.getHallDisplayName(hallSlug) : null
+    var stateHallSlug = state.currentHall ? banpoHalls.normalizeHallToSlug(state.currentHall) : null
+    var hallName = hallNameFromQuery || (stateHallSlug === hallSlug ? state.currentHallName : '') ||
+      (hallSlug ? banpoHalls.getHallDisplayName(hallSlug) : null)
+    this._pageHallSlug = hallSlug
+    this._pageHallName = hallName || this.data.hallName
+    this._pageLocalTourId = state.localTourId || null
+    this._renderedHallSlug = hallSlug
 
     if (freshEntry) {
       if (tourStore.clearCurrentExhibit) {
@@ -238,7 +298,7 @@ Page({
       exhibit = tourStore.getCurrentExhibit ? tourStore.getCurrentExhibit() : exhibit
     } else if (!freshEntry && exhibitNameFromQuery && hallSlug && tourStore.setCurrentExhibit) {
       tourStore.setCurrentExhibit({
-        id: exhibitNameFromQuery,
+        id: localExhibitIdFromName(exhibitNameFromQuery),
         name: exhibitNameFromQuery,
         hall: hallSlug,
         hallDisplay: banpoHalls.getHallDisplayName(hallSlug),
@@ -250,11 +310,12 @@ Page({
     var patch = { sessionId: state.sessionId || null, currentExhibit: exhibit }
     if (hallName) {
       wx.setNavigationBarTitle({ title: hallName })
-      tourStore.updateTourState({ currentHall: hallSlug }, { deferPersist: true })
+      tourStore.updateTourState({ currentHall: hallSlug, currentHallName: hallName }, { deferPersist: true })
       patch.hallName = hallName
     } else {
       hallName = this.data.hallName
     }
+    tourSync.queueSessionSnapshot({}, { defer: true, maxAttempts: 3 })
     if (freshEntry) {
       var cachedMessages = hallSlug ? tourStore.getHallChatMessages(hallSlug) : []
       var messagesForPage = cachedMessages.length
@@ -266,22 +327,21 @@ Page({
         tourStore.saveHallChatMessages(hallSlug, messagesForPage, { defer: true })
       }
     } else {
-      var storedMessages = chatStore.getState().messages
-      if (storedMessages && storedMessages.length) {
-        patch.messages = storedMessages
-      } else if (hallSlug) {
-        var cachedDeepDiveMessages = tourStore.getHallChatMessages(hallSlug)
-        if (cachedDeepDiveMessages.length) {
-          chatStore.setMessages(cachedDeepDiveMessages)
-          patch.messages = cachedDeepDiveMessages
-        } else {
-          var welcomeForDeepDive = [{ id: 1, role: 'assistant', content: buildWelcomeMessage(hallSlug, hallName), ttsStatus: 'idle' }]
-          chatStore.setMessages(welcomeForDeepDive)
-          patch.messages = welcomeForDeepDive
-          tourStore.saveHallChatMessages(hallSlug, welcomeForDeepDive, { defer: true })
-        }
+      var cachedDeepDiveMessages = hallSlug ? tourStore.getHallChatMessages(hallSlug) : []
+      if (cachedDeepDiveMessages.length) {
+        chatStore.setMessages(cachedDeepDiveMessages)
+        patch.messages = cachedDeepDiveMessages
+      } else {
+        var storedMessages = !hallSlug ? chatStore.getState().messages : []
+        var welcomeForDeepDive = storedMessages && storedMessages.length
+          ? storedMessages
+          : [{ id: 1, role: 'assistant', content: buildWelcomeMessage(hallSlug, hallName), ttsStatus: 'idle' }]
+        chatStore.setMessages(welcomeForDeepDive)
+        patch.messages = welcomeForDeepDive
+        if (hallSlug) tourStore.saveHallChatMessages(hallSlug, welcomeForDeepDive, { defer: true })
       }
     }
+    this._pageOwnedChatSig = hallChatSignature(patch.messages || chatStore.getState().messages)
     patch.ttsEnabled = ttsPrefs.enabled !== false
     var shouldScrollToBottom = !!(patch.messages && patch.messages.length)
     this.setData(patch, function () {
@@ -290,13 +350,96 @@ Page({
     })
   },
 
+  _applyBackgroundResumeState: function (update) {
+    var info = update || {}
+    if (info.localTourId && this._pageLocalTourId && info.localTourId !== this._pageLocalTourId) return false
+    var hallSlug = this._pageHallSlug
+    if (!hallSlug) return false
+
+    var self = this
+    var state = tourStore.getTourState()
+    var stateHall = state.currentHall ? banpoHalls.normalizeHallToSlug(state.currentHall) : null
+    var hallName = this._pageHallName || this.data.hallName || banpoHalls.getHallDisplayName(hallSlug)
+    if (stateHall === hallSlug && state.currentHallName) {
+      hallName = state.currentHallName
+      this._pageHallName = hallName
+    }
+
+    var payloadMessages = hallMessagesFromResumePayload(info.payload, hallSlug)
+    var ownedMessages = payloadMessages && payloadMessages.length
+      ? tourStore.saveHallChatMessages(hallSlug, payloadMessages)
+      : tourStore.getHallChatMessages(hallSlug)
+    var currentMessages = chatStore.getState().messages || []
+    var currentSig = hallChatSignature(currentMessages)
+    var canRefreshMessages = (
+      !this.data.isThinking && !this.data.isStreaming &&
+      (!this._pageOwnedChatSig || currentSig === this._pageOwnedChatSig)
+    )
+    var patch = {}
+    var shouldScroll = false
+    if (canRefreshMessages && ownedMessages.length && hallChatSignature(ownedMessages) !== currentSig) {
+      chatStore.setMessages(ownedMessages)
+      this._pageOwnedChatSig = hallChatSignature(ownedMessages)
+      patch.messages = ownedMessages
+      shouldScroll = true
+    }
+
+    var needsOwnerReassert = stateHall !== hallSlug || state.currentPage !== 'pages/tour/tour'
+    if (stateHall !== hallSlug) {
+      tourStore.updateTourState({ currentHall: hallSlug, currentHallName: hallName }, { deferPersist: true })
+      var pageExhibit = this.data.currentExhibit || null
+      if (pageExhibit && tourStore.setCurrentExhibit) {
+        tourStore.setCurrentExhibit(pageExhibit, hallSlug)
+      } else if (tourStore.clearCurrentExhibit) {
+        tourStore.clearCurrentExhibit()
+      }
+    }
+    tourStore.markCurrentPage('pages/tour/tour', {
+      hall: hallSlug,
+      hallName: hallName || '',
+      resume: '1',
+    })
+    if (needsOwnerReassert) {
+      tourSync.queueSessionSnapshot({}, { defer: true, maxAttempts: 3 })
+    }
+    state = tourStore.getTourState()
+    if (this.data.sessionId !== state.sessionId) patch.sessionId = state.sessionId || null
+    if (hallName && this.data.hallName !== hallName) {
+      patch.hallName = hallName
+      if (wx.setNavigationBarTitle) wx.setNavigationBarTitle({ title: hallName })
+    }
+    if (Object.keys(patch).length) {
+      this.setData(patch, function () {
+        if (shouldScroll) self._scrollToBottomAfterRestore()
+      })
+    }
+    return true
+  },
+
   // Refresh exhibit context when navigating back to this page (also after goDeeper)
   onShow: function () {
     this._loadedAt = Date.now()
     var self = this
     var state = tourStore.getTourState()
-    var hallSlug = state.currentHall ? banpoHalls.normalizeHallToSlug(state.currentHall) : null
-    var hallName = hallSlug ? banpoHalls.getHallDisplayName(hallSlug) : this.data.hallName
+    var hallSlug = this._pageHallSlug || (state.currentHall ? banpoHalls.normalizeHallToSlug(state.currentHall) : null)
+    var hallName = this._pageHallName || (hallSlug ? banpoHalls.getHallDisplayName(hallSlug) : this.data.hallName)
+    var stateHallSlug = state.currentHall ? banpoHalls.normalizeHallToSlug(state.currentHall) : null
+    if (hallSlug && stateHallSlug !== hallSlug) {
+      tourStore.updateTourState({ currentHall: hallSlug, currentHallName: hallName }, { deferPersist: true })
+      var pageExhibit = this.data.currentExhibit || null
+      if (pageExhibit && tourStore.setCurrentExhibit) {
+        tourStore.setCurrentExhibit(pageExhibit, hallSlug)
+      } else if (tourStore.clearCurrentExhibit) {
+        tourStore.clearCurrentExhibit()
+      }
+      state = tourStore.getTourState()
+    }
+    tourStore.markCurrentPage('pages/tour/tour', {
+      hall: hallSlug || '',
+      hallName: hallName || '',
+      resume: '1',
+    })
+    tourSync.queueSessionSnapshot({}, { defer: true, maxAttempts: 3 })
     var ttsPrefs = tourStore.getTtsPrefs()
     var patch = {}
     var pendingDeepDiveExhibit = tourStore.consumePendingDetailExhibit
@@ -306,15 +449,17 @@ Page({
       var pendingHall = pendingDeepDiveExhibit.hall ? banpoHalls.normalizeHallToSlug(pendingDeepDiveExhibit.hall) : hallSlug
       if (pendingHall) {
         hallSlug = pendingHall
-        hallName = banpoHalls.getHallDisplayName(hallSlug)
-        tourStore.updateTourState({ currentHall: hallSlug }, { deferPersist: true })
+        hallName = pendingDeepDiveExhibit.hallDisplay || banpoHalls.getHallDisplayName(hallSlug)
+        this._pageHallSlug = hallSlug
+        this._pageHallName = hallName
+        tourStore.updateTourState({ currentHall: hallSlug, currentHallName: hallName }, { deferPersist: true })
       }
       if (tourStore.setCurrentExhibit) {
         tourStore.setCurrentExhibit(pendingDeepDiveExhibit, hallSlug)
       }
       state = tourStore.getTourState()
     }
-    var hallChanged = hallSlug && this.data.hallName !== hallName
+    var hallChanged = hallSlug && this._renderedHallSlug !== hallSlug
     var stateExhibit = state.currentExhibit || null
     if (stateExhibit && hallSlug) {
       var stateExhibitHall = stateExhibit.hall ? banpoHalls.normalizeHallToSlug(stateExhibit.hall) : hallSlug
@@ -330,12 +475,14 @@ Page({
         ? cachedMessages
         : [{ id: 1, role: 'assistant', content: buildWelcomeMessage(hallSlug, hallName), ttsStatus: 'idle' }]
       chatStore.setMessages(messagesForPage)
+      this._pageOwnedChatSig = hallChatSignature(messagesForPage)
       patch.messages = messagesForPage
       shouldScrollToBottom = !!messagesForPage.length
       wx.setNavigationBarTitle({ title: hallName })
       if (!cachedMessages.length) {
         tourStore.saveHallChatMessages(hallSlug, messagesForPage, { defer: true })
       }
+      this._renderedHallSlug = hallSlug
     }
     if (this.data.currentExhibit !== nextExhibit) patch.currentExhibit = nextExhibit
     if (this.data.sessionId !== nextSessionId) patch.sessionId = nextSessionId
@@ -362,7 +509,6 @@ Page({
 
   onUnload: function () {
     this._syncHallChatAndSummary()
-    this._clearCurrentExhibitOnLeave()
     this._clearHintTimers()
     this._clearFlushTimer()
     this._clearScrollPulseTimers()
@@ -389,15 +535,18 @@ Page({
   },
 
   _persistCurrentHallChat: function () {
-    var state = tourStore.getTourState()
-    var hall = state.currentHall || banpoHalls.normalizeHallToSlug(this.data.hallName) || null
+    var hall = this._pageHallSlug || banpoHalls.normalizeHallToSlug(this.data.hallName) || null
     if (!hall) return []
-    return tourStore.saveHallChatMessages(hall, chatStore.getState().messages, { defer: true })
+    return tourStore.saveHallChatMessages(hall, chatStore.getState().messages)
   },
 
   _syncHallChatAndSummary: function () {
     this._persistCurrentHallChat()
-    tourStore.summarizeCurrentHallRecord(chatStore.getState().messages)
+    if (tourStore.summarizeHallRecord) {
+      tourStore.summarizeHallRecord(this._pageHallSlug, chatStore.getState().messages)
+    } else {
+      tourStore.summarizeCurrentHallRecord(chatStore.getState().messages)
+    }
   },
 
   _deferPostEnterWork: function () {
@@ -540,10 +689,8 @@ Page({
     var state = tourStore.getTourState()
     var id    = state.sessionId
     var token = state.sessionToken
-    var isCtxQ = tourStore.isContextQuestion(text)
-    var recentMsgsBeforeSend = isCtxQ ? chatStore.getRecentMessages(6) : []
 
-    if (!id) {
+    if (!id || !token) {
       self._ensureTourSession().then(function (created) {
         if (!created) return
         self.setData({ inputText: text })
@@ -552,11 +699,55 @@ Page({
       return
     }
 
+    var syncHall = self._pageHallSlug
+      || (self.data.currentExhibit && self.data.currentExhibit.hall)
+      || state.currentHall
+      || banpoHalls.normalizeHallToSlug(self.data.hallName)
+      || null
+    syncHall = banpoHalls.normalizeHallToSlug(syncHall) || syncHall
+    var syncExhibit = self.data.currentExhibit || state.currentExhibit || null
+    var syncExhibitHall = syncExhibit && syncExhibit.hall
+      ? banpoHalls.normalizeHallToSlug(syncExhibit.hall)
+      : syncHall
+    if (syncExhibitHall && syncHall && syncExhibitHall !== syncHall) syncExhibit = null
+    var syncExhibitId = syncExhibit && tourStore.normalizeBackendExhibitId
+      ? tourStore.normalizeBackendExhibitId(syncExhibit.id)
+      : null
+    if (!self._skipContextSyncOnce) {
+      if (self._contextSyncing) return
+      self._contextSyncing = true
+      tourSync.ensureSessionContext({
+        status: 'touring',
+        currentHall: syncHall,
+        currentExhibitId: syncExhibitId,
+      }).then(function (res) {
+        self._contextSyncing = false
+        if (!res || !res.ok) {
+          wx.showToast({ title: '展厅状态同步失败，请重试', icon: 'none', duration: 2200 })
+          return
+        }
+        self._skipContextSyncOnce = true
+        self.sendMessage()
+      })
+      return
+    }
+    self._skipContextSyncOnce = false
+
     // ── Performance clock ──────────────────────────────────────────────────
     var now = Date.now()
     self._perf = { sendAt: now, streamStartAt: now, firstChunkAt: 0, doneAt: 0 }
     self._streamText = ''
-    var questionClientEventId = makeClientEventId('question')
+    var retryQuestionEvent = self._retryQuestionEvent
+    var isAutomaticRetry = !!(
+      retryQuestionEvent && retryQuestionEvent.text === text && retryQuestionEvent.clientEventId
+    )
+    var questionClientEventId = isAutomaticRetry
+      ? retryQuestionEvent.clientEventId
+      : makeClientEventId('question')
+    var automaticRetryCount = isAutomaticRetry
+      ? Number(retryQuestionEvent.retryCount || 0)
+      : 0
+    self._retryQuestionEvent = null
 
     // ── Append user bubble immediately ─────────────────────────────────────
     var userMsg = { id: Date.now(), role: 'user', content: text }
@@ -590,32 +781,53 @@ Page({
     // user returns from exhibit-detail via navigateBack, onLoad params are not
     // replayed, so the latest store/page context is the only reliable source.
     state = tourStore.getTourState()
-    var currentExhibit = state.currentExhibit || self.data.currentExhibit || null
-    var currentHall = state.currentHall
-      || (currentExhibit && currentExhibit.hall)
+    var currentHall = self._pageHallSlug
+      || (self.data.currentExhibit && self.data.currentExhibit.hall)
+      || state.currentHall
       || banpoHalls.normalizeHallToSlug(self.data.hallName)
       || ''
     currentHall = banpoHalls.normalizeHallToSlug(currentHall) || currentHall || ''
+    var currentExhibit = self.data.currentExhibit || state.currentExhibit || null
+    var currentExhibitHall = currentExhibit && currentExhibit.hall
+      ? banpoHalls.normalizeHallToSlug(currentExhibit.hall)
+      : currentHall
+    if (currentExhibitHall && currentHall && currentExhibitHall !== currentHall) currentExhibit = null
     if (currentExhibit && currentHall && tourStore.setCurrentExhibit) {
       tourStore.setCurrentExhibit(currentExhibit, currentHall)
       currentExhibit = tourStore.getCurrentExhibit ? tourStore.getCurrentExhibit() : currentExhibit
     }
+    state = tourStore.getTourState()
+    var trustedExhibitId = currentExhibit && tourStore.normalizeBackendExhibitId
+      ? tourStore.normalizeBackendExhibitId(currentExhibit.id)
+      : null
+    // Conversation continuity is hall-scoped. Read the persisted bucket for
+    // the current hall instead of the module-global chat list so a rapid hall
+    // switch can never submit another hall's messages. Submit at most the same
+    // 30 committed messages kept for recovery; the backend decides which older
+    // turns to compress while retaining the latest turns verbatim.
+    var conversationHistory = currentHall && tourStore.getHallChatMessages
+      ? tourStore.getHallChatMessages(currentHall).slice(-30)
+      : []
 
     // ── Record exhibit_question event ──────────────────────────────────────
-    var shouldCountQuestion = !self._resendWithoutQuestionCount
-    self._resendWithoutQuestionCount = false
-    tourStore.addTourEvent({
-      eventType: 'exhibit_question',
-      exhibitId: currentExhibit ? (currentExhibit.id || undefined) : undefined,
-      hall:      currentHall,
-      metadata:  {
-        client_event_id: questionClientEventId,
-        message: text.slice(0, 200),
-        exhibit_name: currentExhibit ? (currentExhibit.name || '') : '',
-        exhibit_kind: currentExhibit ? (currentExhibit.objectKind || currentExhibit.kind || '') : '',
-      },
+    var questionAlreadyQueued = isAutomaticRetry && (state.pendingEvents || []).some(function (event) {
+      return event && event.event_type === 'exhibit_question' && event.metadata &&
+        event.metadata.client_event_id === questionClientEventId
     })
-    if (shouldCountQuestion) {
+    if (!questionAlreadyQueued) {
+      tourStore.addTourEvent({
+        eventType: 'exhibit_question',
+        exhibitId: trustedExhibitId || undefined,
+        hall:      currentHall,
+        metadata:  {
+          client_event_id: questionClientEventId,
+          message: text.slice(0, 200),
+          exhibit_name: currentExhibit ? (currentExhibit.name || '') : '',
+          exhibit_kind: currentExhibit ? (currentExhibit.objectKind || currentExhibit.kind || '') : '',
+        },
+      })
+    }
+    if (!isAutomaticRetry) {
       tourStore.incrementAiConversationCount()
     }
 
@@ -625,36 +837,14 @@ Page({
       ? { answer_length: stylePrefs.answerLength, depth: stylePrefs.depth, terminology: stylePrefs.terminology }
       : null
 
-    // Detect referential questions and inject prior history only. The current
-    // question is already sent as `message`; duplicating it in history can make
-    // the backend take the slower context-rewrite path before the first token.
-    var recentMsgs     = recentMsgsBeforeSend
-
-    // Keep the retrieval query clean: send the user's original question as message.
-    // Context and onboarding preferences are sent separately so they guide the answer
-    // without polluting vector retrieval or forcing a fixed response template.
-    var clientContext = tourStore.buildClientContext(text, {
-      recentMessages: recentMsgs.length ? recentMsgs : (isCtxQ ? [] : null),
-    })
-    var _DEBUG_PROMPT = false   // set true locally to dump full prompt text
-    console.log('[tour] context build', {
-      hasExhibit:  !!currentExhibit,
-      exhibitName: currentExhibit ? currentExhibit.name : '(none)',
-      isCtxQ:      isCtxQ,
-      recentCount: recentMsgs.length,
-      contextLen:  clientContext.length,
-    })
-    if (_DEBUG_PROMPT) { console.log('[tour] client context', clientContext) }
-
     self._streamTask = api.tourApi.chatStream(id, {
       message:   text,
       token:     token,
       style:     style,
-      clientContext: clientContext,
-      conversationHistory: recentMsgs.length ? recentMsgs : null,
       clientEventId: questionClientEventId,
-      exhibitId: currentExhibit ? currentExhibit.id : undefined,
-      exhibitContext: buildExhibitContextForRequest(currentExhibit),
+      hallId: currentHall || undefined,
+      exhibitId: trustedExhibitId || undefined,
+      conversationHistory: conversationHistory,
 
       onChunk: function (chunk) {
         if (!chunk) return
@@ -689,6 +879,7 @@ Page({
       onDone: function (payload) {
         self._streamTask = null
         self._clearHintTimers()
+        self._applyStreamStateVersion(payload)
 
         if (self._perf) {
           self._perf.doneAt = Date.now()
@@ -712,12 +903,13 @@ Page({
 
         var traceId = payload.trace_id || null
         chatStore.finishAssistantMessage({ content: finalContent, traceId: traceId })
-        var answerHall = currentHall || state.currentHall || banpoHalls.normalizeHallToSlug(self.data.hallName) || ''
+        var answerHall = currentHall || self._pageHallSlug || banpoHalls.normalizeHallToSlug(self.data.hallName) || ''
         tourStore.addTourEvent({
           eventType: 'assistant_answer',
-          exhibitId: currentExhibit ? (currentExhibit.id || undefined) : undefined,
+          exhibitId: trustedExhibitId || undefined,
           hall:      answerHall,
           metadata: {
+            client_event_id: assistantClientEventId(questionClientEventId),
             question_client_event_id: questionClientEventId,
             question: text.slice(0, 200),
             answer:   plainTextForTts(finalContent).slice(0, 600),
@@ -727,8 +919,6 @@ Page({
             exhibit_kind: currentExhibit ? (currentExhibit.objectKind || currentExhibit.kind || '') : '',
           },
         })
-        self._dropPendingQuestionEvent(text, answerHall, questionClientEventId)
-
         var aiMsg = {
           id:      Date.now(),
           role:    'assistant',
@@ -747,7 +937,12 @@ Page({
           // Re-show suggestion chips after each response so user can tap again
           showSuggestions:  self.data.guideSuggestions.length > 0,
         })
+        if (!self._suggestionLoadingSeq && !self._suggestionFetchTimer && !self.data.guideSuggestions.length) {
+          self._loadSuggestions()
+        }
         self._syncHallChatAndSummary()
+        if (api.storage && api.storage.touchTourSession) api.storage.touchTourSession()
+        tourSync.queueSessionSnapshot({}, { defer: true, maxAttempts: 3 })
         self._scrollToBottomSettled()
       },
 
@@ -760,8 +955,17 @@ Page({
           self._perf ? (Date.now() - self._perf.sendAt) + ' ms' : '?',
           '| raw:', err)
 
-        if (self._isRecoverableSessionError(err) && !self._sessionRecoveryRetrying) {
-          self._recoverSessionAndRetry(text, state)
+        if (
+          self._isRecoverableSessionError(err) &&
+          automaticRetryCount < 1 &&
+          !self._sessionRecoveryRetrying
+        ) {
+          self._recoverSessionAndRetry(text, state, {
+            clientEventId: questionClientEventId,
+            retryCount: automaticRetryCount + 1,
+            expectedSessionId: id,
+            expectedLocalTourId: state.localTourId || null,
+          })
           return
         }
 
@@ -837,6 +1041,9 @@ Page({
   },
 
   // ── TTS playback ─────────────────────────────────────────────────────────
+  // This button-driven chain is intentionally independent from chat SSE audio:
+  // it synthesizes the completed assistant text through /tts/synthesize and
+  // plays the validated local file. SSE remains text-only in this page.
 
   onMessageTtsTap: function (e) {
     var detail = e.detail || {}
@@ -886,8 +1093,8 @@ Page({
       })
       .catch(function (err) {
         if (seq !== self._ttsRequestSeq) return
-        console.warn('[tts] synthesize failed', err)
-        self._setMessageTtsStatus(messageId, 'idle')
+        console.warn('[tts] synthesize failed', ttsErrorDetail(err && err.stage ? err.stage : 'synthesize', err))
+        self._resetTtsPlaybackState(messageId)
         wx.showToast({ title: '语音生成失败', icon: 'none', duration: 2000 })
       })
   },
@@ -916,8 +1123,12 @@ Page({
   _writeBase64AudioFile: function (messageId, audioBase64, ext) {
     return new Promise(function (resolve, reject) {
       try {
-        var audioBuffer = wx.base64ToArrayBuffer(audioBase64)
-        var suffix = ext || 'wav'
+        var suffix = String(ext || 'wav').toLowerCase()
+        var audioBuffer = suffix === 'wav'
+          ? ttsAudio.decodeAndValidateWavBase64(audioBase64, function (value) {
+              return wx.base64ToArrayBuffer(value)
+            })
+          : wx.base64ToArrayBuffer(audioBase64)
         var filePath = wx.env.USER_DATA_PATH + '/museai_tts_' + String(messageId).replace(/[^a-zA-Z0-9_-]/g, '') + '_' + Date.now() + '.' + suffix
         wx.getFileSystemManager().writeFile({
           filePath: filePath,
@@ -936,6 +1147,7 @@ Page({
       try {
         var pcmBuffer = wx.base64ToArrayBuffer(audioBase64)
         var wavBuffer = pcm16ToWavArrayBuffer(pcmBuffer)
+        ttsAudio.validateWavArrayBuffer(wavBuffer)
         var filePath = wx.env.USER_DATA_PATH + '/museai_tts_' + String(messageId).replace(/[^a-zA-Z0-9_-]/g, '') + '_' + Date.now() + '.wav'
         wx.getFileSystemManager().writeFile({
           filePath: filePath,
@@ -974,19 +1186,22 @@ Page({
     }
     q.index = index
     if (q.paths[index]) {
-      this._playTtsFile(q.messageId, q.paths[index], { queued: true })
+      this._playTtsFile(q.messageId, q.paths[index], { queued: true, seq: q.seq })
       this._preloadNextTtsSegment()
       return
     }
-    this._setMessageTtsStatus(q.messageId, 'loading')
+    this._setTtsLoadingState(q.messageId, null)
     this._ensureTtsSegmentPath(index).then(function () {
-      if (!q || q.seq !== this._ttsRequestSeq) return
+      if (this._ttsQueue !== q || q.seq !== this._ttsRequestSeq) return
       this._playTtsQueueIndex(index)
     }.bind(this)).catch(function (err) {
-      console.warn('[tts] queued synthesize failed', err)
-      this._setMessageTtsStatus(q.messageId, 'idle')
-      wx.showToast({ title: '语音生成失败', icon: 'none', duration: 2000 })
+      if (this._ttsQueue !== q || q.seq !== this._ttsRequestSeq) return
+      console.warn('[tts] queued synthesize failed', ttsErrorDetail(err && err.stage ? err.stage : 'queue_synthesize', err))
+      this._ttsRequestSeq++
       this._ttsQueue = null
+      this._resetTtsPlaybackState(q.messageId)
+      this._destroyTtsAudio()
+      wx.showToast({ title: '语音生成失败', icon: 'none', duration: 2000 })
     }.bind(this))
   },
 
@@ -996,7 +1211,7 @@ Page({
     var next = q.index + 1
     if (next >= q.segments.length || q.paths[next] || q.preloading[next]) return
     this._ensureTtsSegmentPath(next).catch(function (err) {
-      console.warn('[tts] preload failed', err)
+      console.warn('[tts] preload failed', ttsErrorDetail(err && err.stage ? err.stage : 'preload', err))
       if (q && q.preloading) delete q.preloading[next]
     })
   },
@@ -1027,47 +1242,163 @@ Page({
     return '冰糖'
   },
 
+  _setTtsLoadingState: function (messageId, filePath) {
+    this._setMessageTtsStatus(messageId, 'loading')
+    this.setData({
+      ttsState: {
+        playingMessageId: null,
+        loadingMessageId: messageId,
+        audioPath: filePath || null,
+      },
+    })
+  },
+
+  _resetTtsPlaybackState: function (messageId) {
+    if (messageId !== undefined && messageId !== null) this._setMessageTtsStatus(messageId, 'idle')
+    this.setData({
+      ttsState: { playingMessageId: null, loadingMessageId: null, audioPath: null },
+    })
+  },
+
+  _armTtsStartTimer: function (callback) {
+    var self = this
+    self._clearTtsStartTimer()
+    var timerId = setTimeout(function () {
+      if (self._ttsStartTimer !== timerId) return
+      self._ttsStartTimer = null
+      callback()
+    }, TTS_PLAY_START_TIMEOUT_MS)
+    self._ttsStartTimer = timerId
+  },
+
+  _clearTtsStartTimer: function () {
+    if (this._ttsStartTimer === null || this._ttsStartTimer === undefined) return
+    clearTimeout(this._ttsStartTimer)
+    this._ttsStartTimer = null
+  },
+
   _playTtsFile: function (messageId, filePath, options) {
     var self = this
     var opts = options || {}
+    var seq = opts.seq === undefined || opts.seq === null ? self._ttsRequestSeq : opts.seq
+    var expectedQueue = opts.queued ? self._ttsQueue : null
+    var expectedQueueIndex = expectedQueue ? expectedQueue.index : null
     self._destroyTtsAudio()
 
-    var ctx = wx.createInnerAudioContext()
+    var ctx
+    try {
+      ctx = wx.createInnerAudioContext()
+    } catch (err) {
+      console.warn('[tts] playback failed', ttsErrorDetail('create_context', err))
+      self._ttsRequestSeq++
+      self._ttsQueue = null
+      self._resetTtsPlaybackState(messageId)
+      wx.showToast({ title: '语音播放失败', icon: 'none', duration: 2000 })
+      return
+    }
     self._ttsAudioCtx = ctx
-    self.setData({
-      ttsState: {
-        playingMessageId: messageId,
-        loadingMessageId: null,
-        audioPath: filePath,
-      },
-    })
-    self._setMessageTtsStatus(messageId, 'playing')
+    var playAttempts = 0
+    var playStarted = false
+    var srcAssigned = false
+    var canplayPending = false
+    var playCallInProgress = false
 
-    ctx.src = filePath
-    ctx.onEnded(function () {
-      if (opts.queued && self._ttsQueue && String(self._ttsQueue.messageId) === String(messageId)) {
-        self._playTtsQueueIndex(self._ttsQueue.index + 1)
+    function isCurrentPlayback() {
+      if (self._ttsAudioCtx !== ctx || seq !== self._ttsRequestSeq) return false
+      if (!opts.queued) return true
+      return !!(
+        expectedQueue &&
+        self._ttsQueue === expectedQueue &&
+        expectedQueue.seq === seq &&
+        expectedQueue.index === expectedQueueIndex &&
+        String(expectedQueue.messageId) === String(messageId)
+      )
+    }
+
+    function failPlayback(stage, err) {
+      if (!isCurrentPlayback()) return
+      self._clearTtsStartTimer()
+      console.warn('[tts] playback failed', ttsErrorDetail(stage, err))
+      self._ttsRequestSeq++
+      self._ttsQueue = null
+      self._resetTtsPlaybackState(messageId)
+      self._destroyTtsAudio()
+      wx.showToast({ title: '语音播放失败', icon: 'none', duration: 2000 })
+    }
+
+    function requestPlay(stage) {
+      if (playStarted || playAttempts >= 2 || !isCurrentPlayback()) return
+      // The direct attempt runs once after src assignment. If a device silently
+      // ignores that early call, the first canplay may make exactly one retry.
+      if (stage !== 'canplay' && playAttempts > 0) return
+      playAttempts++
+      playCallInProgress = true
+      try {
+        ctx.play()
+      } catch (err) {
+        failPlayback(stage || 'play', err)
+      } finally {
+        playCallInProgress = false
+      }
+      if (canplayPending && srcAssigned && !playStarted && playAttempts < 2) {
+        canplayPending = false
+        requestPlay('canplay')
+      }
+    }
+
+    // Register every lifecycle callback before assigning src or requesting
+    // playback. Some devices emit canplay synchronously from the src setter.
+    ctx.onError(function (err) {
+      failPlayback('inner_audio_error', err)
+    })
+    ctx.onCanplay(function () {
+      if (!srcAssigned || playCallInProgress) {
+        canplayPending = true
         return
       }
-      self._setMessageTtsStatus(messageId, 'idle')
-      self.setData({
-        ttsState: { playingMessageId: null, loadingMessageId: null, audioPath: null },
-      })
+      requestPlay('canplay')
+    })
+    ctx.onPlay(function () {
+      if (!isCurrentPlayback()) return
+      self._clearTtsStartTimer()
+      playStarted = true
+      self._setMessageTtsStatus(messageId, 'playing')
+    })
+    ctx.onEnded(function () {
+      if (!isCurrentPlayback()) return
+      self._clearTtsStartTimer()
+      if (opts.queued && expectedQueue) {
+        self._playTtsQueueIndex(expectedQueueIndex + 1)
+        return
+      }
+      self._resetTtsPlaybackState(messageId)
       self._destroyTtsAudio()
     })
     ctx.onStop(function () {
-      self._setMessageTtsStatus(messageId, 'idle')
-    })
-    ctx.onError(function (err) {
-      console.warn('[tts] playback failed', err)
-      self._setMessageTtsStatus(messageId, 'idle')
-      self.setData({
-        ttsState: { playingMessageId: null, loadingMessageId: null, audioPath: null },
-      })
-      wx.showToast({ title: '语音播放失败', icon: 'none', duration: 2000 })
+      if (!isCurrentPlayback()) return
+      self._clearTtsStartTimer()
+      self._ttsRequestSeq++
+      self._ttsQueue = null
+      self._resetTtsPlaybackState(messageId)
       self._destroyTtsAudio()
     })
-    ctx.play()
+
+    if ('obeyMuteSwitch' in ctx) ctx.obeyMuteSwitch = false
+    self._setTtsLoadingState(messageId, filePath)
+    self._armTtsStartTimer(function () {
+      failPlayback('play_start_timeout', {
+        errCode: 'PLAY_START_TIMEOUT',
+        errMsg: 'InnerAudioContext did not emit onPlay within ' + TTS_PLAY_START_TIMEOUT_MS + ' ms',
+      })
+    })
+    try {
+      ctx.src = filePath
+    } catch (err) {
+      failPlayback('set_src', err)
+      return
+    }
+    srcAssigned = true
+    requestPlay('play')
   },
 
   _stopTtsPlayback: function () {
@@ -1080,15 +1411,16 @@ Page({
     }
     if (currentId) this._setMessageTtsStatus(currentId, 'idle')
     if (loadingId) this._setMessageTtsStatus(loadingId, 'idle')
-    this.setData({
-      ttsState: { playingMessageId: null, loadingMessageId: null, audioPath: null },
-    })
+    this._resetTtsPlaybackState(null)
+    this._destroyTtsAudio()
   },
 
   _destroyTtsAudio: function () {
-    if (!this._ttsAudioCtx) return
-    try { this._ttsAudioCtx.destroy() } catch (_) {}
+    this._clearTtsStartTimer()
+    var ctx = this._ttsAudioCtx
+    if (!ctx) return
     this._ttsAudioCtx = null
+    try { ctx.destroy() } catch (_) {}
   },
 
   // ── TTS temp-file cleanup ──────────────────────────────────────────────────
@@ -1170,51 +1502,74 @@ Page({
   // ── Guide suggestions ─────────────────────────────────────────────────────
 
   /**
-   * Build guide suggestions for the current hall/exhibit context.
-   * Phase 1 (instant): rule-based templates from tourStore.
-   * Phase 2 (async):   enrich with real API exhibit data, update in place.
+   * Load guide suggestions for the current hall/exhibit context.
+   * Production chips are backend-owned: the bar remains empty before the
+   * request and after any failed or malformed response.
    */
   _loadSuggestions: function () {
     var self    = this
     var seq     = ++this._suggestionSeq
     var exhibit = this.data.currentExhibit || null
     var state   = tourStore.getTourState()
-    var hall    = this.data.hallName || banpoHalls.getHallDisplayName(state.currentHall) || null
+    var hall    = this._pageHallName || this.data.hallName || null
 
-    // Phase 1 — instant rule-based suggestions
-    var initial = tourStore.generateGuideSuggestions({
-      currentExhibit: exhibit,
-      currentHall:    hall,
-      exhibits:       [],
-    })
-    self._applyGuideSuggestions(initial)
+    self._applyGuideSuggestions([])
+    if (self._suggestionFetchTimer) {
+      clearTimeout(self._suggestionFetchTimer)
+      self._suggestionFetchTimer = null
+    }
 
-    // Phase 2 — enrich with real exhibit data from API (non-blocking)
     // exhibit.hall is already a backend slug; otherwise convert hall display name to slug.
-    var hallSlug = exhibit
+    var hallSlug = this._pageHallSlug || (exhibit
       ? (exhibit.hall || null)
-      : (state.currentHall ? banpoHalls.normalizeHallToSlug(state.currentHall) : (hall ? api.hallNameToSlug(hall) : null))
+      : (state.currentHall || (hall ? api.hallNameToSlug(hall) : null)))
+    hallSlug = hallSlug ? (banpoHalls.normalizeHallToSlug(hallSlug) || hallSlug) : null
     if (!hallSlug) return
 
-    if (self._suggestionFetchTimer) clearTimeout(self._suggestionFetchTimer)
     self._suggestionFetchTimer = setTimeout(function () {
       self._suggestionFetchTimer = null
-      api.exhibitsApi.listByHall(hallSlug)
-      .then(function (res) {
-        if (seq !== self._suggestionSeq) return
-        if (!res.ok || !res.data) return
-        var rawList    = res.data.exhibits || res.data.items || (Array.isArray(res.data) ? res.data : [])
-        var normalized = rawList.map(function (e) { return api.normalizeExhibit(e) })
-        var enhanced   = tourStore.generateGuideSuggestions({
-          currentExhibit: self.data.currentExhibit || null,
-          currentHall:    self.data.hallName || banpoHalls.getHallDisplayName(tourStore.getTourState().currentHall) || null,
-          exhibits:       normalized,
+      var latest = tourStore.getTourState()
+      self._suggestionLoadingSeq = seq
+
+      // Page-first navigation can reach the tour before hall/home session
+      // bootstrap finishes. Join the shared bootstrap promise instead of
+      // permanently giving up this context's suggestions.
+      var sessionReady = latest.sessionId
+        ? Promise.resolve({ ok: true, sessionId: latest.sessionId })
+        : tourSession.ensureTourSession()
+
+      sessionReady.then(function (sessionResult) {
+        if (seq !== self._suggestionSeq) return null
+        var ready = tourStore.getTourState()
+        if (!sessionResult || !sessionResult.ok || !ready.sessionId) {
+          self._applyGuideSuggestions([])
+          return null
+        }
+        if (self.data.sessionId !== ready.sessionId) {
+          self.setData({ sessionId: ready.sessionId })
+        }
+        var suggestionExhibit = self.data.currentExhibit || null
+        var suggestionExhibitId = suggestionExhibit && tourStore.normalizeBackendExhibitId
+          ? tourStore.normalizeBackendExhibitId(suggestionExhibit.id)
+          : null
+        return api.tourApi.getSuggestions(ready.sessionId, {
+          hallId: hallSlug,
+          exhibitId: suggestionExhibitId,
+        }, ready.sessionToken).then(function (res) {
+          if (seq !== self._suggestionSeq) return
+          var prompts = res && res.ok && res.data && Array.isArray(res.data.suggestions)
+            ? res.data.suggestions
+            : []
+          self._applyGuideSuggestions(tourStore.buildServerGuideSuggestions(prompts))
         })
-        self._applyGuideSuggestions(enhanced)
-      })
-      .catch(function (err) {
-        console.warn('[tour] suggestions: exhibit fetch failed', err)
-        // Keep phase-1 suggestions — no user-visible error
+      }).catch(function (err) {
+        if (seq !== self._suggestionSeq) return
+        console.warn('[tour] suggestions unavailable', err)
+        self._applyGuideSuggestions([])
+      }).then(function () {
+        if (self._suggestionLoadingSeq === seq) self._suggestionLoadingSeq = 0
+      }, function () {
+        if (self._suggestionLoadingSeq === seq) self._suggestionLoadingSeq = 0
       })
     }, 160)
   },
@@ -1298,27 +1653,17 @@ Page({
    * @param {Function|null} callback  Called when flush completes (success or failure).
    */
   _flushEvents: function (callback) {
-    var state  = tourStore.getTourState()
-    var events = tourStore.drainPendingEvents()
-
-    if (!events.length || !state.sessionId) {
-      if (callback) callback()
-      return
-    }
-
-    api.tourApi.recordEvents(state.sessionId, events, state.sessionToken)
-      .then(function (res) {
-        if (!res || !res.ok) {
-          console.warn('[tour] flush events returned non-ok, restoring:', res && res.status)
-          tourStore.restorePendingEvents(events)
-        }
-        if (callback) callback()
-      })
-      .catch(function (err) {
-        console.warn('[tour] flush events failed, restoring:', err)
-        tourStore.restorePendingEvents(events)
-        if (callback) callback()
-      })
+    var state = tourStore.getTourState()
+    return eventFlush.flushPendingEvents({
+      sessionId: state.sessionId,
+      token: state.sessionToken,
+    }).then(function (result) {
+      if (!result.ok) {
+        console.warn('[tour] event batches not fully flushed:', result.status || result.reason)
+      }
+      if (callback) callback(result)
+      return result
+    })
   },
 
   // ── Chunk-flush helpers ────────────────────────────────────────────────────
@@ -1396,41 +1741,15 @@ Page({
     }
   },
 
-  _dropPendingQuestionEvent: function (text, hall, clientEventId) {
-    var events = tourStore.drainPendingEvents()
-    if (!events.length) return
-    var targetHall = hall ? banpoHalls.normalizeHallToSlug(hall) : ''
-    var targetClientEventId = clientEventId ? String(clientEventId) : ''
-    var targetQuestion = String(text || '').slice(0, 200)
-    var removed = false
-    var kept = events.filter(function (event) {
-      if (removed || event.event_type !== 'exhibit_question') return true
-      var metadata = event.metadata || {}
-      var question = metadata.message || metadata.question || ''
-      var eventHall = event.hall ? banpoHalls.normalizeHallToSlug(event.hall) : ''
-      if (targetClientEventId && metadata.client_event_id === targetClientEventId) {
-        removed = true
-        return false
-      }
-      if (question === targetQuestion && (!targetHall || eventHall === targetHall)) {
-        removed = true
-        return false
-      }
-      return true
-    })
-    if (kept.length) tourStore.restorePendingEvents(kept)
-  },
-
-  _recoverSessionAndRetry: function (text, previousState) {
+  _recoverSessionAndRetry: function (text, previousState, recovery) {
     var self = this
     var prev = previousState || tourStore.getTourState()
-    var hall = prev.currentHall || banpoHalls.normalizeHallToSlug(self.data.hallName) || null
-    var persona = prev.persona || tourStore.getBackendPersona() || 'B'
-    var personaId = prev.personaId || persona || 'default'
+    var retry = recovery || {}
+    var expectedLocalTourId = retry.expectedLocalTourId || prev.localTourId || null
+    if (expectedLocalTourId && tourStore.getTourState().localTourId !== expectedLocalTourId) return
 
     self._sessionRecoveryRetrying = true
     self._removeLastUserMessage(text)
-    self._dropPendingQuestionEvent(text, hall)
     self.setData({
       inputText: text,
       streamingContent: '',
@@ -1440,28 +1759,26 @@ Page({
       loadingHint: '',
     })
 
-    tourStore.createLocalTourState({
-      interestType: prev.interestType || persona || 'B',
-      persona: persona,
-      assumption: prev.assumption || prev.assumptionText || 'default',
-      personaId: personaId,
-    })
-    if (hall) {
-      tourStore.updateTourState({ currentHall: hall, status: 'touring' })
-    }
-
-    self._ensureTourSession().then(function (created) {
+    tourSession.recoverTourSession(retry.expectedSessionId || prev.sessionId, expectedLocalTourId)
+      .then(function (created) {
       self._sessionRecoveryRetrying = false
-      if (created) {
-        self._resendWithoutQuestionCount = true
+      var current = tourStore.getTourState()
+      if (
+        created && created.ok && created.sessionId && created.sessionToken &&
+        (!expectedLocalTourId || current.localTourId === expectedLocalTourId)
+      ) {
+        self._retryQuestionEvent = {
+          text: text,
+          clientEventId: retry.clientEventId,
+          retryCount: Number(retry.retryCount || 1),
+        }
+        self.setData({ sessionId: created.sessionId })
         self.sendMessage()
         return
       }
-      self._resendWithoutQuestionCount = false
       wx.showToast({ title: '会话恢复失败，请稍后重试', icon: 'none', duration: 2200 })
     }).catch(function (err) {
       self._sessionRecoveryRetrying = false
-      self._resendWithoutQuestionCount = false
       console.warn('[tour] session recovery failed', err)
       wx.showToast({ title: '会话恢复失败，请稍后重试', icon: 'none', duration: 2200 })
     })
@@ -1470,26 +1787,24 @@ Page({
   _ensureTourSession: function () {
     var self = this
     var state = tourStore.getTourState()
-    if (state.sessionId) return Promise.resolve(true)
+    if (state.sessionId && state.sessionToken) return Promise.resolve(true)
 
     wx.showLoading({ title: '正在连接导览…', mask: false })
-    var persona = tourStore.getBackendPersona ? tourStore.getBackendPersona() : 'B'
-    return api.tourApi.createSession({
-      interest_type: state.interestType || persona || 'B',
-      persona: persona || 'B',
-      assumption: state.assumption || state.assumptionText || 'default',
-      guest_id: 'wechat-mini',
-    }).then(function (res) {
+    return tourSession.ensureTourSession().then(function (res) {
       wx.hideLoading()
-      if (!res || !res.ok || !res.data) throw new Error('create session failed')
-      var d = res.data
-      tourStore.setTourSession({
-        sessionId: d.id || d.session_id,
-        sessionToken: d.session_token || null,
-      })
-      if (state.currentHall) tourStore.updateTourState({ currentHall: state.currentHall })
-      self.setData({ sessionId: d.id || d.session_id || null })
-      return !!(d.id || d.session_id)
+      if (!res || !res.ok || !res.sessionId || !res.sessionToken) throw new Error('create session failed')
+      if (self._pageHallSlug) {
+        tourStore.updateTourState({
+          currentHall: self._pageHallSlug,
+          currentHallName: self._pageHallName || self.data.hallName || null,
+        })
+      }
+      tourSync.queueSessionSnapshot({}, { defer: true, maxAttempts: 3 })
+      self.setData({ sessionId: res.sessionId })
+      if (!self._suggestionLoadingSeq && !self._suggestionFetchTimer && !(self.data.guideSuggestions || []).length) {
+        self._loadSuggestions()
+      }
+      return true
     }).catch(function (err) {
       wx.hideLoading()
       console.warn('[tour] auto create session failed', err)
@@ -1594,7 +1909,6 @@ Page({
 
   goBackFromTour: function () {
     this._syncHallChatAndSummary()
-    this._clearCurrentExhibitOnLeave()
     var pages = typeof getCurrentPages === 'function' ? getCurrentPages() : []
     for (var i = pages.length - 2; i >= 0; i--) {
       if (pages[i] && pages[i].route === 'pages/hall/hall') {

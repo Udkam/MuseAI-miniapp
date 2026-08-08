@@ -1,6 +1,7 @@
 var tourStore = require('../../store/tour')
-var api       = require('../../api/index')
 var preload   = require('../../utils/preload')
+var tourSync  = require('../../utils/tour-sync')
+var tourSession = require('../../utils/tour-session')
 
 var PERSONA_NAMES = {
   A: '考古研究员',
@@ -19,7 +20,6 @@ var FOCUS_OPTIONS = [
     persona: 'B',
     personaId: 'B',
     prompt: '请优先给出观察任务、记录要点和适合研学汇报的清晰小结。',
-    preferredHallOrder: ['site', 'basic', 'education'],
   },
   {
     id: 'research',
@@ -30,7 +30,6 @@ var FOCUS_OPTIONS = [
     persona: 'A',
     personaId: 'A',
     prompt: '请优先说明证据来源、推理过程和目前仍不确定的地方。',
-    preferredHallOrder: ['basic', 'site', 'kiln'],
   },
   {
     id: 'history',
@@ -41,7 +40,6 @@ var FOCUS_OPTIONS = [
     persona: 'C',
     personaId: 'C',
     prompt: '请优先围绕文明起源、社会变化、公共生活和今天的关系展开追问。',
-    preferredHallOrder: ['basic', 'site', 'education'],
   },
   {
     id: 'object-study',
@@ -52,7 +50,6 @@ var FOCUS_OPTIONS = [
     persona: 'D',
     personaId: 'D',
     prompt: '请优先从材料、器形、纹饰、制作工艺和使用痕迹解释问题。',
-    preferredHallOrder: ['basic', 'kiln', 'workshop'],
   },
 ]
 
@@ -156,6 +153,18 @@ Page({
   _navigating: false,
 
   onLoad: function () {
+    var draft = tourStore.getQuestionnaireDraft ? tourStore.getQuestionnaireDraft() : null
+    if (draft) {
+      this.setData({
+        step: Number(draft.step) || 1,
+        selectedFocusId: draft.selectedFocusId || DEFAULT_FOCUS.id,
+        selectedAssumptionId: draft.selectedAssumptionId || DEFAULT_ASSUMPTION.id,
+        selectedRhythmId: draft.selectedRhythmId || DEFAULT_RHYTHM.id,
+        selectedPersonaName: draft.selectedPersonaName || PERSONA_NAMES[DEFAULT_FOCUS.personaId],
+        intentText: draft.intentText || '',
+      })
+    }
+    tourStore.markCurrentPage('pages/onboarding/onboarding')
     this._preloadNext()
   },
 
@@ -181,27 +190,36 @@ Page({
       selectedFocusId: id,
       selectedPersonaName: item ? PERSONA_NAMES[item.personaId] : '',
     })
+    this._persistDraft({ selectedFocusId: id, selectedPersonaName: item ? PERSONA_NAMES[item.personaId] : '' })
   },
 
   selectAssumption: function (e) {
     if (this.data.loading) return
-    this.setData({ selectedAssumptionId: e.currentTarget.dataset.id })
+    var id = e.currentTarget.dataset.id
+    this.setData({ selectedAssumptionId: id })
+    this._persistDraft({ selectedAssumptionId: id })
   },
 
   selectRhythm: function (e) {
     if (this.data.loading) return
-    this.setData({ selectedRhythmId: e.currentTarget.dataset.id })
+    var id = e.currentTarget.dataset.id
+    this.setData({ selectedRhythmId: id })
+    this._persistDraft({ selectedRhythmId: id })
   },
 
   onIntentInput: function (e) {
     if (this.data.loading) return
-    this.setData({ intentText: e.detail.value || '' })
+    var value = e.detail.value || ''
+    this.setData({ intentText: value })
+    this._persistDraft({ intentText: value })
   },
 
   goNext: function () {
     if (this.data.loading) return
     if (this.data.step < 3) {
-      this.setData({ step: this.data.step + 1 })
+      var nextStep = this.data.step + 1
+      this.setData({ step: nextStep })
+      this._persistDraft({ step: nextStep })
     } else {
       var self = this
       if (wx.nextTick) {
@@ -214,7 +232,11 @@ Page({
 
   goBack: function () {
     if (this.data.loading) return
-    if (this.data.step > 1) this.setData({ step: this.data.step - 1 })
+    if (this.data.step > 1) {
+      var nextStep = this.data.step - 1
+      this.setData({ step: nextStep })
+      this._persistDraft({ step: nextStep })
+    }
   },
 
   skipProfile: function () {
@@ -225,10 +247,23 @@ Page({
       selectedRhythmId: null,
       intentText: '',
     })
-    this._finish({ directHall: true })
+    this._finish({ directHall: true, useDefaultPersona: true })
   },
 
   noop: function () {},
+
+  _persistDraft: function (patch) {
+    if (!tourStore.setQuestionnaireDraft) return
+    var current = tourStore.getQuestionnaireDraft ? (tourStore.getQuestionnaireDraft() || {}) : {}
+    tourStore.setQuestionnaireDraft(Object.assign({}, current, {
+      step: this.data.step,
+      selectedFocusId: this.data.selectedFocusId,
+      selectedAssumptionId: this.data.selectedAssumptionId,
+      selectedRhythmId: this.data.selectedRhythmId,
+      selectedPersonaName: this.data.selectedPersonaName,
+      intentText: this.data.intentText,
+    }, patch || {}))
+  },
 
   _findFocus: function (id) {
     for (var i = 0; i < FOCUS_OPTIONS.length; i++) {
@@ -257,15 +292,28 @@ Page({
     var finishOptions = options || {}
 
     var self = this
-    var focus = this._findFocus(this.data.selectedFocusId) || DEFAULT_FOCUS
+    var useDefaultPersona = finishOptions.useDefaultPersona === true
+    var focus = useDefaultPersona ? {
+      id: 'default',
+      title: '默认参观',
+      prompt: '',
+      preferredHallOrder: [],
+      persona: 'default',
+      personaId: 'default',
+    } : (this._findFocus(this.data.selectedFocusId) || DEFAULT_FOCUS)
     var assumption = this._findAssumption(this.data.selectedAssumptionId) || DEFAULT_ASSUMPTION
-    var rhythm = this._findRhythm(this.data.selectedRhythmId) || DEFAULT_RHYTHM
-    var intentText = (this.data.intentText || '').trim()
+    var rhythm = useDefaultPersona ? {
+      id: 'default',
+      title: '默认体验',
+      prompt: '',
+      answerLength: 'balanced',
+      depth: 'standard',
+      terminology: 'plain',
+    } : (this._findRhythm(this.data.selectedRhythmId) || DEFAULT_RHYTHM)
+    var intentText = useDefaultPersona ? '' : (this.data.intentText || '').trim()
 
     var persona = focus.persona
     var personaId = focus.personaId || focus.persona
-    var backendPersona = ['A', 'B', 'C', 'D'].indexOf(persona) >= 0 ? persona : 'B'
-
     tourStore.setStylePrefs({
       answerLength: rhythm.answerLength,
       depth: rhythm.depth,
@@ -279,7 +327,7 @@ Page({
     })
     tourStore.setOnboardingExtras({
       intentText: intentText,
-      preferredHallOrder: focus.preferredHallOrder,
+      preferredHallOrder: [],
       timeBudget: rhythm.id,
       focusId: focus.id,
       focusTitle: focus.title,
@@ -289,7 +337,6 @@ Page({
       guideModeTitle: rhythm.title,
       guideModePrompt: rhythm.prompt,
     })
-
     self.setData({ loading: true })
 
     var go = function () {
@@ -306,35 +353,22 @@ Page({
     }
 
     var startSession = function () {
-      api.tourApi.createSession({
-        interest_type: backendPersona,
-        persona: backendPersona,
-        assumption: assumption.id,
-        guest_id: 'miniapp_guest_' + Date.now(),
-      }).then(function (res) {
+      tourSession.ensureTourSession().then(function (res) {
         if (res.ok) {
-          var d = res.data || {}
-          tourStore.setTourSession({
-            sessionId: d.id || d.session_id || null,
-            sessionToken: d.session_token || null,
-          })
           tourStore.updateTourState({
             interestType: persona,
             persona: persona,
             assumption: assumption.id,
             personaId: personaId,
           })
+          tourSync.queueSessionSnapshot({}, { defer: true, maxAttempts: 3 })
         } else {
-          var msg = (res.data && res.data.detail) || ('创建会话失败 (' + res.status + ')')
-          wx.showToast({ title: msg, icon: 'none', duration: 2500 })
+          console.warn('[onboarding] guest session remains queued for retry:', res.status)
         }
-        go()
-      }).catch(function () {
-        wx.showToast({ title: '网络异常，进入演示模式', icon: 'none', duration: 2000 })
-        go()
       })
     }
 
+    go()
     if (wx.nextTick) {
       wx.nextTick(startSession)
     } else {

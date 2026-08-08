@@ -35,11 +35,11 @@ Remaining blockers:
   - History Inquirer, backend persona `C`
   - Artifact Researcher, backend persona `D`
 - Persona reveal page with guide perspective and route entry.
-- AI curator route page using backend `/curator/plan-tour`, with safe fallback behavior.
+- Data-driven route page sourced only from active `/tour/halls` entries, then deterministically ordered by questionnaire persona, hall preferences, and time budget; dynamic hall names are not overwritten by the static canonical list, and a failed catalog request does not inject static route facts.
 - Hall selection page with always-open halls first and temporary halls near the end.
 - Tour page:
   - SSE streaming AI answers
-  - suggestion bar
+  - suggestion bar rendered only from a successful backend response for the current guest session; pending, empty, and failed responses keep it empty
   - Markdown rendering
   - copyable plain text AI answers
   - manual TTS playback
@@ -48,11 +48,13 @@ Remaining blockers:
   - camera/OCR MVP
   - fallback to text search when OCR is unavailable
   - matched result can open exhibit detail
+  - the real catalog is loaded sequentially in 100-item pages; an authoritative empty catalog stays empty, and production does not expose static mock exhibits
 - Exhibit detail page with follow-up AI discussion.
 - Visit report page:
   - visited halls counted from browsed hall badges: sending a message in a hall, or opening any exhibit detail page from that hall
   - question stats counted from user-sent messages, without deduplicating repeated question text
   - exhibit stats counted from exhibit detail views, deduped by exhibit
+  - only trusted backend UUIDs count as viewed museum exhibits; local, mock, and name-only records remain display-only
   - reflection
   - hall-level record summary
   - basic stats

@@ -2,37 +2,35 @@ const tourStore = require('../../store/tour')
 const api = require('../../api/index')
 const banpoHalls = require('../../constants/banpo-halls')
 const preload = require('../../utils/preload')
-
-var HALLS_MAP = banpoHalls.HALLS_MAP
-var DEFAULT_ORDER = banpoHalls.DEFAULT_ORDER
-
-function _buildHallList(visitedSlugs) {
-  var visited = visitedSlugs || []
-  return DEFAULT_ORDER.map(function (id, index) {
-    var hall = HALLS_MAP[id]
-    if (!hall) return null
-    var slug = hall.backendSlug || banpoHalls.normalizeHallToSlug(hall.name)
-    return Object.assign({}, hall, {
-      order: index + 1,
-      isVisited: visited.indexOf(slug) !== -1,
-    })
-  }).filter(function (hall) {
-    return !!hall
-  })
-}
+const tourSync = require('../../utils/tour-sync')
+const hallData = require('../../utils/hall-data')
+const tourSession = require('../../utils/tour-session')
 
 Page({
   data: {
     halls: [],
+    loading: true,
     topbarStyle: '',
     topbarRowStyle: '',
   },
 
   _entering: false,
+  _sessionEnsureAttempts: 0,
+  _sessionRetryTimer: null,
+  _remoteHalls: null,
+  _remoteHallCatalogAuthoritative: false,
+  _hallLoadFailed: false,
 
   onLoad: function () {
+    tourStore.markCurrentPage('pages/hall/hall')
+    var startedAt = tourStore.ensureTourStartedAt()
+    tourSync.queueSessionSnapshot({
+      tour_started_at: startedAt,
+      status: 'opening',
+    }, { defer: true, maxAttempts: 3 })
     this._initCustomTopbar()
-    this._refresh()
+    this._loadHallData()
+    this._ensureSession()
     this._preloadNext()
   },
 
@@ -61,18 +59,86 @@ Page({
   },
 
   onShow: function () {
-    this._refresh()
+    tourStore.markCurrentPage('pages/hall/hall')
+    if (this._remoteHallCatalogAuthoritative || this._hallLoadFailed) this._refresh()
+    this._loadHallData()
+  },
+
+  onUnload: function () {
+    if (this._sessionRetryTimer) {
+      clearTimeout(this._sessionRetryTimer)
+      this._sessionRetryTimer = null
+    }
   },
 
   _refresh: function () {
     var visited = tourStore.getTourState().visitedHalls || []
-    var key = visited.join(',')
+    var authoritative = this._remoteHallCatalogAuthoritative === true
+    var key = visited.join(',') + '|' + (this._remoteHallSignature || '') + '|' + authoritative
     // Re-render only when the visited set actually changed (e.g. after the user
     // engaged with a hall and returned). Avoids a redundant setData of identical
     // data during every page-transition into this page.
-    if (key === this._visitedKey && this.data.halls.length) return
+    if (key === this._visitedKey) return
     this._visitedKey = key
-    this.setData({ halls: _buildHallList(visited) })
+    this.setData({
+      halls: hallData.buildHallList(visited, this._remoteHalls || [], {
+        authoritative: authoritative,
+      }),
+    })
+  },
+
+  _loadHallData: function () {
+    if (this._hallDataLoading || this._remoteHalls) return
+    var self = this
+    this._hallDataLoading = true
+    api.tourApi.getHalls().then(function (res) {
+      self._hallDataLoading = false
+      if (!res || !res.ok) throw new Error('hall catalog request failed')
+      var list = Array.isArray(res.data)
+        ? res.data
+        : (res.data && (res.data.halls !== undefined ? res.data.halls : res.data.items))
+      if (!Array.isArray(list) || list.some(function (item) { return !item || typeof item !== 'object' })) {
+        throw new Error('hall catalog response must contain an array of objects')
+      }
+      self._remoteHalls = list
+      self._remoteHallCatalogAuthoritative = true
+      self._hallLoadFailed = false
+      self._remoteHallSignature = list.map(function (item) {
+        return [item.slug || item.hall_slug || item.id || '', item.name || item.title || ''].join(':')
+      }).join('|')
+      self.setData({ loading: false })
+      self._refresh()
+    }).catch(function (err) {
+      self._hallDataLoading = false
+      self._remoteHalls = null
+      self._remoteHallCatalogAuthoritative = false
+      self._hallLoadFailed = true
+      self.setData({ loading: false })
+      console.warn('[hall] structured hall data unavailable; showing an empty catalog', err)
+      self._refresh()
+    })
+  },
+
+  _ensureSession: function () {
+    if (tourStore.getTourState().sessionId) {
+      tourSync.flushPendingSessionSync({ maxAttempts: 3 })
+      return
+    }
+    this._sessionEnsureAttempts += 1
+    var self = this
+    tourSession.ensureTourSession().then(function (res) {
+      if (res && res.ok) {
+        tourSync.flushPendingSessionSync({ maxAttempts: 3 })
+      } else {
+        console.warn('[hall] guest session bootstrap remains queued:', res && res.status)
+        if (self._sessionEnsureAttempts < 2 && !self._sessionRetryTimer) {
+          self._sessionRetryTimer = setTimeout(function () {
+            self._sessionRetryTimer = null
+            self._ensureSession()
+          }, 500)
+        }
+      }
+    })
   },
 
   _preloadNext: function () {
@@ -89,17 +155,18 @@ Page({
     if (this._entering) return
     var self = this
     var hall = e.currentTarget.dataset.hall
-    var state = tourStore.getTourState()
-    var id = state.sessionId
-    var token = state.sessionToken
-
     self._entering = true
 
     var hallSlug = hall.backendSlug || banpoHalls.normalizeHallToSlug(hall.name)
-    tourStore.updateTourState({ currentHall: hallSlug, status: 'touring' }, { deferPersist: true })
+    tourStore.updateTourState({
+      currentHall: hallSlug,
+      currentHallName: hall.name || '',
+      status: 'touring',
+    }, { deferPersist: true })
 
     wx.navigateTo({
-      url: '/pages/tour/tour?hallId=' + hall.id,
+      url: '/pages/tour/tour?hall=' + encodeURIComponent(hallSlug) +
+        '&hallName=' + encodeURIComponent(hall.name || ''),
       complete: function () {
         setTimeout(function () { self._entering = false }, 300)
       },
@@ -109,14 +176,11 @@ Page({
       tourStore.addTourEvent({ eventType: 'hall_enter', hall: hallSlug })
     }, 0)
 
-    if (id) {
-      api.tourApi.updateSession(id, {
-        status: 'touring',
-        current_hall: hallSlug,
-      }, token).catch(function (err) {
-        console.warn('[hall] updateSession error (background):', err)
-      })
-    }
+    tourSync.queueSessionSnapshot({
+      status: 'touring',
+      current_hall: hallSlug,
+      current_exhibit_id: null,
+    }, { defer: true, maxAttempts: 3 })
   },
 
   goRoute: function () {

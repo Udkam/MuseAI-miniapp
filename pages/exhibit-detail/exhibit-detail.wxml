@@ -1,5 +1,17 @@
 <view class="page-wrap detail">
 
+  <view wx:if="{{loading}}" class="state-wrap">
+    <text class="text-muted text-sm">加载展品资料中…</text>
+  </view>
+
+  <view wx:elif="{{loadError}}" class="state-wrap">
+    <image class="empty-icon-img" src="/assets/icons/exhibit-empty-search.png" mode="aspectFit"></image>
+    <text class="empty-text text-muted">{{errorMessage}}</text>
+    <button class="btn-secondary" style="margin-top:28rpx;" bindtap="goNext">返回</button>
+  </view>
+
+  <block wx:else>
+
   <!-- Exhibit image placeholder -->
   <view class="exhibit-img-wrap">
     <view class="exhibit-img-placeholder">
@@ -28,5 +40,7 @@
     <button class="btn-primary" bindtap="goDeeper">与 AI 深入探讨 →</button>
     <button class="btn-secondary" style="margin-top:20rpx;" bindtap="goNext">返回</button>
   </view>
+
+  </block>
 
 </view>

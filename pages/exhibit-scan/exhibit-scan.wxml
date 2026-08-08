@@ -74,6 +74,7 @@
           <text wx:if="{{item.hallDisplay}}" class="etag">{{item.hallDisplay}}</text>
           <text wx:if="{{item.category}}"    class="etag">{{item.category}}</text>
           <text wx:if="{{item.era}}"         class="etag etag-era">{{item.era}}</text>
+          <text wx:if="{{item.isLocalFallback}}" class="etag">本地示例</text>
         </view>
       </view>
       <text class="exhibit-card-arrow text-clay">›</text>

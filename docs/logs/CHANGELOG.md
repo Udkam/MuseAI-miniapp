@@ -1,5 +1,74 @@
 # Codex 工作报告
 
+## 2026-08-08 报告返回与首页恢复竞态修复
+
+- 报告页“返回首页”改为纯导航，不再隐式清空游客 session、问卷人格、路线、历史消息或待上传事件；同一导览可从首页继续，并在再次打开报告时使用后端更新后的总时长。
+- 首页恢复旧 session 的 GET 现在绑定请求代次、`localTourId`、源 `sessionId` 与 `sessionToken`；源凭据被并发替换或新导览启动后，迟到响应不能再合并旧状态或触发跳转。
+- 已有 session 的“继续上次导览”也改为先按点击时本地快照跳页、再后台 GET/403 恢复；异步结果只安全合并或重建会话，不会再次导航。
+- 恢复流程分别持有请求锁和 `wx.navigateTo` 完成锁：GET 先结束或导航先完成时，重复点击都不会再发 GET 或重复跳页；导航失败会使旧 owner 失效并允许重试。
+- GET 可选择跳过请求层活动时间副作用，或用预期 `sessionId + sessionToken` 限定更新归属；首页只在源 owner 仍有效且响应成功后显式更新时间，旧 GET 不会覆盖新 session 的活跃时间或过期时间。
+- 快速开始和进入新问卷流程会先使正在等待的旧恢复请求失效。新增回归覆盖真实 `tourApi/request/wx.request` 链路、两种 GET/导航完成顺序、旧响应不污染新 expiry、有效响应更新时间、迟到响应不二跳，以及报告返回首页保留完整导览状态。
+- 已打开的导览页以进入时的展厅 slug 和 `localTourId` 作为页面 owner：后台 GET 即使恢复出另一个服务端当前厅，也不会让页面的发送、建议、事件、历史保存或记录摘要串到其他厅；页面会重新同步其可见展厅而不二次导航。
+- 首页在合法恢复完成后通知当前导览页；同厅新增历史以及不同厅响应中携带的当前页展厅历史会直接刷新到仍未发生本地对话变化的页面，其他展厅历史继续独立保存。
+- PATCH 与 409 冲突后的 GET 均携带预期 session 凭据并跳过请求层活动时间副作用；只有 `sessionId`、token、`localTourId` 全部仍属于原同步 owner 时，才更新时间、`serverStateVersion` 或清理/改写待同步快照。
+- 新增真实请求封装回归：旧 PATCH 和冲突 GET 在 session/本地导览切换后晚到，不能污染新导览的活动时间、过期时间、版本或待同步内容，也不能继续发起旧 owner 的重试 PATCH。
+- 跨仓提示词契约测试改为验证数据库 `hall_context` 注入、旧 `HALL_DESCRIPTIONS` 不存在以及临展防编造规则保留，不再要求后端硬编码九厅名称或简介。
+- 删除导览页旧九厅欢迎语开关与文案表，欢迎语只使用当前馆方展厅名生成通用引导；删除本地展厅建议开关及整套模板，展厅模式建议仅接收后端结果；API 展厅正反向兼容映射只从共享展厅目录加载，不再先定义一份随即被覆盖的九厅映射。
+- 发布预检新增死配置缺失断言和 API 单一映射来源断言；建议条测试改用动态导入展厅标识覆盖 default/A/B/C/D 人格，不再把旧九厅清单当作生产契约。
+- 路线页统一为“开放展厅目录”：始终保留 `/tour/halls` 的 active 目录顺序和全部展厅，人格、`preferredHallOrder` 与参观时长不再参与排序或截断；缺失或为 0 的时长显示“时长待确认”，真实地图与动线接入前不生成策展路线。
+- 本次路线目录收尾验证通过：相关 JavaScript `node --check`，以及 `npm.cmd run test:all` 的 15 组检查；其中发布预检共检查 64 个包文件，正式 API 仍为 `https://api.banpo-museai.xyz/api/v1`。
+- 导览下一轮聊天会从当前展厅独立历史桶读取最近 30 条发送给后端，每条内容最多 1000 字符；前端不提前丢弃较早的 20 条，由后端保留最近 10 条原文并对更早 20 条做提取式压缩，且不会混入其他展厅上下文。
+- 扩展回归覆盖：A/B 展厅各自恢复最后 30 条、切回 A 后内容不混入 B、游客 session/token 失效重建后两厅各 30 条完整回传，以及下一轮聊天只携带当前厅最近 30 条且每条不超过 1000 字符。
+- 验证：相关 JS 语法检查通过；`test:page-first`、`test:report`、`test:hall-chat`、`test:tour-sync`、`test:tour-chat-recovery` 通过；`npm.cmd run test:all` 15 组全部通过，微信发布预检检查 64 个包文件且正式 API 保持 `https://api.banpo-museai.xyz/api/v1`。
+- 微信开发者工具已打开正确的 `frontend` 项目，但当前账号未登录且模拟器终止；CLI 因 IDE 端口初始化超时未完成编译验收，需扫码登录后补测。真机验收仍待后续执行。
+
+## 2026-07-16 前端多轮模拟验证与会话恢复加固
+
+- 使用 `npm.cmd ci` 做干净依赖安装；`package-lock.json` 安装前后 SHA-256 一致，npm 审计为 0 个漏洞。
+- 连续两轮执行 `npm.cmd run test:all`，15 组测试全部通过；发布预检检查 64 个包文件，正式 API 保持 `https://api.banpo-museai.xyz/api/v1`。
+- 对仓库内 47 个 JavaScript 文件执行 `node --check`，全部通过。
+- 修复 page-first 建会竞态：每次新导览分配内部 `localTourId`；旧导览迟到的 `createSession` 响应不再覆盖新问卷人格或新 session。
+- 修复旧 PATCH 响应竞态：状态同步绑定本地导览代次和目标 session；同一导览被其他请求恢复后继续向新 session 同步，不同导览的迟到响应不能写入新状态版本。
+- 游客 session 必须同时具备 `sessionId` 和 `sessionToken` 才能直接复用；新鲜缓存只丢 token 时仅分离旧凭据，问卷、人格、页面、展厅、事件和每厅历史保持完整。首页仍显示“继续导览”，点击后先跳转再建立新游客 session 并回传完整快照。
+- 区分真正过期与凭据丢失：超过有效期的旧游览会重置完整内存状态，避免“幽灵问卷草稿”；仅凭据不可用不再误删本地导览。
+- GET/PATCH 遇到 401/403/404/410 时保留本地完整快照，自动重建游客 session 并有限重试。
+- 新建或替换 session 时不再把 POST 返回的 `onboarding`、空展厅、空到访列表等数据库初始值当成恢复结果；客户端只吸收新凭据、`state_version` 和活动时间，本地完整快照保持权威并随后 PATCH。替换凭据时 AI 对话计数也不再归零。
+- 导览流恢复绑定失败 session 和 `localTourId`：迟到的 A-session 403 不会删除同一导览已由并发请求恢复的 B-session，也不会跨新导览代次恢复。每条用户消息最多自动恢复并重发一次，连续第二次 403 转为可见错误，不再形成 create/resend 循环。
+- SSE 完成后本地待上传队列同时保留稳定 ID 的 `exhibit_question` 与 `assistant_answer`；聊天服务已成功落库时后端幂等跳过，best-effort 落库失败时事件批量可以补齐两侧。自动恢复重发复用原问题 ID，且不会在本地复制问题事件。
+- 修复 SSE HTTP 200 在没有 `done/error` 终止事件时永久停留在 thinking/streaming；现在返回 `STREAM_INCOMPLETE`。同时兼容 success-body-only、空 chunk 后完整 success body，以及 chunk 正文 + success 终态的混合交付，并过滤完整 body 重放造成的重复正文。
+- 报告生成改为先确保 session、同步完整状态，再读取最新 session 凭据上传事件和生成报告；恢复期间不再继续使用旧 token。加载阶段可显示本地时钟占位，成功后严格使用后端 `total_duration_minutes`，再次打开时随后端新值增长。
+- SSE `done.state_version` 会单调更新本地 OCC 版本，不接受迟到终态降级；`assistant_answer` 使用由问题事件 ID 派生的稳定 `client_event_id`，便于后端幂等配对。
+- 生产欢迎语使用 `/tour/halls` 返回的动态馆方名称，不再让已知 slug 的客户端文案覆盖更名；展品的 `hall` 始终保留机器 slug，展示名称按响应 `hall_name`、动态展厅目录、规范 fallback 的顺序解析，绝不把 `hall_name` 当 slug。
+- 建议条为横向滚动布局，前端上限由 4 条对齐后端权威接口的 6 条；不再静默丢弃第 5、6 条馆方建议。
+- 回答气泡的手动 TTS 保持独立于聊天 SSE：只调用 `/tts/synthesize` 合成完整回答；`format=wav` 的 base64 在写文件前校验至少 44 字节、`RIFF....WAVE`、RIFF 声明范围、chunk 越界与奇数字节 padding，并要求 `fmt ` 至少 16 字节且 `data` 非空。无效响应以 `INVALID_WAV_AUDIO` 失败且不产生本地坏文件。
+- 重构 `InnerAudioContext` 生命周期：所有回调先于 `src/play` 注册，界面只在真实 `onPlay` 后显示播放中；首次 `play()` 静默时允许 `canplay` 补一次，总尝试不超过 2 次。`src` 设置期间同步触发的 `canplay` 先暂存、直接尝试后再消费，避免嵌套调用和丢失补试；5 秒无任何播放回调则退出 loading 并记录结构化 `stage/errCode/errMsg`。
+- 播放回调绑定请求代次、队列、分段序号和 context 身份，销毁时先解除当前 context；旧 context 的迟到 `onPlay/onError/onEnded/onStop` 不会污染新播放，正常 `onEnded` 仍连续推进分段队列。支持时设置 `obeyMuteSwitch=false`。
+- 新增模拟覆盖：新旧人格建会交错、真实完整 session-create 默认响应、续游 GET 错 token、PATCH 自动恢复、旧流 403 与并发恢复、连续 403 有限重试、问题/回答待上传事件对、同一/不同导览迟到响应、缺失 token 的首页恢复与完整状态迁移、过期草稿、逐字节 CRLF+UTF-8 SSE、无终止事件、success-body-only/混合/空 chunk SSE、动态展厅与展品名称、报告使用恢复后的 session 和后端权威时长。
+- 新增 TTS 模拟覆盖：真实最小 PCM WAV、奇数字节 padding、缺失 `fmt `、空 `data`、RIFF/chunk 越界、无效音频零写入、回调注册顺序、同步/异步 canplay 补试、完全静默 watchdog、onPlay/onError 状态切换、旧 context 回调隔离和多段队列连续播放。
+- 未执行微信真机测试、相机/OCR、系统键盘和真机渲染检查；这些仍需后续在微信开发者工具和实体设备上验收。
+
+## 2026-07-15 数据驱动小程序框架
+
+- 建立 `codex/data-driven-miniapp-framework` 实施分支。
+- 确认纯游客会话、问卷人格、Excel/CSV 数据入口、动态报告总时长和每展厅最近 30 条历史恢复约束。
+- 协作边界、设计和当前任务记录在本地忽略的 `AGENTS.md`、`docs/DESIGN.md`、`docs/CURRENT_TASK.md` 中。
+- 实现纯游客、无普通用户登录的小程序会话框架；`default` 为独立默认人格，完成问卷时才使用 A/B/C/D。
+- 每次启动幂等清理旧版本遗留的 `auth_token`、`user`、`user_role`，即使缓存结构已是 v5 也会实际删除；不恢复登录态或 `Authorization`。
+- 实现页面先跳转、后台去重建立访客会话，失败时保留可重试的完整快照；增加 OCC 状态版本处理、SSE UTF-8 跨分片解码和服务端活动时间恢复。
+- 实现问卷、人格、路线、当前页面、展厅、展品、扫码和偏好的全状态恢复；每展厅会话仅保留最近 30 条，最多恢复 9 个展厅。
+- 展厅列表和开放展厅目录使用 `/tour/halls` 结构化数据及后端顺序；成功返回空目录时不虚构开放展厅，请求失败时目录显示不可用。
+- 小程序不再调用 `/curator/plan-tour`：线上页面只展示 `/tour/halls` active 展厅目录；人格、`preferredHallOrder` 和时长不改变目录顺序或数量，动态未知 slug 与馆方中文名不会被 canonical 展厅覆盖。页面先显示可恢复的 `hall-directory-v2` 快照，目录成功后再用最新 active 数据刷新。
+- 权威展厅目录的 `highlights`、`focus`、说明和有效时长只使用服务端字段，服务端空值保持为空；缺失或 0 时长显示待确认，生产目录请求失败时显示不可用，不把静态内容伪装成馆方路线事实。
+- 导览建议条切换上下文时先清空；页面先到、session 后到时会复用统一建会 in-flight，并在成功后继续请求 `/suggestions`。只渲染接口成功返回内容，空响应、建会失败或建议请求失败均保持为空，后续 onShow 或建会成功可重试；不再预显示或保留客户端展厅模板，也不再用展品列表降级补偿。静态展厅建议模板受 `ENABLE_DEV_HALL_SUGGESTIONS=false` 约束。
+- 展厅和展品接口成功返回合法空数组时保持空状态，不再回填静态条目。展品目录依据 `total/skip/limit` 每页 100 条串行加载，设置 20 页/2000 条安全上限；只有完整成功后才供展示、搜索和拍照候选使用，中途失败不保留部分真实数据。
+- 生产环境以显式 `ENABLE_DEV_MOCK_EXHIBITS=false` 关闭静态假展品；真实 UUID 详情请求失败时只使用同 UUID 的可信缓存，否则显示资料不可用，不再按同名降级为 mock 介绍。客户端名称黑名单已删除，馆方合法同名展品可正常展示。
+- 报告本地补偿仅统计可信后端 UUID，`local-*`、`mock-*` 和 name-only 记录不计入真实展品数。游览事件统一按每批最多 50 条顺序上传，失败仅恢复当前未确认批次及后续事件，全部批次成功后才生成报告。
+- 动态展厅的 `current_hall_name` 跟随会话完整恢复；报告页并行读取 `/tour/halls` 建立 slug 到馆方名称的映射，新导入展厅不再显示内部 slug。
+- 聊天请求不再发送客户端组装的 system-like 上下文、问卷文本或展品自由文本；报告时长从进入展厅选择页开始持续累计，重新打开报告时会增长。
+- 本地、模拟或超过 36 字符的展品 ID 仅保留在展示对象中，不写入 `current_exhibit_id`，不进入游览事件、会话上下文或 SSE 聊天请求。
+- 验证：`npm run test:all` 全部通过，共 13 组测试；微信发布 preflight 检查 63 个包文件通过。`git diff --check` 退出码为 0，仅输出 LF/CRLF 行尾转换提示。
+- 提交 SHA：见本提交。推送分支：`codex/data-driven-miniapp-framework`。
+
 ## 2026-06-19 前端自测与 README 同步
 
 ### 自测结果

@@ -4,25 +4,25 @@
     <view class="ai-badge">
       <text class="ai-badge-text">{{routeSourceLabel}}</text>
     </view>
-    <text class="route-title">策展路线已生成</text>
-    <text class="route-subtitle">按展厅线索推进，先建立现场判断，再进入具体展品。</text>
+    <text class="route-title">开放展厅目录</text>
+    <text class="route-subtitle">先查看当前开放展厅；真实地图和参观动线将在馆方数据接入后生成。</text>
     <text wx:if="{{routeNotice}}" class="route-notice">{{routeNotice}}</text>
   </view>
 
   <view class="stats-row">
     <view class="stat-block">
-      <text class="stat-label">参考时长</text>
+      <text class="stat-label">目录总时长</text>
       <text class="stat-value">{{totalDesc}}</text>
     </view>
     <view class="stat-sep"></view>
     <view class="stat-block">
-      <text class="stat-label">路线方式</text>
+      <text class="stat-label">当前人格</text>
       <text class="stat-value">{{personaLabel}}</text>
     </view>
   </view>
 
   <view class="steps-section">
-    <text class="section-label">参观计划</text>
+    <text class="section-label">展厅列表</text>
     <view class="steps-list">
       <view
         wx:for="{{steps}}"
@@ -42,7 +42,7 @@
 
         <view class="step-card step-card-upcoming">
           <view class="step-status-badge step-status-badge-upcoming">
-            <text class="step-status-text step-status-text-upcoming">第 {{item.order}} 站</text>
+            <text class="step-status-text step-status-text-upcoming">展厅 {{item.order}}</text>
           </view>
 
           <view class="step-title-row">
@@ -51,7 +51,7 @@
           </view>
 
           <view class="step-reason-block">
-            <text class="step-reason-label">看什么</text>
+            <text class="step-reason-label">简介</text>
             <text class="step-reason-text">{{item.reason}}</text>
           </view>
 

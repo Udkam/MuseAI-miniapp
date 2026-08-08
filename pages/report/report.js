@@ -2,8 +2,13 @@ const api       = require('../../api/index')
 const tourStore = require('../../store/tour')
 const banpoHalls = require('../../constants/banpo-halls')
 const preload = require('../../utils/preload')
+const tourSync = require('../../utils/tour-sync')
+const tourSession = require('../../utils/tour-session')
+const hallData = require('../../utils/hall-data')
+const eventFlush = require('../../utils/event-flush')
 
 const THEME_TITLES = {
+  general: '半坡游览报告',
   archaeology: '半坡考古研究报告',
   field_study: '半坡研学记录报告',
   history_inquiry: '半坡历史追问报告',
@@ -37,11 +42,12 @@ function hallDisplay(slug) {
   return slug ? banpoHalls.getHallDisplayName(slug) : ''
 }
 
-function buildVisitedHallCards(halls) {
+function buildVisitedHallCards(halls, hallNameMap) {
+  var names = hallNameMap || {}
   return unique(halls || []).map(function (slug) {
     var normalized = banpoHalls.normalizeHallToSlug(slug)
     return {
-      name: hallDisplay(normalized) || slug,
+      name: names[normalized] || hallDisplay(normalized) || slug,
       note: '',
     }
   }).filter(function (item) {
@@ -128,12 +134,19 @@ Page({
   },
 
   _reportTimer: null,
+  _hallNameMap: null,
+  _lastVisitedHallSlugs: null,
 
   onLoad: function () {
-    var state = tourStore.getTourState()
+    tourStore.markCurrentPage('pages/report/report')
     tourStore.summarizeStoredHallRecords()
     preload.preloadPages(['/pages/home/home', '/pages/hall/hall'], 120)
     preload.preloadImages(preload.HALL_ICON_ASSETS, 160)
+    this._loadHallCatalog()
+    var liveDuration = tourStore.getLiveDurationMinutes ? tourStore.getLiveDurationMinutes() : null
+    var loadingStats = Object.assign({}, this.data.stats, {
+      duration: formatDuration(liveDuration),
+    })
     this.setData({
       persona: tourStore.getPersonaLabel() || '',
       reportTitle: tourStore.getReportThemeTitle() || '半坡游览报告',
@@ -141,18 +154,68 @@ Page({
       isReady: false,
       loadError: false,
       dataNotice: '',
+      stats: loadingStats,
     })
-
-    if (!state.sessionId) {
-      this._applyUnavailable('尚未建立导览会话，无法生成服务器报告。', false)
-      return
-    }
 
     var self = this
     this._reportTimer = setTimeout(function () {
       self._reportTimer = null
-      self._flushThenGenerate(state.sessionId, state.sessionToken)
+      self._prepareAndGenerate()
     }, 80)
+  },
+
+  _prepareAndGenerate: function () {
+    var self = this
+    return tourSession.ensureTourSession()
+      .then(function (ready) {
+        if (!ready || !ready.ok || !ready.sessionId) {
+          self._applyUnavailable('尚未建立导览会话，无法生成服务器报告。', false)
+          return null
+        }
+        return tourSync.queueSessionSnapshot({ status: 'touring' }, { maxAttempts: 3 })
+      })
+      .then(function (synced) {
+        if (synced === null) return null
+        if (!synced || !synced.ok) {
+          self._applyUnavailable('游览状态同步失败，请检查网络后重试。', true)
+          return null
+        }
+        var latest = tourStore.getTourState()
+        if (!latest.sessionId || !latest.sessionToken) {
+          self._applyUnavailable('尚未建立导览会话，无法生成服务器报告。', false)
+          return null
+        }
+        return self._flushThenGenerate(latest.sessionId, latest.sessionToken)
+      })
+      .catch(function (err) {
+        console.warn('[report] session preparation failed:', err)
+        self._applyUnavailable('游览状态同步失败，请检查网络后重试。', true)
+        return null
+      })
+  },
+
+  _loadHallCatalog: function () {
+    var self = this
+    api.tourApi.getHalls().then(function (res) {
+      if (!res || !res.ok || !res.data) return
+      var list = Array.isArray(res.data)
+        ? res.data
+        : (res.data.halls || res.data.items || [])
+      self._applyHallCatalog(list)
+    }).catch(function (err) {
+      console.warn('[report] structured hall names unavailable; keeping static fallback', err)
+    })
+  },
+
+  _applyHallCatalog: function (halls) {
+    var names = hallData.buildHallNameMap(halls)
+    if (!Object.keys(names).length) return
+    this._hallNameMap = names
+    if (this._lastVisitedHallSlugs) {
+      this.setData({
+        visitedHallCards: buildVisitedHallCards(this._lastVisitedHallSlugs, names),
+      })
+    }
   },
 
   onUnload: function () {
@@ -164,11 +227,10 @@ Page({
 
   _flushThenGenerate: function (id, token) {
     var self = this
-    var events = tourStore.drainPendingEvents()
 
     function generate(notice) {
       wx.showLoading({ title: '正在整理报告…', mask: true })
-      api.tourApi.generateReport(id, token)
+      return api.tourApi.generateReport(id, token)
         .then(function (genRes) {
           if (genRes && genRes.ok && genRes.data) return genRes
           return api.tourApi.getReport(id, token)
@@ -188,29 +250,25 @@ Page({
         })
     }
 
-    if (!events.length) {
-      generate('')
-      return
-    }
-
-    api.tourApi.recordEvents(id, events, token)
-      .then(function (res) {
-        if (!res || !res.ok) {
-          tourStore.restorePendingEvents(events)
-          self._applyUnavailable('游览记录上传失败，请检查网络后重试。', true)
-          return
+    return eventFlush.flushPendingEvents({ sessionId: id, token: token })
+      .then(function (result) {
+        if (result.ok) {
+          return generate('').then(function () { return result })
         }
-        generate('')
+        console.warn('[report] event batches not fully flushed:', result.status || result.reason)
+        self._applyUnavailable('游览记录上传失败，请检查网络后重试。', true)
+        return result
       })
       .catch(function (err) {
-        console.warn('[report] flush events failed, restoring:', err)
-        tourStore.restorePendingEvents(events)
+        console.warn('[report] event batch flush failed:', err)
         self._applyUnavailable('游览记录上传失败，请检查网络后重试。', true)
+        return { ok: false, error: err }
       })
   },
 
   _mapReportData: function (data, notice) {
     var payload = data || {}
+    this._lastVisitedHallSlugs = payload.halls_visited || []
     var title = tourStore.getReportThemeTitle()
       || THEME_TITLES[payload.report_theme]
       || '半坡游览报告'
@@ -223,7 +281,7 @@ Page({
       reportTitle: title,
       persona: tourStore.getPersonaLabel() || this.data.persona || '',
       stats: buildStats(payload),
-      visitedHallCards: buildVisitedHallCards(payload.halls_visited || []),
+      visitedHallCards: buildVisitedHallCards(this._lastVisitedHallSlugs, this._hallNameMap),
       reflection: normalizeReflection(payload.reflection),
       dataNotice: notice || '',
       highlights: buildHighlights(payload),
@@ -258,7 +316,9 @@ Page({
   },
 
   goHome: function () {
-    tourStore.clearTour()
+    // Returning home is navigation, not an implicit "end tour" action. Keep
+    // the guest session and full local snapshot so the visitor can resume the
+    // same report later and receive the newer backend-authoritative duration.
     wx.reLaunch({ url: '/pages/home/home' })
   },
 

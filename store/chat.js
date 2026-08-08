@@ -189,7 +189,7 @@ function getRecentMessages(maxCount) {
 
 // ─── Full reset ────────────────────────────────────────────────────────────
 
-/** Wipe all chat state (e.g. on logout or page unload). */
+/** Wipe all chat state (e.g. on page unload or tour reset). */
 function resetChat() {
   _state = _makeInitialState()
 }

@@ -16,9 +16,10 @@
     </view>
     <view wx:if="{{hasTourSession}}" class="resume-card" bindtap="resumeTour">
       <view class="resume-copy">
-        <text class="resume-label">继续上次导览</text>
+        <text class="resume-label">{{resumeIsDraft ? '继续填写问卷' : '继续上次导览'}}</text>
         <text wx:if="{{resumeHallName}}" class="resume-title">{{resumeHallName}}</text>
-        <text class="resume-meta">已完成 {{aiConversationCount}} 次 AI 对话</text>
+        <text wx:if="{{resumeIsDraft}}" class="resume-meta">已保存当前填写进度</text>
+        <text wx:else class="resume-meta">已完成 {{aiConversationCount}} 次 AI 对话</text>
       </view>
       <text class="resume-arrow">›</text>
     </view>

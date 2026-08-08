@@ -1,8 +1,23 @@
 const tourStore = require('../../store/tour')
 const api       = require('../../api/index')
 const preload   = require('../../utils/preload')
+const tourSync  = require('../../utils/tour-sync')
 
 var PERSONA_MAP = {
+  'default': {
+    key:    'default',
+    label:  '默认导览',
+    icon:   '🏛️',
+    title:  '你将使用默认导览',
+    desc:   '不预设特定研学身份，根据你当前看到的展厅和展品直接讲解。',
+    aiDesc: '我会保持中立、清晰的博物馆导览语气，证据不足时明确说明不确定性。',
+    color:  '#6B6258',
+    routeTips: [
+      { title: '看现场' },
+      { title: '问细节' },
+      { title: '理线索' },
+    ],
+  },
   A: {
     key:    'A',
     label:  '考古研究员',
@@ -84,11 +99,13 @@ Page({
   _navigating: false,
 
   onLoad: function (options) {
+    tourStore.markCurrentPage('pages/persona-reveal/persona-reveal', options || null)
+    tourSync.queueSessionSnapshot({}, { defer: true, maxAttempts: 3 })
     var state = tourStore.getTourState()
-    var p     = options.persona || state.personaId || state.persona || 'B'
-    if (!PERSONA_MAP[p]) p = 'B'
+    var p     = options.persona || state.personaId || state.persona || 'default'
+    if (!PERSONA_MAP[p]) p = 'default'
 
-    var info = PERSONA_MAP[p] || PERSONA_MAP.B
+    var info = PERSONA_MAP[p] || PERSONA_MAP.default
 
     this.setData({
       persona: info,
@@ -126,10 +143,10 @@ Page({
 
     // Fire-and-forget the status update; navigate immediately so the button
     // never shows a lingering spinner while waiting on the network.
-    api.tourApi.updateSession(id, { status: 'opening' }, token)
-      .catch(function (err) {
-        console.warn('[persona-reveal] updateSession error (background):', err)
-      })
+    tourSync.queueSessionSnapshot({
+      status: 'opening',
+      questionnaire: tourStore.getQuestionnaireState(),
+    }, { defer: true, maxAttempts: 3 })
     _navigate()
   },
 })
