@@ -36,6 +36,12 @@
   </view>
 
   <view wx:if="{{scanResult}}" class="scan-result-card" bindtap="openScanResult">
+    <image
+      class="scan-result-image {{scanResult.imageUrl ? '' : 'is-default'}}"
+      src="{{scanResult.imageUrl || '/assets/icons/exhibit-list-item.png'}}"
+      mode="{{scanResult.imageUrl ? 'aspectFill' : 'aspectFit'}}"
+      binderror="onScanResultImageError"
+    ></image>
     <view class="scan-result-top">
       <text class="scan-result-label">识别结果</text>
       <text class="scan-result-confidence">匹配度：{{scanResult.confidence}}</text>
@@ -67,14 +73,19 @@
       bindtap="selectExhibit"
       data-exhibit="{{item}}"
     >
-      <image class="exhibit-card-icon-img" src="/assets/icons/exhibit-list-item.png" mode="aspectFit"></image>
+      <image
+        class="exhibit-card-icon-img {{item.imageUrl ? '' : 'is-default'}}"
+        src="{{item.imageUrl || '/assets/icons/exhibit-list-item.png'}}"
+        mode="{{item.imageUrl ? 'aspectFill' : 'aspectFit'}}"
+        data-id="{{item.id}}"
+        binderror="onExhibitImageError"
+      ></image>
       <view class="exhibit-card-info">
         <text class="exhibit-card-name">{{item.name}}</text>
         <view class="exhibit-card-tags">
           <text wx:if="{{item.hallDisplay}}" class="etag">{{item.hallDisplay}}</text>
           <text wx:if="{{item.category}}"    class="etag">{{item.category}}</text>
           <text wx:if="{{item.era}}"         class="etag etag-era">{{item.era}}</text>
-          <text wx:if="{{item.isLocalFallback}}" class="etag">本地示例</text>
         </view>
       </view>
       <text class="exhibit-card-arrow text-clay">›</text>

@@ -12,10 +12,17 @@
 
   <block wx:else>
 
-  <!-- Exhibit image placeholder -->
   <view class="exhibit-img-wrap">
-    <view class="exhibit-img-placeholder">
-      <text class="exhibit-img-icon">🏺</text>
+    <image
+      class="exhibit-img {{usingDefaultImage ? 'is-default' : ''}}"
+      src="{{exhibitImageSrc}}"
+      mode="{{usingDefaultImage ? 'aspectFit' : 'aspectFill'}}"
+      binderror="onExhibitImageError"
+      aria-label="{{usingDefaultImage ? '展品默认图片' : exhibit.name}}"
+    ></image>
+    <view class="image-caption">
+      <text>{{exhibit.category || '展品'}}</text>
+      <text wx:if="{{usingDefaultImage}}">暂无馆方图片</text>
     </view>
   </view>
 
@@ -31,13 +38,16 @@
 
   <!-- Description -->
   <view class="card">
-    <text class="section-title text-clay">展品简介</text>
+    <view class="detail-section-heading">
+      <text class="detail-section-index">01</text>
+      <text class="section-title">展品简介</text>
+    </view>
     <text class="desc-text" selectable="{{true}}" user-select="{{true}}">{{exhibit.description}}</text>
   </view>
 
   <!-- Actions -->
   <view class="action-row">
-    <button class="btn-primary" bindtap="goDeeper">与 AI 深入探讨 →</button>
+    <button class="btn-primary" bindtap="goDeeper">围绕这件展品提问</button>
     <button class="btn-secondary" style="margin-top:20rpx;" bindtap="goNext">返回</button>
   </view>
 

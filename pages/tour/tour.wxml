@@ -88,6 +88,7 @@
 
   <!-- Guide Suggestions Bar -->
   <view wx:if="{{showSuggestions && guideSuggestions.length > 0 && !keyboardVisible}}" class="suggestions-bar" style="{{suggestionsPanelStyle}}">
+    <text class="suggestions-label">继续观察</text>
     <scroll-view scroll-x class="suggestions-scroll">
       <view class="suggestions-inner">
         <view
@@ -103,7 +104,7 @@
         </view>
       </view>
     </scroll-view>
-    <view class="suggestions-dismiss" bindtap="dismissSuggestions">×</view>
+    <view class="suggestions-dismiss" role="button" aria-label="关闭建议" bindtap="dismissSuggestions">×</view>
   </view>
 
   <!-- Input bar -->
@@ -116,7 +117,7 @@
       class="input-field"
       value="{{inputText}}"
       bindinput="onInputChange"
-      placeholder="问问 MuseAI…"
+      placeholder="询问展品、遗迹或考古证据…"
       confirm-type="send"
       bindconfirm="sendMessage"
       bindfocus="onInputFocus"

@@ -7,6 +7,7 @@ const tourSync = require('../../utils/tour-sync')
 const tourSession = require('../../utils/tour-session')
 const eventFlush = require('../../utils/event-flush')
 const ttsAudio = require('../../utils/tts-audio')
+const hallData = require('../../utils/hall-data')
 
 const TOUR_TTS_STYLE = '请用清晰、自然、亲切的博物馆导览语气朗读；语速稍快，比常规讲解更利落，句间停顿短一些，尾音不要拖长。不要额外补充文字，只朗读给定内容。'
 const TTS_SEGMENT_MAX_CHARS = 72
@@ -32,9 +33,53 @@ function localExhibitIdFromName(name) {
 // pay the synchronous system-info bridge cost during each slide-in transition.
 var _safeAreaBottomCache = null
 
-function buildWelcomeMessage(hallSlug, hallName) {
-  var name = hallName || '这个展厅'
-  return '欢迎来到' + name + '。我会优先围绕你当前看到的展厅回答，不把其他展厅的内容混进来。\n你可以直接问一个展品、一个细节，或让 MuseAI 帮你整理观察重点。'
+function cleanHallGuideText(value, maxLength) {
+  return String(value || '').replace(/\s+/g, ' ').trim().slice(0, maxLength || 4000)
+}
+
+function finishHallGuideSentence(value) {
+  var text = cleanHallGuideText(value, 4000)
+  if (!text) return ''
+  return /[。！？；]$/.test(text) ? text : text + '。'
+}
+
+function singleHallGuideClause(value) {
+  return cleanHallGuideText(value, 255)
+    .replace(/[。！？!?；;]+/g, '，')
+    .replace(/，{2,}/g, '，')
+    .replace(/[，,：:、；;\s]+$/, '')
+}
+
+function buildWelcomeMessage(hallSlug, hallName, hallDescription, hallCardDescription) {
+  var name = cleanHallGuideText(hallName, 255)
+  var summary = hallCardDescription || hallData.resolveHallCardDescription(
+    { description: hallDescription },
+    hallSlug,
+    hallDescription
+  )
+  summary = singleHallGuideClause(summary)
+  var first = summary
+    ? (name
+        ? '欢迎来到' + name + '，' + (/^这里/.test(summary) ? summary : '这里' + summary)
+        : summary)
+    : (name ? '欢迎来到' + name : '欢迎进入展厅')
+  var start = '先选一件展品或一处遗迹，告诉我你注意到的一个细节。'
+  return finishHallGuideSentence(first) + '\n' + finishHallGuideSentence(start)
+}
+
+function refreshLegacyWelcome(messages, welcomeMessage) {
+  var list = Array.isArray(messages) ? messages.slice() : []
+  if (!list.length) {
+    return [{ id: 1, role: 'assistant', content: welcomeMessage, ttsStatus: 'idle' }]
+  }
+  var first = list[0]
+  if (
+    first && first.role === 'assistant' &&
+    String(first.content || '').indexOf('让 MuseAI 帮你整理观察重点') >= 0
+  ) {
+    list[0] = Object.assign({}, first, { content: welcomeMessage, ttsStatus: 'idle' })
+  }
+  return list
 }
 
 function hallChatSignature(messages) {
@@ -230,6 +275,8 @@ Page({
   _skipContextSyncOnce: false,
   _pageHallSlug: null,
   _pageHallName: '',
+  _pageHallDescription: '',
+  _pageHallFocus: '',
   _pageLocalTourId: null,
   _pageOwnedChatSig: '',
   _renderedHallSlug: null,
@@ -283,8 +330,14 @@ Page({
     var stateHallSlug = state.currentHall ? banpoHalls.normalizeHallToSlug(state.currentHall) : null
     var hallName = hallNameFromQuery || (stateHallSlug === hallSlug ? state.currentHallName : '') ||
       (hallSlug ? banpoHalls.getHallDisplayName(hallSlug) : null)
+    var hallDescription = stateHallSlug === hallSlug ? (state.currentHallDescription || '') : ''
+    var hallCardDescription = stateHallSlug === hallSlug ? (state.currentHallCardDescription || '') : ''
+    var hallFocus = stateHallSlug === hallSlug ? (state.currentHallFocus || '') : ''
     this._pageHallSlug = hallSlug
     this._pageHallName = hallName || this.data.hallName
+    this._pageHallDescription = hallDescription
+    this._pageHallCardDescription = hallCardDescription
+    this._pageHallFocus = hallFocus
     this._pageLocalTourId = state.localTourId || null
     this._renderedHallSlug = hallSlug
 
@@ -318,24 +371,34 @@ Page({
     tourSync.queueSessionSnapshot({}, { defer: true, maxAttempts: 3 })
     if (freshEntry) {
       var cachedMessages = hallSlug ? tourStore.getHallChatMessages(hallSlug) : []
-      var messagesForPage = cachedMessages.length
-        ? cachedMessages
-        : [{ id: 1, role: 'assistant', content: buildWelcomeMessage(hallSlug, hallName), ttsStatus: 'idle' }]
+      var welcomeMessage = buildWelcomeMessage(hallSlug, hallName, hallDescription, hallCardDescription)
+      var messagesForPage = refreshLegacyWelcome(cachedMessages, welcomeMessage)
       chatStore.setMessages(messagesForPage)
       patch.messages = messagesForPage
-      if (!cachedMessages.length && hallSlug) {
+      if (hallSlug && hallChatSignature(messagesForPage) !== hallChatSignature(cachedMessages)) {
         tourStore.saveHallChatMessages(hallSlug, messagesForPage, { defer: true })
       }
     } else {
       var cachedDeepDiveMessages = hallSlug ? tourStore.getHallChatMessages(hallSlug) : []
       if (cachedDeepDiveMessages.length) {
-        chatStore.setMessages(cachedDeepDiveMessages)
-        patch.messages = cachedDeepDiveMessages
+        var refreshedDeepDiveMessages = refreshLegacyWelcome(
+          cachedDeepDiveMessages,
+          buildWelcomeMessage(hallSlug, hallName, hallDescription, hallCardDescription)
+        )
+        chatStore.setMessages(refreshedDeepDiveMessages)
+        patch.messages = refreshedDeepDiveMessages
+        if (
+          hallSlug &&
+          hallChatSignature(refreshedDeepDiveMessages) !== hallChatSignature(cachedDeepDiveMessages)
+        ) {
+          tourStore.saveHallChatMessages(hallSlug, refreshedDeepDiveMessages, { defer: true })
+        }
       } else {
         var storedMessages = !hallSlug ? chatStore.getState().messages : []
-        var welcomeForDeepDive = storedMessages && storedMessages.length
-          ? storedMessages
-          : [{ id: 1, role: 'assistant', content: buildWelcomeMessage(hallSlug, hallName), ttsStatus: 'idle' }]
+        var welcomeForDeepDive = refreshLegacyWelcome(
+          storedMessages,
+          buildWelcomeMessage(hallSlug, hallName, hallDescription, hallCardDescription)
+        )
         chatStore.setMessages(welcomeForDeepDive)
         patch.messages = welcomeForDeepDive
         if (hallSlug) tourStore.saveHallChatMessages(hallSlug, welcomeForDeepDive, { defer: true })
@@ -366,6 +429,17 @@ Page({
     }
 
     var payloadMessages = hallMessagesFromResumePayload(info.payload, hallSlug)
+    if (payloadMessages && payloadMessages.length) {
+      payloadMessages = refreshLegacyWelcome(
+        payloadMessages,
+        buildWelcomeMessage(
+          hallSlug,
+          hallName,
+          this._pageHallDescription,
+          this._pageHallCardDescription
+        )
+      )
+    }
     var ownedMessages = payloadMessages && payloadMessages.length
       ? tourStore.saveHallChatMessages(hallSlug, payloadMessages)
       : tourStore.getHallChatMessages(hallSlug)
@@ -471,15 +545,28 @@ Page({
     var shouldScrollToBottom = false
     if (hallChanged) {
       var cachedMessages = tourStore.getHallChatMessages(hallSlug)
-      var messagesForPage = cachedMessages.length
-        ? cachedMessages
-        : [{ id: 1, role: 'assistant', content: buildWelcomeMessage(hallSlug, hallName), ttsStatus: 'idle' }]
+      var hallDescription = state.currentHall === hallSlug
+        ? (state.currentHallDescription || this._pageHallDescription || '')
+        : ''
+      var hallFocus = state.currentHall === hallSlug
+        ? (state.currentHallFocus || this._pageHallFocus || '')
+        : ''
+      var hallCardDescription = state.currentHall === hallSlug
+        ? (state.currentHallCardDescription || this._pageHallCardDescription || '')
+        : ''
+      this._pageHallDescription = hallDescription
+      this._pageHallCardDescription = hallCardDescription
+      this._pageHallFocus = hallFocus
+      var messagesForPage = refreshLegacyWelcome(
+        cachedMessages,
+        buildWelcomeMessage(hallSlug, hallName, hallDescription, hallCardDescription)
+      )
       chatStore.setMessages(messagesForPage)
       this._pageOwnedChatSig = hallChatSignature(messagesForPage)
       patch.messages = messagesForPage
       shouldScrollToBottom = !!messagesForPage.length
       wx.setNavigationBarTitle({ title: hallName })
-      if (!cachedMessages.length) {
+      if (hallChatSignature(messagesForPage) !== hallChatSignature(cachedMessages)) {
         tourStore.saveHallChatMessages(hallSlug, messagesForPage, { defer: true })
       }
       this._renderedHallSlug = hallSlug

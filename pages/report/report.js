@@ -1,10 +1,8 @@
 const api       = require('../../api/index')
 const tourStore = require('../../store/tour')
-const banpoHalls = require('../../constants/banpo-halls')
 const preload = require('../../utils/preload')
 const tourSync = require('../../utils/tour-sync')
 const tourSession = require('../../utils/tour-session')
-const hallData = require('../../utils/hall-data')
 const eventFlush = require('../../utils/event-flush')
 
 const THEME_TITLES = {
@@ -36,23 +34,6 @@ function unique(list) {
     out.push(value)
   })
   return out
-}
-
-function hallDisplay(slug) {
-  return slug ? banpoHalls.getHallDisplayName(slug) : ''
-}
-
-function buildVisitedHallCards(halls, hallNameMap) {
-  var names = hallNameMap || {}
-  return unique(halls || []).map(function (slug) {
-    var normalized = banpoHalls.normalizeHallToSlug(slug)
-    return {
-      name: names[normalized] || hallDisplay(normalized) || slug,
-      note: '',
-    }
-  }).filter(function (item) {
-    return !!item.name
-  })
 }
 
 function normalizeBackendRecordNotes(data) {
@@ -90,22 +71,74 @@ function buildStats(data) {
   }
 }
 
-function normalizeReflection(reflection) {
-  if (!reflection || typeof reflection !== 'object') return null
-  var initial = cleanText(reflection.initial_assumption)
-  var observed = cleanText(reflection.observed_focus)
-  var changed = cleanText(reflection.change_summary)
-  if (!initial && !observed && !changed) return null
-  return {
-    initial_assumption: initial,
-    observed_focus: observed,
-    change_summary: changed,
+var LOW_VALUE_GUIDANCE_PATTERN = /有效互动较少|暂时不生成|无法生成|暂无(?:足够)?(?:互动|信息|内容)|信息不足|测试数据|真实数据|数据接入|后续上线|接口|后端|前端/i
+
+function meaningfulGuidanceText(value) {
+  var text = cleanText(value)
+  if (!text || LOW_VALUE_GUIDANCE_PATTERN.test(text)) return ''
+  return text
+}
+
+var GUIDANCE_MAX_LENGTH = 30
+
+function finishGuidanceText(value) {
+  var text = cleanText(value).replace(/[，,：:、；;\s]+$/, '')
+  if (!text) return ''
+  if (/[。！？!?]$/.test(text)) return text
+  return text.length < GUIDANCE_MAX_LENGTH ? text + '。' : text
+}
+
+// Keep one complete, concrete action. Old multi-card prose is rejected instead
+// of being clipped into a vague fragment such as "围绕这个问题".
+function compactGuidanceSuggestion(value) {
+  var text = meaningfulGuidanceText(value)
+  if (!text) return ''
+  if (text.length <= GUIDANCE_MAX_LENGTH) return finishGuidanceText(text)
+  return ''
+}
+
+function buildGuidanceFallback(data) {
+  var payload = data || {}
+  var questionCount = Math.max(0, Number(payload.total_questions || 0))
+  var exhibitCount = Math.max(0, Number(payload.total_exhibits_viewed || 0))
+  var suggestion = ''
+  if (exhibitCount === 0) {
+    suggestion = '先选一件展品，观察材质、纹样或使用痕迹。'
+  } else if (questionCount === 0) {
+    suggestion = '回到最感兴趣的展品前，从一个可见细节开始提问。'
+  } else {
+    suggestion = '把最感兴趣的一次回答与展品细节对照核实。'
   }
+  return { title: '下一步怎么看', suggestion: suggestion }
+}
+
+function normalizeExplorationGuidance(data) {
+  var payload = data || {}
+  var raw = payload.exploration_guidance
+  if (!raw || typeof raw !== 'object') return buildGuidanceFallback(payload)
+
+  var candidates = [raw.next_step || raw.nextStep]
+  ;(Array.isArray(raw.actions) ? raw.actions : []).slice(0, 3).forEach(function (action) {
+    if (!action || typeof action !== 'object') return
+    candidates.push(action.description || action.summary)
+    candidates.push(action.question)
+  })
+  candidates.push(raw.summary)
+  for (var i = 0; i < candidates.length; i++) {
+    var suggestion = compactGuidanceSuggestion(candidates[i])
+    if (suggestion) return { title: '下一步怎么看', suggestion: suggestion }
+  }
+  return buildGuidanceFallback(payload)
 }
 
 function buildHighlights(data) {
   return Array.isArray(data && data.highlights)
-    ? data.highlights.map(cleanText).filter(Boolean).slice(0, 4)
+    ? data.highlights
+      .map(cleanText)
+      .filter(function (item) {
+        return item && !/到访\s*\d*\s*个?展厅|展厅到访/.test(item)
+      })
+      .slice(0, 4)
     : []
 }
 
@@ -126,23 +159,18 @@ Page({
       duration: '-',
     },
 
-    visitedHallCards: [],
-    reflection: null,
+    explorationGuidance: null,
     dataNotice: '',
     highlights: [],
     recordNotes: [],
   },
 
   _reportTimer: null,
-  _hallNameMap: null,
-  _lastVisitedHallSlugs: null,
 
   onLoad: function () {
     tourStore.markCurrentPage('pages/report/report')
     tourStore.summarizeStoredHallRecords()
     preload.preloadPages(['/pages/home/home', '/pages/hall/hall'], 120)
-    preload.preloadImages(preload.HALL_ICON_ASSETS, 160)
-    this._loadHallCatalog()
     var liveDuration = tourStore.getLiveDurationMinutes ? tourStore.getLiveDurationMinutes() : null
     var loadingStats = Object.assign({}, this.data.stats, {
       duration: formatDuration(liveDuration),
@@ -192,30 +220,6 @@ Page({
         self._applyUnavailable('游览状态同步失败，请检查网络后重试。', true)
         return null
       })
-  },
-
-  _loadHallCatalog: function () {
-    var self = this
-    api.tourApi.getHalls().then(function (res) {
-      if (!res || !res.ok || !res.data) return
-      var list = Array.isArray(res.data)
-        ? res.data
-        : (res.data.halls || res.data.items || [])
-      self._applyHallCatalog(list)
-    }).catch(function (err) {
-      console.warn('[report] structured hall names unavailable; keeping static fallback', err)
-    })
-  },
-
-  _applyHallCatalog: function (halls) {
-    var names = hallData.buildHallNameMap(halls)
-    if (!Object.keys(names).length) return
-    this._hallNameMap = names
-    if (this._lastVisitedHallSlugs) {
-      this.setData({
-        visitedHallCards: buildVisitedHallCards(this._lastVisitedHallSlugs, names),
-      })
-    }
   },
 
   onUnload: function () {
@@ -268,7 +272,6 @@ Page({
 
   _mapReportData: function (data, notice) {
     var payload = data || {}
-    this._lastVisitedHallSlugs = payload.halls_visited || []
     var title = tourStore.getReportThemeTitle()
       || THEME_TITLES[payload.report_theme]
       || '半坡游览报告'
@@ -281,8 +284,7 @@ Page({
       reportTitle: title,
       persona: tourStore.getPersonaLabel() || this.data.persona || '',
       stats: buildStats(payload),
-      visitedHallCards: buildVisitedHallCards(this._lastVisitedHallSlugs, this._hallNameMap),
-      reflection: normalizeReflection(payload.reflection),
+      explorationGuidance: normalizeExplorationGuidance(payload),
       dataNotice: notice || '',
       highlights: buildHighlights(payload),
       recordNotes: normalizeBackendRecordNotes(payload),
@@ -308,8 +310,7 @@ Page({
         messages: '0',
         duration: '-',
       },
-      visitedHallCards: [],
-      reflection: null,
+      explorationGuidance: null,
       highlights: [],
       recordNotes: [],
     })
@@ -322,7 +323,8 @@ Page({
     wx.reLaunch({ url: '/pages/home/home' })
   },
 
-  shareReport: function () {
-    wx.showToast({ title: '分享功能即将上线', icon: 'none' })
+  continueExploring: function () {
+    wx.redirectTo({ url: '/pages/hall/hall' })
   },
+
 })

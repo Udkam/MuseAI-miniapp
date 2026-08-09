@@ -1,33 +1,44 @@
 .detail {
   min-height: 100vh;
+  background: #F8F3EA;
 }
 
 .exhibit-img-wrap {
-  display: flex;
-  justify-content: center;
+  display: block;
   margin-bottom: 32rpx;
 }
 
-.exhibit-img-placeholder {
-  width: 280rpx;
-  height: 280rpx;
-  background: linear-gradient(135deg, #FFF9F1 0%, #E7D8C5 100%);
-  border: 2rpx solid #E6D8C6;
-  border-radius: 28rpx;
-  display: flex;
-  align-items: center;
-  justify-content: center;
+.exhibit-img {
+  width: 100%;
+  height: 420rpx;
+  display: block;
+  background: #E6D8C6;
+  border: 2rpx solid #D8C8B4;
+  box-sizing: border-box;
 }
 
-.exhibit-img-icon {
-  font-size: 112rpx;
-  line-height: 1;
+.exhibit-img.is-default {
+  object-fit: contain;
+  padding: 96rpx;
+  background: #F3EADD;
+}
+
+.image-caption {
+  display: flex;
+  justify-content: space-between;
+  color: #A85732;
+  font-size: 18rpx;
+  font-weight: 700;
+  letter-spacing: 2rpx;
+  padding: 12rpx 0;
+  border-bottom: 2rpx solid #E6D8C6;
 }
 
 .exhibit-name {
   font-size: 44rpx;
   font-weight: 700;
   color: #3F2A1D;
+  font-family: 'Songti SC', 'STSong', serif;
   display: block;
   margin-bottom: 20rpx;
 }
@@ -41,21 +52,39 @@
 .tag {
   font-size: 24rpx;
   color: #7C6654;
-  background: #E7D8C5;
+  background: #F3EADD;
   padding: 8rpx 20rpx;
-  border-radius: 100rpx;
+  border-radius: 2rpx;
 }
 
 .tag-hall {
-  background: #A8573222;
+  background: #E7D8C5;
   color: #A85732;
+}
+
+.detail-section-heading {
+  display: grid;
+  grid-template-columns: 46rpx 1fr;
+  gap: 14rpx;
+  align-items: baseline;
+  border-bottom: 2rpx solid #E6D8C6;
+  padding-bottom: 12rpx;
+  margin-bottom: 18rpx;
+}
+
+.detail-section-index {
+  color: #A85732;
+  font-size: 19rpx;
+  font-weight: 700;
+  letter-spacing: 2rpx;
 }
 
 .section-title {
   font-size: 28rpx;
   font-weight: 600;
   display: block;
-  margin-bottom: 16rpx;
+  color: #3F2A1D;
+  margin-bottom: 0;
 }
 
 .desc-text {

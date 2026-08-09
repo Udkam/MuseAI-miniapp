@@ -82,7 +82,11 @@ var PERSONA_MAP = {
 
 Object.keys(PERSONA_MAP).forEach(function (key) {
   var item = PERSONA_MAP[key]
-  if (item.iconKey) item.iconSrc = '/assets/icons/' + item.iconKey + '.png'
+  if (item.iconKey) {
+    var useVector = item.iconKey === 'persona-historian'
+    item.iconSrc = '/assets/icons/' + item.iconKey + (useVector ? '.svg' : '.png')
+    item.iconFallbackSrc = useVector ? '/assets/icons/' + item.iconKey + '.png' : ''
+  }
 })
 
 Page({
@@ -120,6 +124,14 @@ Page({
   _preloadNext: function () {
     preload.preloadPages(['/pages/route/route', '/pages/hall/hall'], 120)
     preload.preloadImages(preload.HALL_ICON_ASSETS.concat(preload.TOUR_ICON_ASSETS), 160)
+  },
+
+  onPersonaIconError: function () {
+    var persona = this.data.persona
+    if (!persona || !persona.iconFallbackSrc || persona.iconSrc === persona.iconFallbackSrc) return
+    this.setData({
+      persona: Object.assign({}, persona, { iconSrc: persona.iconFallbackSrc }),
+    })
   },
 
   goHall: function () {

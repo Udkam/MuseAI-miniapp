@@ -34,8 +34,8 @@ function _durationSummary(steps) {
     if (Number.isFinite(minutes) && minutes > 0) knownMinutes += minutes
     else unknownCount += 1
   })
-  if (!knownMinutes) return '待馆方数据'
-  if (unknownCount) return '已知约 ' + knownMinutes + ' 分钟'
+  if (!knownMinutes) return '以现场安排为准'
+  if (unknownCount) return '约 ' + knownMinutes + ' 分钟起'
   return '约 ' + knownMinutes + ' 分钟'
 }
 
@@ -66,7 +66,7 @@ Page({
     floorItems: [],
     totalDesc: '',
     personaLabel: '默认导览',
-    tagline: '当前展示开放展厅目录；真实地图、动线与时长待馆方数据接入。',
+    tagline: '按馆内标识选择下一处展厅。',
     stepsCount: 0,
     routeSource: 'hall-directory-v2',
     routeSourceLabel: '开放展厅目录',
@@ -147,14 +147,14 @@ Page({
       floorItems: _buildFloorItems(steps),
       totalDesc: steps.length ? _durationSummary(steps) : '-',
       personaLabel: (personaDef && personaDef.name) || tourStore.getPersonaLabel() || '默认导览',
-      tagline: '当前仅按开放展厅目录展示，不把旧人格顺序当作真实参观路线。',
+      tagline: '按馆内标识选择下一处展厅。',
       routeSource: usingCatalog ? 'hall-directory-v2' : 'unavailable',
       routeSourceLabel: usingCatalog ? '开放展厅目录' : '目录暂不可用',
-      planSummary: usingCatalog ? '展厅名称和简介来自馆方目录；地图、动线与时长字段待真实数据。' : '',
+      planSummary: usingCatalog ? '按展厅目录逐项查看简介。' : '',
       routeNotice: usingCatalog
         ? (!steps.length
           ? '当前没有可用的开放展厅'
-          : '真实地图、动线与展厅时长尚未接入，可按现场位置自由选择展厅')
+          : '')
         : '展厅目录暂不可用，请稍后重试',
       loaded: true,
     }

@@ -288,6 +288,9 @@ function normalizeExhibit(raw) {
   var cachedHallName = REMOTE_HALL_SLUG_NAMES[slug.toLowerCase()] || ''
   var name = raw.name || raw.title || '未知展品'
   if (!isDisplayableExhibitName(name)) return null
+  var imageUrl = req.resolvePublicAssetUrl(
+    raw.image_url || raw.imageUrl || raw.cover_url || raw.coverUrl || ''
+  )
   return {
     id:                raw.id                   || '',
     name:              name,
@@ -299,6 +302,7 @@ function normalizeExhibit(raw) {
     description:       raw.description          || raw.summary || raw.desc || '',
     floor:             raw.floor                || null,
     estimatedVisitTime: raw.estimated_visit_time || null,
+    imageUrl:           imageUrl,
     suggestedQuestions: (Array.isArray(raw.suggested_questions)
       ? raw.suggested_questions
       : (Array.isArray(raw.suggestions) ? raw.suggestions : (Array.isArray(raw.guide_suggestions) ? raw.guide_suggestions : [])))

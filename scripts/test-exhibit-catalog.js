@@ -74,6 +74,23 @@ async function run() {
   assert.strictEqual(nameWithoutSlug.hall, '', 'hall_name must never be promoted into a machine slug')
   assert.strictEqual(nameWithoutSlug.hallDisplay, '仅有显示名称的专题厅')
 
+  const uploadedImage = api.normalizeExhibit(Object.assign(rawExhibit(903), {
+    image_url: '/api/v1/exhibits/00000000-0000-4000-8000-000000000903/image',
+  }))
+  assert.strictEqual(
+    uploadedImage.imageUrl,
+    'https://api.banpo-museai.xyz/api/v1/exhibits/00000000-0000-4000-8000-000000000903/image',
+    'root-relative uploaded images should use the active API origin'
+  )
+  const importedImage = api.normalizeExhibit(Object.assign(rawExhibit(904), {
+    image_url: 'https://museum.example.org/images/object-904.webp',
+  }))
+  assert.strictEqual(importedImage.imageUrl, 'https://museum.example.org/images/object-904.webp')
+  const unsafeImage = api.normalizeExhibit(Object.assign(rawExhibit(905), {
+    image_url: 'javascript:alert(1)',
+  }))
+  assert.strictEqual(unsafeImage.imageUrl, '', 'unsupported image schemes must fall back locally')
+
   const paginationCalls = []
   const all205 = []
   for (let i = 0; i < 205; i++) all205.push(rawExhibit(i))
@@ -152,6 +169,9 @@ async function run() {
   )
   assert.ok(page.data.exhibits.some(function (item) { return item.name === '半坡人' }), 'a legitimate imported exhibit must not be hidden by a client-side name blacklist')
   assert.ok(page.data.exhibits.every(function (item) { return !item.isLocalFallback }), 'real catalogs must never mix local fallback exhibits')
+  page.data.exhibits[0] = Object.assign({}, page.data.exhibits[0], { imageUrl: 'https://museum.example.org/broken.jpg' })
+  page.onExhibitImageError({ currentTarget: { dataset: { id: page.data.exhibits[0].id } } })
+  assert.strictEqual(page.data.exhibits[0].imageUrl, '', 'a failed list thumbnail should switch to the bundled default image')
   const matches = await page._enhancedSearch('动态陶盆')
   assert.deepStrictEqual(matches.map(function (item) { return item.name }), ['馆方动态陶盆'])
   assert.ok(page._candidatePool().every(function (item) { return item.hall === 'new-special-hall' }), 'photo candidates must preserve dynamic backend hall slugs')
@@ -217,6 +237,10 @@ async function run() {
   await Promise.resolve()
   assert.strictEqual(cachedDetailPage.data.loadError, false)
   assert.strictEqual(cachedDetailPage.data.exhibit.description, cachedDetail.description, 'same-UUID cached real data may be used when detail GET fails')
+  cachedDetailPage.setData({ exhibitImageSrc: 'https://museum.example.org/broken.jpg', usingDefaultImage: false })
+  cachedDetailPage.onExhibitImageError()
+  assert.strictEqual(cachedDetailPage.data.exhibitImageSrc, '/assets/icons/exhibit-list-item.png')
+  assert.strictEqual(cachedDetailPage.data.usingDefaultImage, true)
 
   const localDetailPage = makePage(pageConfig)
   localDetailPage.onLoad({ local: '1', name: encodeURIComponent('人面鱼纹盆') })

@@ -296,3 +296,91 @@
   flex-shrink: 0;
   line-height: 1.4;
 }
+
+/* Image-aware catalogue layout */
+.scan { background: #F8F3EA; }
+
+.scan-header { padding: 20rpx 0 28rpx; }
+
+.scan-title {
+  font-family: 'Songti SC', 'STSong', serif;
+  color: #3F2A1D;
+}
+
+.search-bar {
+  min-height: 88rpx;
+  background: #FFF9F1;
+  border-color: #D8C8B4;
+  border-radius: 2rpx;
+}
+
+.search-clear {
+  width: 88rpx;
+  height: 88rpx;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: -16rpx -28rpx -16rpx 0;
+  padding: 0;
+}
+
+.scan-action-card {
+  background: #F3EADD;
+  border-color: #E6D8C6;
+  border-radius: 2rpx;
+}
+
+.scan-photo-btn {
+  height: 88rpx;
+  line-height: 88rpx;
+  border-radius: 2rpx;
+  background: #3F2A1D;
+}
+
+.scan-result-card { border-radius: 2rpx; }
+
+.scan-result-image {
+  width: 100%;
+  height: 260rpx;
+  display: block;
+  background: #E6D8C6;
+  border: 2rpx solid #E6D8C6;
+  margin-bottom: 20rpx;
+  box-sizing: border-box;
+}
+
+.scan-result-image.is-default {
+  padding: 64rpx;
+  background: #F3EADD;
+}
+
+.exhibit-list { gap: 0; }
+
+.exhibit-card {
+  min-height: 144rpx;
+  background: #FFF9F1;
+  border-bottom: 2rpx solid #E6D8C6;
+  border-radius: 0;
+  padding: 24rpx 16rpx;
+}
+
+.exhibit-card-icon-img {
+  width: 104rpx;
+  height: 104rpx;
+  border-radius: 2rpx;
+  background: #E6D8C6;
+  border-color: #E6D8C6;
+}
+
+.exhibit-card-icon-img.is-default {
+  padding: 22rpx;
+  box-sizing: border-box;
+  background: #F3EADD;
+}
+
+.exhibit-card-name { color: #3F2A1D; }
+
+.etag {
+  background: #F3EADD;
+  border-radius: 2rpx;
+}

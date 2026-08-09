@@ -254,7 +254,7 @@ Page({
         if (!res || !res.ok) {
           const code = res && res.code
           if (code === 'OCR_NOT_CONFIGURED' || code === 'OCR_UNAVAILABLE') {
-            self.setData({ scanNotice: '当前环境未配置 OCR 服务，可先用文字搜索展品。' })
+            self.setData({ scanNotice: '暂时无法识别照片，请使用文字搜索展品。' })
           }
           throw new Error(code || 'OCR_FAILED')
         }
@@ -307,6 +307,27 @@ Page({
       exhibits: list,
       empty: false,
       scanNotice: '已匹配到最接近的展品。',
+    })
+  },
+
+  onExhibitImageError: function (event) {
+    var id = event && event.currentTarget && event.currentTarget.dataset.id
+    var list = (this.data.exhibits || []).slice()
+    var index = list.findIndex(function (item) { return item && item.id === id })
+    if (index < 0 || !list[index].imageUrl) return
+    list[index] = Object.assign({}, list[index], { imageUrl: '' })
+    if (Array.isArray(this._cachedAll)) {
+      this._cachedAll = this._cachedAll.map(function (item) {
+        return item && item.id === id ? Object.assign({}, item, { imageUrl: '' }) : item
+      })
+    }
+    this.setData({ exhibits: list })
+  },
+
+  onScanResultImageError: function () {
+    if (!this.data.scanResult || !this.data.scanResult.imageUrl) return
+    this.setData({
+      scanResult: Object.assign({}, this.data.scanResult, { imageUrl: '' }),
     })
   },
 
@@ -371,9 +392,7 @@ Page({
       empty: matches.length === 0,
       scanResult: null,
       scanNotice: '',
-      dataNotice: self._fallbackCatalogActive
-        ? '当前搜索结果来自带有本地标记的开发兜底数据。'
-        : '',
+      dataNotice: self._fallbackCatalogActive ? '搜索服务暂不可用，请稍后重试。' : '',
     })
     return Promise.resolve(matches)
   },

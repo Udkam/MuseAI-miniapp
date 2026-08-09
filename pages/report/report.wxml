@@ -12,15 +12,14 @@
 <view class="page-wrap report">
 
   <view class="report-header">
-    <text class="report-badge-icon">📜</text>
+    <view class="archive-label">
+      <text>本次参观记录</text>
+    </view>
     <text class="report-title">{{reportTitle}}</text>
+    <text wx:if="{{persona}}" class="report-persona">观察身份 · {{persona}}</text>
   </view>
 
   <view class="stats-grid">
-    <view class="stat-item">
-      <text class="stat-num">{{stats.halls}}</text>
-      <text class="stat-label text-muted">展厅</text>
-    </view>
     <view class="stat-item">
       <text class="stat-num">{{stats.exhibits}}</text>
       <text class="stat-label text-muted">展品</text>
@@ -35,34 +34,13 @@
     </view>
   </view>
 
-  <view wx:if="{{visitedHallCards.length > 0}}" class="card">
-    <text class="section-label text-clay text-bold">到访展厅</text>
-    <view class="hall-card-list">
-      <view wx:for="{{visitedHallCards}}" wx:key="name" class="hall-summary-row">
-        <text class="hall-summary-name">{{item.name}}</text>
-        <text wx:if="{{item.note}}" class="hall-summary-note">{{item.note}}</text>
-      </view>
-    </view>
+  <view wx:if="{{explorationGuidance}}" class="guidance-section">
+    <text class="guidance-title">{{explorationGuidance.title}}</text>
+    <text class="guidance-tip">{{explorationGuidance.suggestion}}</text>
   </view>
 
-  <view wx:if="{{reflection}}" class="card reflection-card">
-    <text class="section-label text-clay text-bold">复盘线索</text>
-    <view class="reflection-row">
-      <text class="reflection-label">关注点</text>
-      <text class="reflection-text">{{reflection.initial_assumption}}</text>
-    </view>
-    <view class="reflection-row">
-      <text class="reflection-label">核对点</text>
-      <text class="reflection-text">{{reflection.observed_focus}}</text>
-    </view>
-    <view class="reflection-row">
-      <text class="reflection-label">追问点</text>
-      <text class="reflection-text">{{reflection.change_summary}}</text>
-    </view>
-  </view>
-
-  <view wx:if="{{recordNotes.length > 0 || highlights.length > 0}}" class="card compact-card">
-    <text class="section-label text-clay text-bold">记录摘要</text>
+  <view wx:if="{{recordNotes.length > 0 || highlights.length > 0}}" class="record-section">
+    <view class="record-heading">记录摘要</view>
     <view wx:if="{{recordNotes.length > 0}}" class="record-note-list">
       <view wx:for="{{recordNotes}}" wx:key="question" class="record-note">
         <text class="record-point" selectable="true" user-select="true">{{item.point}}</text>
@@ -81,7 +59,7 @@
   </view>
 
   <view class="report-actions">
-    <button class="btn-primary" bindtap="shareReport">分享报告</button>
+    <button class="btn-primary" bindtap="continueExploring">继续探索</button>
     <button class="btn-secondary" style="margin-top:20rpx;" bindtap="goHome">返回首页</button>
   </view>
 

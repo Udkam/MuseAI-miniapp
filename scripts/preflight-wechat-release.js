@@ -52,6 +52,19 @@ const SYNTAX_FILES = [
   'pages/report/report.js',
 ]
 
+const VECTOR_ICON_FILES = [
+  'hall-basic.svg',
+  'hall-site.svg',
+  'hall-kiln.svg',
+  'hall-workshop.svg',
+  'hall-girl.svg',
+  'hall-education.svg',
+  'hall-peony.svg',
+  'hall-temp-one.svg',
+  'hall-temp-two.svg',
+  'persona-historian.svg',
+]
+
 function walk(dir, out) {
   if (!fs.existsSync(dir)) return out
   fs.readdirSync(dir, { withFileTypes: true }).forEach(function (entry) {
@@ -215,7 +228,15 @@ function checkMuseumCatalogAuthorityBoundary() {
   assert.strictEqual(/exhibitsApi\.search\(/.test(scanJs), false, 'search and photo matching must use the already-authoritative catalog')
   assert.strictEqual(/listByHall:[\s\S]{0,300}limit:\s*50/.test(apiJs), false, 'hall exhibit listing must not retain a fixed 50-item truncation')
   assert.ok(/_remoteHallCatalogAuthoritative/.test(hallJs), 'hall page must distinguish successful empty catalogs from request fallback')
-  assert.ok(/function buildWelcomeMessage\([^)]*hallName[^)]*\)[\s\S]{0,220}欢迎来到/.test(tourPageJs), 'production tour welcome must use the backend hall name')
+  assert.ok(/shortDescription:[\s\S]{0,260}description:[\s\S]{0,260}exhibitCount:/.test(hallJs), 'hall refresh signature must include short copy, full description and exhibit count')
+  assert.ok(/_loadHallData\(forceRefresh\)/.test(hallJs), 'hall page must refetch the catalog after returning from temporary-hall maintenance')
+  assert.ok(
+    /function buildWelcomeMessage\([^)]*hallName[^)]*hallDescription[^)]*hallCardDescription[^)]*\)[\s\S]{0,1200}先选一件展品或一处遗迹/.test(tourPageJs),
+    'production tour welcome must use the trusted hall name and concise card description with a concrete start hint'
+  )
+  assert.ok(/currentHallDescription:\s*hall\.desc/.test(hallJs), 'hall selection must retain the backend hall description')
+  assert.ok(/currentHallCardDescription:\s*hall\.cardDesc/.test(hallJs), 'hall selection must retain visitor-facing short copy')
+  assert.strictEqual(tourPageJs.indexOf('不把其他展厅的内容混进来'), -1, 'visitor welcome must not expose an internal isolation rule')
   assert.strictEqual(/ENABLE_DEV_HALL_WELCOME_COPY/.test(tourPageJs), false, 'production tour must not retain a dead bundled-welcome feature flag')
   assert.strictEqual(/HALL_WELCOME_COPY/.test(tourPageJs), false, 'production tour must not retain bundled hall welcome facts')
   assert.ok(/var HALL_SLUG_NAMES\s*=\s*Object\.assign\(\{\},\s*banpoHalls\.HALL_SLUG_NAMES\)/.test(apiJs), 'API hall slug compatibility mapping must come from the shared catalogue')
@@ -246,10 +267,27 @@ function checkSuggestionAuthorityBoundary() {
   assert.strictEqual(/ENABLE_DEV_HALL_SUGGESTIONS/.test(tourStoreJs), false, 'tour store must not retain a dead bundled-suggestion feature flag')
   assert.strictEqual(/_HALL_SUGGEST_TEMPLATES/.test(tourStoreJs), false, 'tour store must not retain bundled hall suggestion facts')
   assert.ok(/buildServerGuideSuggestions\(/.test(tourPageJs), 'tour suggestion chips must be built from backend response strings')
+  assert.ok(/text\.length < 8 \|\| text\.length > 18/.test(tourStoreJs), 'suggestions must keep the 8–18 character frontend boundary')
+  assert.ok(/!\/\[？\?\]\$\/\.test\(text\)/.test(tourStoreJs), 'suggestions must end with a question mark')
   assert.ok(/var sessionReady[\s\S]{0,220}tourSession\.ensureTourSession\(\)/.test(tourPageJs), 'page-first suggestion loading must join the shared guest-session bootstrap')
   assert.strictEqual(/tourStore\.generateGuideSuggestions\(/.test(tourPageJs), false, 'tour runtime must not pre-show bundled suggestion templates')
   assert.strictEqual(/exhibitsApi\.listByHall\(/.test(tourPageJs), false, 'tour runtime must not replace failed backend suggestions with exhibit-derived static chips')
   assert.ok(/catch\(function \(err\) \{[\s\S]{0,220}_applyGuideSuggestions\(\[\]\)/.test(tourPageJs), 'failed suggestion requests must clear the suggestion bar')
+}
+
+function checkVectorIconAssets() {
+  VECTOR_ICON_FILES.forEach(function (name) {
+    const relative = 'assets/icons/' + name
+    const full = path.join(ROOT, relative)
+    assert.ok(fs.existsSync(full), relative + ' must be packaged')
+    const svg = fs.readFileSync(full, 'utf8')
+    assert.ok(/<svg[^>]+viewBox="0 0 128 128"/.test(svg), relative + ' must use the shared 128-unit viewBox')
+  })
+  const halls = read('constants/banpo-halls.js')
+  const persona = read('pages/persona-reveal/persona-reveal.js')
+  assert.ok(/hall\.iconSrc = '[^']*' \+ hall\.iconKey \+ '\.svg'/.test(halls), 'hall visual defaults must use vector assets')
+  assert.ok(/iconFallbackSrc = '[^']*' \+ hall\.iconKey \+ '\.png'/.test(halls), 'hall vector assets must retain PNG fallback paths')
+  assert.ok(/persona-historian'[\s\S]{0,700}\.svg/.test(persona), 'historian persona must use its vector source')
 }
 
 function checkTtsPlaybackBoundary() {
@@ -378,6 +416,7 @@ function main() {
   checkMuseumCatalogAuthorityBoundary()
   checkEventBatchBoundary()
   checkSuggestionAuthorityBoundary()
+  checkVectorIconAssets()
   checkTtsPlaybackBoundary()
   checkLegacyAuthCleanup()
   checkSyntax()

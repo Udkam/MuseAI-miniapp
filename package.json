@@ -14,7 +14,8 @@
     "test:tts-audio": "node scripts/test-tts-audio.js",
     "test:event-flush": "node scripts/test-event-flush.js",
     "test:exhibit-catalog": "node scripts/test-exhibit-catalog.js",
+    "test:ui-copy": "node scripts/test-ui-copy.js",
     "test:preflight": "node scripts/preflight-wechat-release.js",
-    "test:all": "npm run test:markdown && npm run test:suggestions && npm run test:hall-data && npm run test:route-data && npm run test:exhibit-catalog && npm run test:page-first && npm run test:hall-chat && npm run test:report && npm run test:resume && npm run test:stream && npm run test:tour-sync && npm run test:tour-chat-recovery && npm run test:tts-audio && npm run test:event-flush && npm run test:preflight"
+    "test:all": "npm run test:markdown && npm run test:suggestions && npm run test:hall-data && npm run test:route-data && npm run test:exhibit-catalog && npm run test:page-first && npm run test:hall-chat && npm run test:report && npm run test:resume && npm run test:stream && npm run test:tour-sync && npm run test:tour-chat-recovery && npm run test:tts-audio && npm run test:event-flush && npm run test:ui-copy && npm run test:preflight"
   }
 }

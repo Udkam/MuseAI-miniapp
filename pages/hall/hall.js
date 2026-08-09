@@ -6,6 +6,21 @@ const tourSync = require('../../utils/tour-sync')
 const hallData = require('../../utils/hall-data')
 const tourSession = require('../../utils/tour-session')
 
+function hallCatalogSignature(list) {
+  return JSON.stringify((Array.isArray(list) ? list : []).map(function (item) {
+    return {
+      slug: item.slug || item.hall_slug || item.id || '',
+      name: item.name || item.title || '',
+      shortDescription: item.short_description || item.shortDescription || '',
+      cardDescription: item.card_description || item.cardDescription || '',
+      description: item.description || item.desc || '',
+      exhibitCount: item.exhibit_count !== undefined ? item.exhibit_count : item.exhibitCount,
+      active: item.is_active !== undefined ? item.is_active : item.active,
+      iconSrc: item.icon_src || item.iconSrc || '',
+    }
+  }))
+}
+
 Page({
   data: {
     halls: [],
@@ -61,7 +76,9 @@ Page({
   onShow: function () {
     tourStore.markCurrentPage('pages/hall/hall')
     if (this._remoteHallCatalogAuthoritative || this._hallLoadFailed) this._refresh()
-    this._loadHallData()
+    var forceRefresh = this._hasShownOnce === true
+    this._hasShownOnce = true
+    this._loadHallData(forceRefresh)
   },
 
   onUnload: function () {
@@ -87,11 +104,11 @@ Page({
     })
   },
 
-  _loadHallData: function () {
-    if (this._hallDataLoading || this._remoteHalls) return
+  _loadHallData: function (forceRefresh) {
+    if (this._hallDataLoading || (!forceRefresh && this._remoteHalls)) return
     var self = this
     this._hallDataLoading = true
-    api.tourApi.getHalls().then(function (res) {
+    return api.tourApi.getHalls().then(function (res) {
       self._hallDataLoading = false
       if (!res || !res.ok) throw new Error('hall catalog request failed')
       var list = Array.isArray(res.data)
@@ -103,9 +120,7 @@ Page({
       self._remoteHalls = list
       self._remoteHallCatalogAuthoritative = true
       self._hallLoadFailed = false
-      self._remoteHallSignature = list.map(function (item) {
-        return [item.slug || item.hall_slug || item.id || '', item.name || item.title || ''].join(':')
-      }).join('|')
+      self._remoteHallSignature = hallCatalogSignature(list)
       self.setData({ loading: false })
       self._refresh()
     }).catch(function (err) {
@@ -151,6 +166,16 @@ Page({
     preload.preloadImages(preload.TOUR_ICON_ASSETS, 160)
   },
 
+  onHallIconError: function (event) {
+    var index = Number(event && event.currentTarget && event.currentTarget.dataset.index)
+    var hall = Array.isArray(this.data.halls) ? this.data.halls[index] : null
+    if (!hall || !hall.iconFallbackSrc || hall.iconSrc === hall.iconFallbackSrc) return
+    var key = 'halls[' + index + '].iconSrc'
+    var patch = {}
+    patch[key] = hall.iconFallbackSrc
+    this.setData(patch)
+  },
+
   selectHall: function (e) {
     if (this._entering) return
     var self = this
@@ -161,6 +186,9 @@ Page({
     tourStore.updateTourState({
       currentHall: hallSlug,
       currentHallName: hall.name || '',
+      currentHallDescription: hall.desc || '',
+      currentHallCardDescription: hall.cardDesc || '',
+      currentHallFocus: hall.focus || '',
       status: 'touring',
     }, { deferPersist: true })
 

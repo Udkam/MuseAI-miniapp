@@ -25,6 +25,7 @@ global.wx = {
     if (options && options.complete) options.complete({ errMsg: 'navigateTo:ok' })
   },
   redirectTo: function () { actions.push('navigate') },
+  showToast: function () {},
   nextTick: function (callback) { callback() },
   request: function (options) {
     actions.push('request')
@@ -58,9 +59,27 @@ function nextTurn() {
   return new Promise(function (resolve) { setTimeout(resolve, 0) })
 }
 
+function saveCompletedConversation(store, hall, prefix) {
+  var slug = hall || 'basic-exhibition-hall'
+  var key = prefix || slug
+  store.updateTourState({ currentHall: slug, currentPage: 'pages/tour/tour' })
+  store.saveHallChatMessages(slug, [
+    { id: key + '-u1', role: 'user', content: '这件展品有哪些可观察的细节？' },
+    { id: key + '-a1', role: 'assistant', content: '先看材质、形制和使用痕迹。' },
+  ])
+}
+
 async function run() {
   require('../pages/home/home')
   const homeConfig = capturedPage
+  tourStore.createLocalTourState({ interestType: 'B', persona: 'B', assumption: 'A', personaId: 'B' })
+  tourStore.setTourSession({ sessionId: 'empty-home-session', sessionToken: 'empty-home-token' })
+  tourStore.setQuestionnaireDraft({ step: 2, selectedFocusId: 'study' })
+  tourStore.updateTourState({ currentHall: 'basic-exhibition-hall', currentPage: 'pages/hall/hall' })
+  const emptyHome = pageInstance(homeConfig)
+  emptyHome.onShow()
+  assert.strictEqual(emptyHome.data.hasTourSession, false, 'session, hall, timer and questionnaire state without chat history must not show resume')
+
   const home = pageInstance(homeConfig)
   actions.length = 0
   home.goQuickStart()
@@ -127,6 +146,7 @@ async function run() {
   tourStore.createLocalTourState({ interestType: 'B', persona: 'B', assumption: 'A', personaId: 'B' })
   tourStore.setOnboardingExtras({ focusId: 'study', guideModeId: 'notebook' })
   tourStore.setTourSession({ sessionId: 'invalid-resume-session', sessionToken: 'wrong-token' })
+  saveCompletedConversation(tourStore, 'basic-exhibition-hall', 'invalid-resume')
   api.tourApi.getSession = function () {
     return Promise.resolve({ ok: false, status: 403, data: { detail: 'Invalid session token' } })
   }
@@ -154,6 +174,7 @@ async function run() {
   tourStore.createLocalTourState({ interestType: 'B', persona: 'B', assumption: 'A', personaId: 'B' })
   tourStore.setTourSession({ sessionId: 'resume-source-session', sessionToken: 'resume-source-token' })
   tourStore.updateTourState({ currentHall: 'basic-exhibition-hall', currentPage: 'pages/tour/tour' })
+  saveCompletedConversation(tourStore, 'basic-exhibition-hall', 'source-owned')
   const sourceLocalTourId = tourStore.getTourState().localTourId
   deferRequests = true
   deferNavigationComplete = true
@@ -206,6 +227,7 @@ async function run() {
   tourStore.createLocalTourState({ interestType: 'B', persona: 'B', assumption: 'A', personaId: 'B' })
   tourStore.setTourSession({ sessionId: 'navigation-first-session', sessionToken: 'navigation-first-token' })
   tourStore.updateTourState({ currentHall: 'kiln-hall', currentPage: 'pages/tour/tour' })
+  saveCompletedConversation(tourStore, 'kiln-hall', 'navigation-first')
   pendingRequests.length = 0
   pendingNavigations.length = 0
   actions.length = 0
@@ -219,8 +241,8 @@ async function run() {
   assert.strictEqual(pendingRequests.length, 1, 'navigation completion must not unlock a duplicate background GET')
   assert.strictEqual(actions.filter(function (item) { return item === 'navigate' }).length, 1)
   const ownedActivity = {
-    lastActiveAt: '2026-08-08T01:02:03.000Z',
-    expiresAt: '2026-08-09T01:02:03.000Z',
+    lastActiveAt: new Date(Date.now() - 60 * 1000).toISOString(),
+    expiresAt: new Date(Date.now() + 3 * 60 * 60 * 1000).toISOString(),
   }
   const resumedPageUpdates = []
   currentPages = [{
@@ -284,6 +306,7 @@ async function run() {
   tourStore.createLocalTourState({ interestType: 'B', persona: 'B', assumption: 'A', personaId: 'B' })
   tourStore.setTourSession({ sessionId: 'questionnaire-source-session', sessionToken: 'questionnaire-source-token' })
   tourStore.updateTourState({ currentHall: 'basic-exhibition-hall', currentPage: 'pages/tour/tour' })
+  saveCompletedConversation(tourStore, 'basic-exhibition-hall', 'questionnaire-source')
   let resolveQuestionnaireResume = null
   api.tourApi.getSession = function () {
     return new Promise(function (resolve) { resolveQuestionnaireResume = resolve })
@@ -316,6 +339,7 @@ async function run() {
   tourStore.createLocalTourState({ interestType: 'B', persona: 'B', assumption: 'A', personaId: 'B' })
   tourStore.setTourSession({ sessionId: 'old-generation-session', sessionToken: 'old-generation-token' })
   tourStore.updateTourState({ currentHall: 'kiln-hall', currentPage: 'pages/tour/tour' })
+  saveCompletedConversation(tourStore, 'kiln-hall', 'old-generation')
   const oldResumeLocalTourId = tourStore.getTourState().localTourId
   let resolveOldGenerationResume = null
   api.tourApi.getSession = function () {
@@ -417,7 +441,6 @@ async function run() {
   const recoveredHome = pageInstance(capturedPage)
   recoveredHome.onShow()
   assert.strictEqual(recoveredHome.data.hasTourSession, true, 'the home page must expose a recoverable local snapshot')
-  assert.strictEqual(recoveredHome.data.resumeIsDraft, false, 'full tour recovery is distinct from questionnaire-only recovery')
 
   const recoveredTourSync = require('../utils/tour-sync')
   const syncBeforeTokenRecovery = recoveredTourSync.queueSessionSnapshot

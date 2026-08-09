@@ -1,14 +1,14 @@
 <view class="page-wrap reveal" wx:if="{{persona}}">
   <view class="reveal-shell">
     <view class="reveal-heading">
-      <text class="reveal-kicker">MuseAI 已生成</text>
+      <text class="reveal-kicker">MuseAI 已整理完成</text>
       <text class="reveal-title">你的导览身份</text>
     </view>
 
     <view class="pass-card" style="border-color: {{persona.color}};">
       <view class="pass-head">
         <view class="persona-mark" style="background-color: {{persona.color}};">
-          <image wx:if="{{persona.iconSrc}}" class="persona-icon-img" src="{{persona.iconSrc}}" mode="aspectFit"></image>
+          <image wx:if="{{persona.iconSrc}}" class="persona-icon-img" src="{{persona.iconSrc}}" mode="aspectFit" binderror="onPersonaIconError"></image>
           <text wx:else class="persona-icon">{{persona.icon}}</text>
         </view>
         <view class="pass-title-block">
@@ -30,7 +30,7 @@
     <view class="route-card">
       <view class="route-card-head">
         <text class="route-title">接下来这样逛</text>
-        <text class="route-sub">路线、提问和报告都会按这个视角组织</text>
+        <text class="route-sub">提问和报告会按这个视角组织</text>
       </view>
 
       <view class="route-track">
@@ -54,13 +54,13 @@
 
     <view class="next-flow">
       <view class="flow-item">
-        <text class="flow-label">先看路线</text>
-        <text class="flow-desc">确认参观顺序</text>
+        <text class="flow-label">先看展厅</text>
+        <text class="flow-desc">选择参观区域</text>
       </view>
       <view class="flow-divider"></view>
       <view class="flow-item">
-        <text class="flow-label">再选展厅</text>
-        <text class="flow-desc">从现场位置开始</text>
+        <text class="flow-label">再到现场</text>
+        <text class="flow-desc">从眼前展品开始</text>
       </view>
       <view class="flow-divider"></view>
       <view class="flow-item">
@@ -73,7 +73,7 @@
       <button
         class="btn-primary reveal-cta"
         bindtap="goHall"
-      >查看个性化路线 →</button>
+      >查看展厅列表 →</button>
     </view>
   </view>
 </view>

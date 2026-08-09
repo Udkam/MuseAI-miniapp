@@ -9,8 +9,8 @@
   <view hidden="{{step !== 1}}" class="step-panel">
     <view class="ob-header">
       <text class="ob-kicker">入场档案 1/3</text>
-      <text class="ob-title">今天你最希望？</text>
-      <text class="ob-hint">MuseAI 会据此安排路线和回答角度。</text>
+      <text class="ob-title">今天最想从哪里开始？</text>
+      <text class="ob-hint">MuseAI 会据此调整讲解角度。</text>
     </view>
 
     <view class="option-grid">
@@ -112,7 +112,7 @@
     <view class="creating-panel">
       <view class="creating-spinner"></view>
       <text class="creating-title">正在创建导览…</text>
-      <text class="creating-subtitle">MuseAI 正在整理你的路线</text>
+      <text class="creating-subtitle">MuseAI 正在整理你的讲解方式</text>
     </view>
   </view>
 

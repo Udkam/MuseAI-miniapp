@@ -11,6 +11,21 @@ const DEFAULT_TIMEOUT   = 10000
 const DEFAULT_RETRIES   = 2
 const DEFAULT_BASE_DELAY = 150
 
+const API_ORIGIN = BASE_URL.replace(/\/api\/v1\/?$/, '')
+
+/**
+ * Resolve a public backend media path without accepting arbitrary schemes.
+ * Imported exhibit images are absolute HTTPS URLs; uploaded images use a
+ * root-relative /api/v1/... path served by the same API origin.
+ */
+function resolvePublicAssetUrl(value) {
+  const raw = String(value || '').trim()
+  if (!raw) return ''
+  if (/^https:\/\//i.test(raw)) return raw
+  if (raw.indexOf('/') === 0) return API_ORIGIN + raw
+  return ''
+}
+
 const HTTP_ERRORS = {
   400: '请求参数有误',
   401: '导览会话无效',
@@ -148,4 +163,4 @@ function del(path, options) {
   return request(path, Object.assign({}, options, { method: 'DELETE' }))
 }
 
-module.exports = { request, get, post, patch, del }
+module.exports = { request, get, post, patch, del, resolvePublicAssetUrl }

@@ -9,8 +9,10 @@ const ENABLE_DEV_MOCK_EXHIBITS = false
 
 var DEFAULT_EXHIBIT = {
   id: '', name: '', category: '展品', objectKind: '展品', era: '',
-  hall: '', hallDisplay: '', description: '',
+  hall: '', hallDisplay: '', description: '', imageUrl: '',
 }
+
+var DEFAULT_EXHIBIT_IMAGE = '/assets/icons/exhibit-list-item.png'
 
 function reportableExhibitId(exhibit) {
   var id = tourStore.normalizeBackendExhibitUuid
@@ -62,6 +64,8 @@ Page({
     loading: true,
     loadError: false,
     errorMessage: '',
+    exhibitImageSrc: DEFAULT_EXHIBIT_IMAGE,
+    usingDefaultImage: true,
   },
 
   _enterAt: 0,
@@ -160,7 +164,15 @@ Page({
 
   _showExhibit: function (exhibit) {
     var self = this
-    self.setData({ exhibit: exhibit, loading: false, loadError: false, errorMessage: '' }, function () {
+    var imageUrl = exhibit && exhibit.imageUrl ? exhibit.imageUrl : ''
+    self.setData({
+      exhibit: exhibit,
+      exhibitImageSrc: imageUrl || DEFAULT_EXHIBIT_IMAGE,
+      usingDefaultImage: !imageUrl,
+      loading: false,
+      loadError: false,
+      errorMessage: '',
+    }, function () {
       self._recordExhibitView(exhibit, null, 'detail_enter')
     })
     wx.setNavigationBarTitle({ title: exhibit.name || '展品详情' })
@@ -184,6 +196,16 @@ Page({
       loading: false,
       loadError: true,
       errorMessage: '馆方展品资料暂不可用，请返回后重试。',
+      exhibitImageSrc: DEFAULT_EXHIBIT_IMAGE,
+      usingDefaultImage: true,
+    })
+  },
+
+  onExhibitImageError: function () {
+    if (this.data.usingDefaultImage) return
+    this.setData({
+      exhibitImageSrc: DEFAULT_EXHIBIT_IMAGE,
+      usingDefaultImage: true,
     })
   },
 

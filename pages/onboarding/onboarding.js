@@ -304,7 +304,7 @@ Page({
     var assumption = this._findAssumption(this.data.selectedAssumptionId) || DEFAULT_ASSUMPTION
     var rhythm = useDefaultPersona ? {
       id: 'default',
-      title: '默认体验',
+      title: '默认讲解',
       prompt: '',
       answerLength: 'balanced',
       depth: 'standard',

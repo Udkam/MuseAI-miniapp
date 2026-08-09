@@ -34,6 +34,7 @@ page {
 .reveal-title {
   display: block;
   color: #241712;
+  font-family: 'Songti SC', 'STSong', serif;
   font-size: 38rpx;
   font-weight: 700;
   line-height: 1.25;
@@ -44,10 +45,10 @@ page {
   width: 100%;
   background: #FFFBF5;
   border: 3rpx solid #A85732;
-  border-radius: 26rpx;
+  border-radius: 4rpx;
   padding: 30rpx 30rpx 26rpx;
   box-sizing: border-box;
-  box-shadow: 0 16rpx 34rpx rgba(61, 43, 26, 0.06);
+  box-shadow: none;
   flex-shrink: 0;
 }
 
@@ -60,7 +61,7 @@ page {
 .persona-mark {
   width: 96rpx;
   height: 96rpx;
-  border-radius: 28rpx;
+  border-radius: 2rpx;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -139,7 +140,8 @@ page {
   margin-top: 22rpx;
   width: 100%;
   background: #F3EADD;
-  border-radius: 24rpx;
+  border: 2rpx solid #E6D8C6;
+  border-radius: 4rpx;
   padding: 24rpx 26rpx;
   box-sizing: border-box;
   flex-shrink: 0;
@@ -178,7 +180,7 @@ page {
   flex: 1;
   min-width: 0;
   background: #FFFBF5;
-  border-radius: 18rpx;
+  border-radius: 2rpx;
   padding: 16rpx 8rpx;
   display: flex;
   flex-direction: column;
@@ -242,7 +244,7 @@ page {
   width: 100%;
   background: #FFFBF5;
   border: 2rpx solid #EAD9C2;
-  border-radius: 20rpx;
+  border-radius: 4rpx;
   padding: 18rpx 20rpx;
   box-sizing: border-box;
   display: flex;
@@ -292,6 +294,6 @@ page {
 }
 
 .bottom-action .reveal-cta {
-  border-radius: 16rpx;
-  box-shadow: 0 12rpx 24rpx rgba(61, 43, 26, 0.16);
+  border-radius: 6rpx;
+  box-shadow: none;
 }

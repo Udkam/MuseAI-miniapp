@@ -67,9 +67,25 @@ reloadTourStore()
 assert.strictEqual(tourStore.getTourState().sessionId, 'fresh-session', 'fresh session cache should hydrate')
 assert.strictEqual(tourStore.getTourHeader()['X-Session-Token'], 'fresh-token', 'fresh session token should hydrate')
 assert.strictEqual(tourStore.hasResumableTourSession(), true, 'a fresh guest session should be resumable before the first AI turn')
+assert.strictEqual(tourStore.hasResumableConversation(), false, 'an empty guest session must not show the home resume entry')
 storage[storageUtil.KEYS.TOUR_AI_CONVERSATION_COUNT] = 5
 reloadTourStore()
 assert.strictEqual(tourStore.hasResumableTourSession(), true, 'session with five AI turns should show resume entry')
+tourStore.saveHallChatMessages('basic-exhibition-hall', [
+  { id: 'stopped-u1', role: 'user', content: '请介绍这件陶器？' },
+  { id: 'stopped-a1', role: 'assistant', content: '（已停止）' },
+])
+assert.strictEqual(tourStore.hasResumableConversation(), false, 'a stop marker must not count as a completed assistant answer')
+tourStore.saveHallChatMessages('basic-exhibition-hall', [
+  { id: 'partial-u1', role: 'user', content: '请介绍这件陶器？' },
+  { id: 'partial-a1', role: 'assistant', content: '这件陶器用于测试（已停止）' },
+])
+assert.strictEqual(tourStore.hasResumableConversation(), false, 'a partial answer ending in the stop marker must remain incomplete')
+tourStore.saveHallChatMessages('basic-exhibition-hall', [
+  { id: 'resume-u1', role: 'user', content: '彩陶纹样有什么规律？' },
+  { id: 'resume-a1', role: 'assistant', content: '先比较人面纹与鱼纹的组合位置。' },
+])
+assert.strictEqual(tourStore.hasResumableConversation(), true, 'a completed stored exchange should enable the home resume entry')
 
 resetStorage()
 storage[storageUtil.KEYS.TOUR_SESSION_ID] = 'expired-session'
@@ -134,21 +150,106 @@ HALLS.forEach(function (hall) {
 })
 
 const backendSuggestions = tourStore.buildServerGuideSuggestions([
-  '馆方自定义：请观察新导入展品的材质差异。',
-  '馆方自定义：这条建议只存在于服务端。',
+  '陶盆口沿有哪些磨损？',
+  '石器刃部痕迹有何不同？',
 ])
 assert.deepStrictEqual(
   backendSuggestions.map(function (item) { return item.payload.prompt }),
-  ['馆方自定义：请观察新导入展品的材质差异。', '馆方自定义：这条建议只存在于服务端。'],
-  'backend suggestion text must pass through without replacement by static hall templates'
+  ['陶盆口沿有哪些磨损？', '石器刃部痕迹有何不同？'],
+  'contentful backend suggestion text must pass through without replacement by static hall templates'
+)
+assert.deepStrictEqual(
+  backendSuggestions.map(function (item) { return item.title }),
+  ['陶盆口沿有哪些磨损？', '石器刃部痕迹有何不同？'],
+  'suggestion chips must display each accepted short question in full without frontend ellipsis'
 )
 assert.deepStrictEqual(tourStore.buildServerGuideSuggestions(null), [], 'missing backend suggestions must keep the bar empty')
 assert.deepStrictEqual(tourStore.buildServerGuideSuggestions(['', null, 123]), [], 'malformed backend suggestions must keep the bar empty')
 assert.deepStrictEqual(
-  tourStore.buildServerGuideSuggestions(['建议1', '建议2', '建议3', '建议4', '建议5', '建议6', '建议7'])
+  tourStore.buildServerGuideSuggestions([
+    '陶器口沿哪里有磨损？',
+    '看看石器哪里最锋利？',
+    '柱洞是怎么建成的？',
+    '这件陶器怎么使用？',
+    '彩陶纹样哪里在重复？',
+    '骨器和石器用途相同吗？',
+    '陶窑里面怎么烧陶器？',
+  ])
     .map(function (item) { return item.payload.prompt }),
-  ['建议1', '建议2', '建议3', '建议4', '建议5', '建议6'],
+  [
+    '陶器口沿哪里有磨损？',
+    '看看石器哪里最锋利？',
+    '柱洞是怎么建成的？',
+    '这件陶器怎么使用？',
+    '彩陶纹样哪里在重复？',
+    '骨器和石器用途相同吗？',
+  ],
   'the horizontal suggestion bar should preserve the backend contract of up to six trusted suggestions'
+)
+assert.deepStrictEqual(
+  tourStore.buildServerGuideSuggestions([
+    '眼前这些内容可以怎样理解？',
+    '眼前这些展品可以怎样理解？',
+    '这是一条测试数据吗？',
+    '真实数据接入后会如何替换？',
+    '这个展厅最值得先看什么？',
+    '这里有哪些可以直接观察的证据？',
+    '这些材料反映了怎样的史前生活？',
+    '馆方自定义：这条建议只存在于服务端。',
+  ]),
+  [],
+  'maintenance, test and unanchored vague suggestions must never reach the visitor'
+)
+assert.deepStrictEqual(
+  tourStore.buildServerGuideSuggestions(['陶罐口沿磨损']),
+  [],
+  'a suggestion without a Chinese or ASCII question mark must be rejected'
+)
+assert.deepStrictEqual(
+  tourStore.buildServerGuideSuggestions(['陶罐口沿磨损？']),
+  [],
+  'a seven-character question remains below the visitor-chip minimum'
+)
+assert.strictEqual(tourStore.buildServerGuideSuggestions(['陶罐口沿有磨损？']).length, 1, 'the eight-character boundary must remain valid')
+const targetLengthSuggestion = '尖底瓶口沿磨损' + '痕'.repeat(15 - '尖底瓶口沿磨损'.length) + '？'
+assert.strictEqual(targetLengthSuggestion.length, 16)
+assert.strictEqual(
+  tourStore.buildServerGuideSuggestions([targetLengthSuggestion]).length,
+  1,
+  'a production-target 16-character suggestion must remain valid'
+)
+const maxLengthSuggestion = targetLengthSuggestion.slice(0, -1) + '迹象？'
+assert.strictEqual(maxLengthSuggestion.length, 18)
+assert.strictEqual(tourStore.buildServerGuideSuggestions([maxLengthSuggestion]).length, 1, 'the 18-character boundary must remain valid')
+const overMaxSuggestion = maxLengthSuggestion.slice(0, -1) + '痕？'
+assert.deepStrictEqual(
+  tourStore.buildServerGuideSuggestions([overMaxSuggestion]),
+  [],
+  'a 19-character suggestion must be rejected by the mini-program boundary'
+)
+assert.deepStrictEqual(
+  tourStore.buildServerGuideSuggestions([
+    '观察彩陶盆口沿的磨损，能否判断它在不同生活场景中的具体使用方式？',
+    '从考古类型学与地层学角度比较这些陶器的年代关系？',
+  ]),
+  [],
+  'old overlong backend suggestions are expected to leave the bar empty during a staggered deployment; they must not be truncated into chips'
+)
+assert.deepStrictEqual(
+  tourStore.buildServerGuideSuggestions([
+    '比较两件石器的刃部形制？',
+    '出土层位能说明什么？',
+    '怎样建立完整证据链？',
+    '纹样与用途有什么对应关系？',
+  ]),
+  [],
+  'academic terminology must be rejected until the backend rewrites it as visitor-friendly questions'
+)
+assert.deepStrictEqual(
+  tourStore.buildServerGuideSuggestions(['彩陶盆纹样画了什么？'])
+    .map(function (item) { return item.payload.prompt }),
+  ['彩陶盆纹样画了什么？'],
+  'a concrete exhibit anchor should preserve a legitimate interpretation question'
 )
 
 resetTour('default', '基本陈列展厅')
@@ -234,10 +335,50 @@ async function verifyTourPageSuggestionBoundary() {
   delete require.cache[require.resolve('../pages/tour/tour')]
   require('../pages/tour/tour')
   assert.ok(tourPageConfig, 'tour page config should load for suggestion runtime checks')
-  assert.ok(
-    tourPageConfig._buildWelcomeMessage('kiln-hall', '馆方更名后的陶窑专题厅').indexOf('欢迎来到馆方更名后的陶窑专题厅') === 0,
-    'production welcome copy must use the backend hall name even for a known canonical slug'
+  const kilnWelcome = tourPageConfig._buildWelcomeMessage(
+    'kiln-hall',
+    '馆方更名后的陶窑专题厅',
+    '本厅展示馆方导入的陶窑专题资料。',
+    '讲解陶器制坯、装饰与入窑烧成。'
   )
+  const temporaryWelcome = tourPageConfig._buildWelcomeMessage(
+    'temporary-hall-1',
+    '馆方临时专题厅',
+    '本期围绕馆方新近整理的专题内容展开。',
+    '集中呈现当期专题展览的主题内容。'
+  )
+  assert.ok(kilnWelcome.indexOf('欢迎来到馆方更名后的陶窑专题厅，这里讲解陶器制坯、装饰与入窑烧成。') === 0)
+  assert.strictEqual(kilnWelcome.indexOf('本厅展示馆方导入的陶窑专题资料'), -1, 'welcome must not repeat the long hall description')
+  assert.ok(kilnWelcome.indexOf('先选一件展品或一处遗迹') >= 0, 'welcome should offer one concrete data-independent starting action')
+  assert.ok(temporaryWelcome.indexOf('欢迎来到馆方临时专题厅，这里集中呈现当期专题展览的主题内容。') === 0)
+  assert.notStrictEqual(kilnWelcome, temporaryWelcome, 'different trusted hall rows must produce different welcome content')
+  const dynamicWelcome = tourPageConfig._buildWelcomeMessage(
+    'current-hall',
+    '当前展厅',
+    '本厅介绍馆方当前开放的专题内容，并说明相关展项。',
+    '介绍馆方当前开放的专题内容。'
+  )
+  assert.ok(dynamicWelcome.indexOf('欢迎来到当前展厅，这里介绍馆方当前开放的专题内容。') === 0)
+  assert.strictEqual(dynamicWelcome.indexOf('并说明相关展项'), -1, 'dynamic halls should also prefer structured card copy')
+  const multiSentenceWelcome = tourPageConfig._buildWelcomeMessage(
+    'current-hall',
+    '当前展厅',
+    '不应使用的完整介绍。',
+    '先看房屋遗迹。再看墓葬位置！最后核对展签？'
+  )
+  assert.ok(
+    multiSentenceWelcome.indexOf('先看房屋遗迹，再看墓葬位置，最后核对展签。') >= 0,
+    'multi-sentence short copy should be joined into one coherent welcome sentence'
+  )
+  const unknownWelcome = tourPageConfig._buildWelcomeMessage('', '', '', '')
+  assert.ok(unknownWelcome.indexOf('可从现场展品与展签开始了解本厅。') === 0)
+  assert.strictEqual(unknownWelcome.indexOf('陶窑'), -1, 'missing hall data must not invent a known-hall fact')
+  ;[kilnWelcome, temporaryWelcome, dynamicWelcome, multiSentenceWelcome, unknownWelcome].forEach(function (message) {
+    assert.strictEqual(message.indexOf('不把其他展厅的内容混进来'), -1)
+    assert.strictEqual((message.match(/[。！？]/g) || []).length, 2, 'welcome must contain exactly two concise sentences')
+    assert.strictEqual(message.split('\n').length, 2, 'welcome should say what to see and how to start on separate lines')
+    assert.ok(message.indexOf('告诉我你注意到的一个细节') >= 0)
+  })
   const questionId = '1700000000000-question-stable'
   assert.strictEqual(tourPageConfig._assistantClientEventId(questionId), questionId + ':assistant')
   assert.ok(tourPageConfig._assistantClientEventId(questionId).length <= 120)
@@ -290,7 +431,7 @@ async function verifyTourPageSuggestionBoundary() {
       suggestionRequestCount += 1
       return Promise.resolve({
         ok: true,
-        data: { suggestions: ['馆方接口返回的动态建议'] },
+        data: { suggestions: ['陶盆口沿为什么会磨损？'] },
       })
     }
     page._loadSuggestions()
@@ -314,9 +455,24 @@ async function verifyTourPageSuggestionBoundary() {
     assert.strictEqual(suggestionRequestCount, 1, 'late guest-session success must trigger exactly one suggestions request')
     assert.deepStrictEqual(
       page.data.guideSuggestions.map(function (item) { return item.payload.prompt }),
-      ['馆方接口返回的动态建议'],
+      ['陶盆口沿为什么会磨损？'],
       'successful runtime suggestions must contain only backend response text'
     )
+
+    api.tourApi.getSuggestions = function () {
+      return Promise.resolve({
+        ok: true,
+        data: { suggestions: ['观察彩陶盆口沿的磨损，能否判断它在不同生活场景中的具体使用方式？'] },
+      })
+    }
+    page._loadSuggestions()
+    await new Promise(function (resolve) { originalSetTimeout(resolve, 60) })
+    assert.deepStrictEqual(
+      page.data.guideSuggestions,
+      [],
+      'old long suggestions may temporarily produce an empty bar until the short-copy backend is deployed'
+    )
+    assert.strictEqual(page.data.showSuggestions, false, 'an all-filtered old response should hide the empty container')
 
     console.warn = function () {}
     api.tourApi.getSuggestions = function () {

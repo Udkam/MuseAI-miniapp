@@ -11,7 +11,6 @@ Page({
     hasTourSession: false,
     resumeHallName: '',
     aiConversationCount: 0,
-    resumeIsDraft: false,
     starting:       false,  // debounce goQuickStart
     resuming:       false,
   },
@@ -23,22 +22,16 @@ Page({
 
   onShow: function () {
     var state = tourStore.getTourState()
-    var canResumeSession = tourStore.hasResumableTourSession(0)
-    var canRecoverSession = tourStore.hasRecoverableTourState
-      ? tourStore.hasRecoverableTourState()
+    var canResume = tourStore.hasResumableConversation
+      ? tourStore.hasResumableConversation()
       : false
-    var canResumeTour = canResumeSession || canRecoverSession
-    var draft = tourStore.getQuestionnaireDraft ? tourStore.getQuestionnaireDraft() : null
-    var canResumeDraft = !canResumeTour && resumeRoute.hasQuestionnaireDraft(draft)
-    var canResume = canResumeTour || canResumeDraft
-    var lastAnsweredHallName = canResumeTour && tourStore.getLastAnsweredHallDisplayName
+    var lastAnsweredHallName = canResume && tourStore.getLastAnsweredHallDisplayName
       ? tourStore.getLastAnsweredHallDisplayName()
       : ''
     this.setData({
       hasTourSession: canResume,
       resumeHallName: canResume ? lastAnsweredHallName : '',
       aiConversationCount: state.aiConversationCount || 0,
-      resumeIsDraft: canResumeDraft,
     })
     this._preloadNext()
   },
@@ -76,7 +69,7 @@ Page({
       focusPrompt:        '请按普通游客第一次参观的节奏，先建立整体印象，再给出最值得看的重点。',
       assumptionText:     '先不下判断，跟证据走',
       guideModeId:        'default',
-      guideModeTitle:     '默认体验',
+      guideModeTitle:     '默认讲解',
       guideModePrompt:    '用户是直接开始的游客，请用清晰、友好、不过度学术的方式讲重点。',
     })
 
@@ -196,15 +189,18 @@ Page({
 
   resumeTour: function () {
     if (this._resumeInFlight || this._resumeNavigationInFlight || this.data.resuming) return
+    var hasConversation = tourStore.hasResumableConversation
+      ? tourStore.hasResumableConversation()
+      : false
+    if (!hasConversation) {
+      this.setData({ hasTourSession: false })
+      wx.showToast({ title: '当前没有可继续的对话', icon: 'none' })
+      return
+    }
     var hasSession = tourStore.hasResumableTourSession(0)
     var canRecoverSession = tourStore.hasRecoverableTourState
       ? tourStore.hasRecoverableTourState()
       : false
-    var draft = tourStore.getQuestionnaireDraft ? tourStore.getQuestionnaireDraft() : null
-    if (!hasSession && !canRecoverSession && resumeRoute.hasQuestionnaireDraft(draft)) {
-      wx.navigateTo({ url: '/pages/onboarding/onboarding' })
-      return
-    }
     if (!hasSession && !canRecoverSession) {
       this.setData({ hasTourSession: false })
       wx.showToast({ title: '当前没有可继续的导览', icon: 'none' })

@@ -1,28 +1,11 @@
 <view class="page-wrap route-page" wx:if="{{loaded}}">
 
   <view class="route-header">
-    <view class="ai-badge">
-      <text class="ai-badge-text">{{routeSourceLabel}}</text>
-    </view>
-    <text class="route-title">开放展厅目录</text>
-    <text class="route-subtitle">先查看当前开放展厅；真实地图和参观动线将在馆方数据接入后生成。</text>
+    <text class="route-title">展厅列表</text>
     <text wx:if="{{routeNotice}}" class="route-notice">{{routeNotice}}</text>
   </view>
 
-  <view class="stats-row">
-    <view class="stat-block">
-      <text class="stat-label">目录总时长</text>
-      <text class="stat-value">{{totalDesc}}</text>
-    </view>
-    <view class="stat-sep"></view>
-    <view class="stat-block">
-      <text class="stat-label">当前人格</text>
-      <text class="stat-value">{{personaLabel}}</text>
-    </view>
-  </view>
-
   <view class="steps-section">
-    <text class="section-label">展厅列表</text>
     <view class="steps-list">
       <view
         wx:for="{{steps}}"
@@ -41,10 +24,6 @@
         </view>
 
         <view class="step-card step-card-upcoming">
-          <view class="step-status-badge step-status-badge-upcoming">
-            <text class="step-status-text step-status-text-upcoming">展厅 {{item.order}}</text>
-          </view>
-
           <view class="step-title-row">
             <text class="step-hall-name step-hall-name-upcoming">{{item.name}}</text>
             <text class="step-duration">{{item.duration}}</text>
@@ -53,11 +32,6 @@
           <view class="step-reason-block">
             <text class="step-reason-label">简介</text>
             <text class="step-reason-text">{{item.reason}}</text>
-          </view>
-
-          <view class="step-focus-row" wx:if="{{item.focus}}">
-            <text class="step-focus-label">重点关注</text>
-            <text class="step-focus-text">{{item.focus}}</text>
           </view>
 
           <view class="step-highlights">

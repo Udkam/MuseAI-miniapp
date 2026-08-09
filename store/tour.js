@@ -109,6 +109,9 @@ function _makeEmptyTour() {
     assumption:        null,
     currentHall:       null,
     currentHallName:   null,
+    currentHallDescription: null,
+    currentHallCardDescription: null,
+    currentHallFocus:  null,
     currentExhibitId:  null,
     currentExhibit:    null,   // transient exhibit focus; cleared when leaving the hall
     pendingDetailExhibit: null, // transient detail-page payload; not AI discussion context
@@ -215,6 +218,15 @@ function _hydrateTourStateSnapshot() {
   _tour.personaId = normalizePersonaId(_tour.personaId || _tour.persona)
   _tour.currentHall = _tour.currentHall ? _normalizeHallForStorage(_tour.currentHall) : null
   _tour.currentHallName = _tour.currentHallName ? String(_tour.currentHallName).slice(0, 255) : null
+  _tour.currentHallDescription = _tour.currentHallDescription
+    ? String(_tour.currentHallDescription).replace(/\s+/g, ' ').trim().slice(0, 4000)
+    : null
+  _tour.currentHallCardDescription = _tour.currentHallCardDescription
+    ? String(_tour.currentHallCardDescription).replace(/\s+/g, ' ').trim().slice(0, 255)
+    : null
+  _tour.currentHallFocus = _tour.currentHallFocus
+    ? String(_tour.currentHallFocus).replace(/\s+/g, ' ').trim().slice(0, 2000)
+    : null
   _tour.currentExhibitId = exhibitIds.normalizeBackendExhibitId(_tour.currentExhibitId)
   _tour.visitedHalls = _normalizeVisitedHalls(_tour.visitedHalls)
   _tour.visitedExhibitIds = _normalizeVisitedExhibitIds(_tour.visitedExhibitIds)
@@ -499,6 +511,7 @@ function _sanitizeHallChatMessage(message, index) {
   if (message.role === 'assistant') {
     item.traceId = message.traceId || null
     item.ttsStatus = 'idle'
+    if (message.isStopped || message.stopped) item.isStopped = true
   }
   return item
 }
@@ -714,6 +727,27 @@ function hasRecoverableTourState() {
     chatCache && chatCache.sessionId === _tour.detachedSessionId &&
     chatCache.halls && Object.keys(chatCache.halls).length
   )
+}
+
+/**
+ * A home-screen resume entry is useful only when the visitor has at least one
+ * completed user/assistant exchange. Session credentials, questionnaire
+ * progress, hall selection and timers alone are not conversation history.
+ */
+function hasResumableConversation() {
+  _hydrateStoredTour()
+  var hasUsableSession = hasResumableTourSession(0) || hasRecoverableTourState()
+  if (!hasUsableSession) return false
+
+  var cache = storage.get(STORAGE_KEYS.TOUR_HALL_CHATS, null)
+  if (!cache || !cache.halls || typeof cache.halls !== 'object') return false
+  var expectedSession = _tour.sessionId || _tour.detachedSessionId || 'local'
+  if (cache.sessionId !== expectedSession) return false
+
+  return Object.keys(cache.halls).some(function (hall) {
+    var record = cache.halls[hall]
+    return !!(record && _extractMessagePairs(record.messages).length)
+  })
 }
 
 /**
@@ -955,12 +989,45 @@ function applyServerResumeState(payload) {
  */
 function updateTourState(patch, options) {
   var opts = options || {}
+  var previousHall = _tour.currentHall
   if (patch && patch.currentHall !== undefined) {
     patch = Object.assign({}, patch, { currentHall: _normalizeHallForStorage(patch.currentHall) })
   }
   if (patch && patch.currentHallName !== undefined) {
     patch = Object.assign({}, patch, {
       currentHallName: patch.currentHallName ? String(patch.currentHallName).slice(0, 255) : null,
+    })
+  }
+  if (patch && patch.currentHallDescription !== undefined) {
+    patch = Object.assign({}, patch, {
+      currentHallDescription: patch.currentHallDescription
+        ? String(patch.currentHallDescription).replace(/\s+/g, ' ').trim().slice(0, 4000)
+        : null,
+    })
+  }
+  if (patch && patch.currentHallCardDescription !== undefined) {
+    patch = Object.assign({}, patch, {
+      currentHallCardDescription: patch.currentHallCardDescription
+        ? String(patch.currentHallCardDescription).replace(/\s+/g, ' ').trim().slice(0, 255)
+        : null,
+    })
+  }
+  if (patch && patch.currentHallFocus !== undefined) {
+    patch = Object.assign({}, patch, {
+      currentHallFocus: patch.currentHallFocus
+        ? String(patch.currentHallFocus).replace(/\s+/g, ' ').trim().slice(0, 2000)
+        : null,
+    })
+  }
+  if (
+    patch && patch.currentHall !== undefined && patch.currentHall !== previousHall &&
+    patch.currentHallDescription === undefined && patch.currentHallCardDescription === undefined &&
+    patch.currentHallFocus === undefined
+  ) {
+    patch = Object.assign({}, patch, {
+      currentHallDescription: null,
+      currentHallCardDescription: null,
+      currentHallFocus: null,
     })
   }
   if (patch && patch.currentExhibitId !== undefined) {
@@ -1442,6 +1509,12 @@ function _buildRecordSummaryPoint(hallName, questionText, answerText) {
   return parts.join('')
 }
 
+function _isStoppedAssistantMessage(message) {
+  if (!message || message.role !== 'assistant') return false
+  if (message.isStopped || message.stopped) return true
+  return /[（(]?已停止[）)]?[。.!！]?\s*$/.test(String(message.content || '').trim())
+}
+
 function _extractMessagePairs(messages) {
   var pairs = []
   var list = Array.isArray(messages) ? messages : []
@@ -1450,7 +1523,10 @@ function _extractMessagePairs(messages) {
     if (!msg || msg.role !== 'user' || !msg.content) continue
     var answer = ''
     for (var j = i + 1; j < list.length; j++) {
-      if (list[j].role === 'assistant' && !list[j].isError && list[j].content) {
+      if (
+        list[j].role === 'assistant' && !list[j].isError && list[j].content &&
+        !_isStoppedAssistantMessage(list[j])
+      ) {
         answer = list[j].content
         break
       }
@@ -1596,6 +1672,23 @@ function _decorateSuggestions(list) {
   return (list || []).map(_decorateSuggestion)
 }
 
+var _SUGGESTION_MAINTENANCE_PATTERN = /测试数据|测试展品|样例数据|示例数据|真实数据|数据接入|接入后|后续上线|上线后|待接入|占位|mock|接口返回|后端|前端|服务端|客户端|数据库|上传数据|馆方自定义/i
+var _SUGGESTION_CONTENT_ANCHOR_PATTERN = /半坡|房屋|墓葬|柱洞|口沿|刃部|磨损|陶|石器|骨器|工具|纹样|材质|用途|工艺|制作|烧制|出土|层位|展签|窑|壕沟|食物|生产|生活|形制|功能|证据/
+var _SUGGESTION_VAGUE_PATTERN = /眼前(?:这些)?内容|这些内容|相关内容|这部分内容|怎样理解|如何理解|怎么看待|可以聊聊什么|有什么可以了解/
+var _SUGGESTION_GENERIC_PATTERN = /^(?:这个|这座)?展厅(?:最)?值得(?:先)?(?:看|观察|记录)什么|^(?:眼前)?这些(?:内容|展品|器物|材料).*(?:怎样|怎么|如何)(?:理解|看待)|^(?:眼前)?这些(?:展品|器物|材料).*(?:有什么|有何)(?:意义|价值|联系)|^这里有哪些可以直接观察的证据|^哪些结论仍需要保留不确定性|^最值得记录的观察点是什么|^我可以怎样整理这段参观笔记|^这些材料反映了怎样的史前生活|^它与更大的历史问题有什么联系|^可以从哪些材料和制作痕迹观察|^这些细节可能对应什么用途/
+var _SUGGESTION_ACADEMIC_PATTERN = /形制|层位|证据链|对应关系/
+
+function _isMeaningfulServerSuggestion(value) {
+  var text = String(value || '').replace(/\s+/g, ' ').trim()
+  if (text.length < 8 || text.length > 18) return false
+  if (!/[？?]$/.test(text)) return false
+  if (_SUGGESTION_MAINTENANCE_PATTERN.test(text)) return false
+  if (_SUGGESTION_ACADEMIC_PATTERN.test(text)) return false
+  if (_SUGGESTION_GENERIC_PATTERN.test(text.replace(/[？?。！!]+$/, ''))) return false
+  if (_SUGGESTION_VAGUE_PATTERN.test(text) && !_SUGGESTION_CONTENT_ANCHOR_PATTERN.test(text)) return false
+  return true
+}
+
 /**
  * Convert trusted backend suggestion strings into guide-chip view models.
  * Invalid or empty payloads intentionally produce an empty bar.
@@ -1603,15 +1696,15 @@ function _decorateSuggestions(list) {
 function buildServerGuideSuggestions(values) {
   if (!Array.isArray(values)) return []
   var prompts = values.map(function (item) {
-    return typeof item === 'string' ? item.trim() : ''
-  }).filter(Boolean).slice(0, 6)
+    return typeof item === 'string' ? item.replace(/\s+/g, ' ').trim() : ''
+  }).filter(_isMeaningfulServerSuggestion).slice(0, 6)
 
   return _decorateSuggestions(prompts.map(function (prompt, index) {
     return {
       id: 'server-suggestion-' + index,
       type: 'observation_task',
       icon: '💬',
-      title: prompt.length > 18 ? prompt.slice(0, 18) + '…' : prompt,
+      title: prompt,
       actionType: 'ask',
       payload: { prompt: prompt },
     }
@@ -1757,6 +1850,7 @@ module.exports = {
   incrementAiConversationCount,
   hasResumableTourSession,
   hasRecoverableTourState,
+  hasResumableConversation,
   updateTourState,
   getTourState,
   clearTour,

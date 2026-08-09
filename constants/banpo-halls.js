@@ -92,7 +92,10 @@ var HALL_NAME_SLUGS = {}
 
 Object.keys(HALLS_MAP).forEach(function (id) {
   var hall = HALLS_MAP[id]
-  if (hall.iconKey) hall.iconSrc = '/assets/icons/' + hall.iconKey + '.png'
+  if (hall.iconKey) {
+    hall.iconSrc = '/assets/icons/' + hall.iconKey + '.svg'
+    hall.iconFallbackSrc = '/assets/icons/' + hall.iconKey + '.png'
+  }
   HALL_SLUG_NAMES[hall.backendSlug] = hall.name
   HALL_NAME_SLUGS[id] = hall.backendSlug
   HALL_NAME_SLUGS[hall.name] = hall.backendSlug

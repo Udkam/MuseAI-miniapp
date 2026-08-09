@@ -21,7 +21,7 @@
 .progress-dot {
   width: 44rpx;
   height: 8rpx;
-  border-radius: 999rpx;
+  border-radius: 0;
   background: #E8DCCB;
 }
 
@@ -44,12 +44,14 @@
   font-size: 23rpx;
   color: #B08060;
   margin-bottom: 12rpx;
+  letter-spacing: 2rpx;
 }
 
 .ob-title {
   font-size: 42rpx;
   font-weight: 700;
   color: #241712;
+  font-family: 'Songti SC', 'STSong', serif;
   display: block;
   line-height: 1.35;
 }
@@ -71,8 +73,8 @@
 
 .profile-card {
   background: #F3EADD;
-  border: 3rpx solid transparent;
-  border-radius: 18rpx;
+  border: 2rpx solid #E6D8C6;
+  border-radius: 4rpx;
   padding: 28rpx 22rpx 24rpx;
   min-height: 210rpx;
   box-sizing: border-box;
@@ -86,7 +88,7 @@
 .choice-item.selected {
   border-color: #A85732;
   background: #FFF7EF;
-  box-shadow: 0 4rpx 18rpx rgba(196, 132, 90, 0.16);
+  box-shadow: inset 6rpx 0 0 #A85732;
 }
 
 .card-check,
@@ -95,7 +97,7 @@
   height: 42rpx;
   background: #A85732;
   color: #F8F3EA;
-  border-radius: 50%;
+  border-radius: 2rpx;
   font-size: 24rpx;
   font-weight: 700;
   display: flex;
@@ -149,7 +151,8 @@
 
 .intent-input-wrap {
   background: #F3EADD;
-  border-radius: 16rpx;
+  border: 2rpx solid #E6D8C6;
+  border-radius: 4rpx;
   padding: 20rpx 24rpx;
   margin-bottom: 18rpx;
 }
@@ -169,7 +172,7 @@
 .persona-preview {
   background: #FFF7EF;
   border-left: 5rpx solid #A85732;
-  border-radius: 0 12rpx 12rpx 0;
+  border-radius: 0;
   padding: 16rpx 20rpx;
 }
 
@@ -189,8 +192,8 @@
   display: flex;
   align-items: center;
   background: #F3EADD;
-  border: 3rpx solid transparent;
-  border-radius: 18rpx;
+  border: 2rpx solid #E6D8C6;
+  border-radius: 4rpx;
   padding: 22rpx 22rpx;
   min-height: 96rpx;
   box-sizing: border-box;
@@ -229,6 +232,9 @@
 }
 
 .text-action {
+  min-height: 88rpx;
+  display: flex;
+  align-items: center;
   font-size: 26rpx;
   color: #9B6F4D;
 }

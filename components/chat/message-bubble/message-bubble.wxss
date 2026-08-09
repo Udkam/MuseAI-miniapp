@@ -16,19 +16,19 @@
 .bubble {
   max-width: 78%;
   padding: 24rpx 30rpx;
-  border-radius: 24rpx;
+  border-radius: 2rpx;
   position: relative;
   user-select: text;
 }
 
 .bubble.user {
   background: #3F2A1D;
-  border-bottom-right-radius: 6rpx;
+  border-right: 6rpx solid #A85732;
 }
 
 .bubble.assistant {
   background: #F3EADD;
-  border-bottom-left-radius: 6rpx;
+  border-left: 4rpx solid #8B5E3C;
 }
 
 .bubble.assistant.error {
@@ -172,6 +172,16 @@
   gap: 12rpx;
 }
 
+.bubble-tts,
+.bubble-copy {
+  min-width: 88rpx;
+  min-height: 88rpx;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: -12rpx 0 -20rpx;
+}
+
 .bubble-copy {
   display: flex;
   justify-content: flex-end;
@@ -183,7 +193,7 @@
   color: #9A7458;
   background: #FFF9F1;
   border: 2rpx solid #EAD9C9;
-  border-radius: 100rpx;
+  border-radius: 2rpx;
   padding: 4rpx 18rpx;
 }
 

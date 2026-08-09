@@ -44,17 +44,25 @@
           bindtap="selectHall"
           data-hall="{{item}}"
         >
-          <view class="hall-order">{{item.order}}</view>
           <view class="hall-icon-wrap">
-            <image wx:if="{{item.iconSrc}}" class="hall-icon-img" src="{{item.iconSrc}}" mode="aspectFit"></image>
+            <image
+              wx:if="{{item.iconSrc}}"
+              class="hall-icon-img"
+              src="{{item.iconSrc}}"
+              mode="aspectFit"
+              data-index="{{index}}"
+              binderror="onHallIconError"
+            ></image>
             <text wx:else class="hall-icon">{{item.icon}}</text>
           </view>
           <view class="hall-info">
             <text class="hall-name">{{item.name}}</text>
-            <text class="hall-desc text-muted">{{item.desc}}</text>
+            <text class="hall-desc text-muted">{{item.cardDesc}}</text>
           </view>
-          <text wx:if="{{item.isVisited}}" class="hall-visited-badge">已浏览</text>
-          <text class="hall-arrow text-clay">›</text>
+          <view class="hall-trailing">
+            <text wx:if="{{item.isVisited}}" class="hall-visited-badge">已访问</text>
+            <text class="hall-arrow text-clay">›</text>
+          </view>
         </view>
       </view>
 
