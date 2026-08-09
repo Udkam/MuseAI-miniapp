@@ -15,6 +15,7 @@ const storage = require('./storage')
 
 const RETRY_DELAYS_MS = [0, 300, 900]
 var _inFlight = null
+var _inFlightRecord = null
 
 function _compactPatch(patch) {
   var source = patch || {}
@@ -98,13 +99,14 @@ function _wait(ms) {
   return new Promise(function (resolve) { setTimeout(resolve, ms) })
 }
 
-function _attemptFlush(maxAttempts) {
+function _attemptFlush(maxAttempts, flightRecord) {
   var attempts = Math.max(1, Math.min(Number(maxAttempts) || RETRY_DELAYS_MS.length, RETRY_DELAYS_MS.length))
   var recoveredSession = false
 
   function attempt(index) {
     var state = tourStore.getTourState()
     var patch = _compactPatch(state.pendingSessionSync)
+    if (flightRecord) flightRecord.patch = patch
     if (!_hasKeys(patch)) return Promise.resolve({ ok: true, status: 204, data: null })
     if (!state.sessionId) {
       return Promise.resolve({ ok: false, status: 0, code: 'SESSION_NOT_READY', queued: true })
@@ -221,19 +223,29 @@ function _attemptFlush(maxAttempts) {
 
 function flushPendingSessionSync(options) {
   if (_inFlight) {
-    return _inFlight.then(function () {
+    var joinedFlight = _inFlightRecord
+    return _inFlight.then(function (result) {
       var state = tourStore.getTourState()
+      var pending = _compactPatch(state.pendingSessionSync)
+      var lastSentPatch = joinedFlight && joinedFlight.patch
+      if ((!result || !result.ok) && _sameValue(pending, lastSentPatch)) {
+        return result || { ok: false, status: 0, queued: true }
+      }
       return _hasKeys(state.pendingSessionSync)
         ? flushPendingSessionSync(options)
         : { ok: true, status: 204, data: null }
     })
   }
-  _inFlight = _attemptFlush(options && options.maxAttempts)
+  var flightRecord = { patch: null }
+  _inFlightRecord = flightRecord
+  _inFlight = _attemptFlush(options && options.maxAttempts, flightRecord)
     .then(function (result) {
       _inFlight = null
+      _inFlightRecord = null
       return result
     }, function (err) {
       _inFlight = null
+      _inFlightRecord = null
       return { ok: false, status: Number(err && err.status) || 0, error: err, queued: true }
     })
   return _inFlight

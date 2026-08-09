@@ -126,6 +126,36 @@ async function run() {
     'persona_id', 'focus_id', 'assumption', 'rhythm_id', 'intent_text', 'preferred_hall_order',
   ], 'questionnaire fixture must match backend TourQuestionnaire')
 
+  tourStore.updateTourState({
+    routePlan: {
+      steps: [{
+        order: 1,
+        hallId: 'basic-exhibition-hall',
+        hallSlug: 'basic-exhibition-hall',
+        name: '基本陈列展厅',
+        short: '基本',
+        highlights: [],
+        duration: '约 15 分钟',
+        estimatedMinutes: 15,
+        exhibitCount: 6,
+        exhibitCountKnown: true,
+        reason: '认识半坡遗址考古发现',
+        focus: '',
+        status: 'current',
+        isVisited: false,
+        isCurrent: true,
+      }],
+      floorItems: [],
+      totalDesc: '按开放展厅自由参观',
+      personaLabel: '器物研究员',
+      tagline: '',
+      stepsCount: 1,
+      routeSource: 'hall-directory-v2',
+      routeSourceLabel: '开放展厅目录',
+      planSummary: '',
+      routeNotice: '',
+    },
+  })
   const resume = tourStore.buildResumeState()
   assertExactKeys(resume, [
     'status', 'interest_type', 'persona', 'persona_id', 'assumption', 'questionnaire',
@@ -137,6 +167,11 @@ async function run() {
     'assumption_text', 'guide_mode_id', 'guide_mode_title', 'guide_mode_prompt',
     'style_preferences', 'tts_preferences',
   ], 'resume fixture must match backend TourResumeState')
+  assertExactKeys(resume.route_plan.steps[0], [
+    'order', 'hallId', 'hallSlug', 'name', 'short', 'highlights', 'duration',
+    'estimatedMinutes', 'exhibitCount', 'exhibitCountKnown', 'reason', 'focus',
+    'status', 'isVisited', 'isCurrent',
+  ], 'route step fixture must match backend TourRouteStep')
   assert.strictEqual(resume.focus_prompt, '优先记录可观察证据。')
   assert.strictEqual(resume.guide_mode_prompt, '用对话节奏组织回答。')
 
@@ -310,7 +345,93 @@ async function run() {
   assert.ok(tourStore.getTourState().pendingSessionSync.resume_state, '422 must not silently discard resume_state')
   assert.ok(tourStore.getTourState().pendingSessionSync.hall_chat_history, '422 must not silently discard hall_chat_history')
 
+  // Multiple pages may join the same in-flight snapshot. A non-retryable
+  // schema failure must be returned to every waiter without immediately
+  // replaying the identical invalid PATCH.
+  var resolveJoinedRejection = null
+  var joinedRejectionCalls = 0
+  api.tourApi.updateSession = function () {
+    joinedRejectionCalls++
+    return new Promise(function (resolve) { resolveJoinedRejection = resolve })
+  }
+  tourStore.updateTourState({ pendingSessionSync: null })
+  const joinedFirst = tourSync.queueSessionSnapshot({ current_hall: 'kiln-hall' }, { maxAttempts: 1 })
+  const joinedSecond = tourSync.queueSessionSnapshot({ current_hall: 'kiln-hall' }, { maxAttempts: 1 })
+  const joinedThird = tourSync.queueSessionSnapshot({ current_hall: 'kiln-hall' }, { maxAttempts: 1 })
+  await waitFor(function () { return !!resolveJoinedRejection }, 'joined 422 PATCH')
+  resolveJoinedRejection({ ok: false, status: 422, data: { detail: 'contract mismatch' } })
+  const joinedResults = await Promise.all([joinedFirst, joinedSecond, joinedThird])
+  assert.strictEqual(joinedRejectionCalls, 1, 'concurrent waiters must not amplify one invalid PATCH')
+  assert.ok(joinedResults.every(function (result) { return result.status === 422 }))
+  assert.ok(tourStore.getTourState().pendingSessionSync.resume_state, 'joined 422 must remain queued for a later fixed backend')
+
+  // A joiner must compare against the final patch actually sent by an
+  // internal OCC retry, not the version captured before the 409 refresh.
+  const retryThenRejectPatches = []
+  api.tourApi.updateSession = function (id, patch) {
+    retryThenRejectPatches.push(patch)
+    if (retryThenRejectPatches.length === 1) {
+      return Promise.resolve({ ok: false, status: 409, data: { detail: 'stale version' } })
+    }
+    return Promise.resolve({ ok: false, status: 422, data: { detail: 'contract mismatch' } })
+  }
+  api.tourApi.getSession = function () {
+    return Promise.resolve({ ok: true, status: 200, data: { state_version: 2 } })
+  }
+  tourStore.updateTourState({ serverStateVersion: 1, pendingSessionSync: null })
+  const retryThenRejectFirst = tourSync.queueSessionSnapshot({ current_hall: 'kiln-hall' }, { maxAttempts: 3 })
+  const retryThenRejectJoined = tourSync.queueSessionSnapshot({ current_hall: 'kiln-hall' }, { maxAttempts: 3 })
+  const retryThenRejectResults = await Promise.all([retryThenRejectFirst, retryThenRejectJoined])
+  assert.strictEqual(retryThenRejectPatches.length, 2, '409 refresh followed by 422 must not replay the final patch')
+  assert.deepStrictEqual(
+    retryThenRejectPatches.map(function (patch) { return patch.expected_state_version }),
+    [1, 2]
+  )
+  assert.ok(retryThenRejectResults.every(function (result) { return result.status === 422 }))
+  assert.strictEqual(tourStore.getTourState().pendingSessionSync.expected_state_version, 2)
+
+  // If a genuinely newer patch arrives while the first request is in flight,
+  // the newer state must still flush after the older request fails.
+  var resolveChangedRejection = null
+  const changedPatches = []
+  api.tourApi.updateSession = function (id, patch) {
+    changedPatches.push(patch)
+    if (changedPatches.length === 1) {
+      return new Promise(function (resolve) { resolveChangedRejection = resolve })
+    }
+    return Promise.resolve({ ok: true, status: 200, data: { state_version: 21 } })
+  }
+  tourStore.updateTourState({ currentHall: 'basic-exhibition-hall', pendingSessionSync: null })
+  const changedFirst = tourSync.queueSessionSnapshot(
+    { current_hall: 'basic-exhibition-hall' },
+    { maxAttempts: 1 }
+  )
+  await waitFor(function () { return !!resolveChangedRejection }, 'changed-state first PATCH')
+  tourStore.updateTourState({ currentHall: 'kiln-hall' })
+  const changedSecond = tourSync.queueSessionSnapshot({ current_hall: 'kiln-hall' }, { maxAttempts: 1 })
+  assert.strictEqual(tourStore.getTourState().pendingSessionSync.current_hall, 'kiln-hall')
+  resolveChangedRejection({ ok: false, status: 422, data: { detail: 'old snapshot rejected' } })
+  const changedResults = await Promise.all([changedFirst, changedSecond])
+  assert.strictEqual(changedResults[0].status, 422)
+  assert.strictEqual(changedResults[1].ok, true)
+  assert.strictEqual(changedPatches.length, 2, 'a newer snapshot must still flush after an older failure')
+  assert.strictEqual(
+    changedPatches[1].current_hall,
+    'kiln-hall',
+    JSON.stringify(changedPatches.map(function (patch) {
+      return { current_hall: patch.current_hall, resume_hall: patch.resume_state.current_hall }
+    }))
+  )
+  assert.strictEqual(tourStore.getTourState().pendingSessionSync, null)
+
   // A stale GET snapshot must not overwrite fields that are still pending locally.
+  tourStore.updateTourState({
+    currentHall: 'kiln-hall',
+    pendingSessionSync: {
+      current_hall: 'kiln-hall',
+      resume_state: tourStore.buildResumeState(),
+    },
+  })
   tourStore.applyServerResumeState({
     state_version: 20,
     current_hall: 'basic-exhibition-hall',
