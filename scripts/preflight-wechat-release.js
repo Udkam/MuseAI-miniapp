@@ -9,11 +9,62 @@ const API_BASE = API_ORIGIN + '/api/v1'
 const LOCAL_API_BASE = 'http://127.0.0.1:8000/api/v1'
 const PUBLIC_DEV_API_BASE = 'http://122.152.232.190:3000/api/v1'
 
+const REQUIRED_PACK_IGNORES = [
+  ['folder', 'node_modules'],
+  ['folder', '.git'],
+  ['folder', 'docs'],
+  ['folder', 'scripts'],
+  ['folder', 'dist'],
+  ['folder', 'miniprogram_npm'],
+  ['file', 'README.md'],
+  ['file', 'README_EN.md'],
+  ['file', 'AGENTS.md'],
+  ['file', '.gitignore'],
+  ['file', 'package.json'],
+  ['file', 'package-lock.json'],
+  ['file', 'project.config.json'],
+  ['file', 'project.private.config.json'],
+  ['file', '.DS_Store'],
+]
+
+const RUNTIME_PACKAGE_ENTRIES = new Set([
+  'api',
+  'assets',
+  'components',
+  'constants',
+  'pages',
+  'store',
+  'styles',
+  'utils',
+  'app.js',
+  'app.json',
+  'app.wxss',
+  'sitemap.json',
+])
+
+const REQUIRED_RUNTIME_ENTRIES = [
+  'app.js',
+  'app.json',
+  'app.wxss',
+  'pages',
+]
+
+const RUNTIME_FILE_EXTENSIONS = new Set([
+  '.js',
+  '.json',
+  '.png',
+  '.svg',
+  '.wxml',
+  '.wxss',
+])
+
 const CODE_SCAN_ROOTS = [
   'api',
+  'assets',
   'utils',
   'pages',
   'store',
+  'styles',
   'constants',
   'components',
 ]
@@ -21,6 +72,7 @@ const CODE_SCAN_ROOTS = [
 const EXTRA_SCAN_FILES = [
   'app.js',
   'app.json',
+  'app.wxss',
   'project.config.json',
   'sitemap.json',
 ]
@@ -85,6 +137,99 @@ function rel(file) {
 
 function read(relPath) {
   return fs.readFileSync(path.join(ROOT, relPath), 'utf8')
+}
+
+function walkPackageFiles(dir, out, invalid, ignoreKeys) {
+  if (!fs.existsSync(dir)) return out
+  fs.readdirSync(dir, { withFileTypes: true }).forEach(function (entry) {
+    const full = path.join(dir, entry.name)
+    const relative = rel(full)
+    if (entry.isDirectory()) {
+      if (ignoreKeys.has('folder:' + relative)) return
+      walkPackageFiles(full, out, invalid, ignoreKeys)
+    } else if (entry.isFile()) {
+      if (ignoreKeys.has('file:' + relative)) return
+      if (!RUNTIME_FILE_EXTENSIONS.has(path.extname(entry.name).toLowerCase())) {
+        invalid.push(relative)
+        return
+      }
+      out.push(full)
+    } else {
+      invalid.push(relative + ' (unsupported file type)')
+    }
+  })
+  return out
+}
+
+function checkPackageBoundary() {
+  const config = JSON.parse(read('project.config.json'))
+  const ignores = config.packOptions && Array.isArray(config.packOptions.ignore)
+    ? config.packOptions.ignore
+    : []
+  failWithList(
+    'Release preflight failed: source map upload must stay disabled for the tightened experience package.',
+    config.setting && config.setting.uploadWithSourceMap === false
+      ? []
+      : ['setting.uploadWithSourceMap must be false']
+  )
+  const ignoreKeys = new Set(ignores.map(function (item) {
+    return String(item.type || '') + ':' + String(item.value || '').replace(/\\/g, '/')
+  }))
+  const requiredIgnoreKeys = new Set(REQUIRED_PACK_IGNORES
+    .map(function (item) { return item[0] + ':' + item[1] }))
+  const missing = Array.from(requiredIgnoreKeys)
+    .filter(function (key) { return !ignoreKeys.has(key) })
+  failWithList('Release preflight failed: project.config.json is missing required upload exclusions.', missing)
+
+  const unreviewedIgnores = Array.from(ignoreKeys)
+    .filter(function (key) { return !requiredIgnoreKeys.has(key) })
+  failWithList('Release preflight failed: project.config.json contains an unreviewed upload exclusion.', unreviewedIgnores)
+
+  const rootEntries = fs.readdirSync(ROOT, { withFileTypes: true })
+  const unexpected = rootEntries
+    .filter(function (entry) {
+      const actualType = entry.isDirectory() ? 'folder' : entry.isFile() ? 'file' : 'other'
+      return !ignoreKeys.has(actualType + ':' + entry.name) && !RUNTIME_PACKAGE_ENTRIES.has(entry.name)
+    })
+    .map(function (entry) { return entry.name })
+  failWithList('Release preflight failed: unclassified top-level entry would enter the upload package.', unexpected)
+
+  const unsupportedRuntimeEntries = rootEntries
+    .filter(function (entry) {
+      return RUNTIME_PACKAGE_ENTRIES.has(entry.name) && !entry.isDirectory() && !entry.isFile()
+    })
+    .map(function (entry) { return entry.name + ' (unsupported file type)' })
+  failWithList('Release preflight failed: runtime package entry must be a regular file or directory.', unsupportedRuntimeEntries)
+
+  const excludedRuntimeEntries = ignores
+    .filter(function (item) {
+      const value = String(item.value || '').replace(/\\/g, '/')
+      return value.indexOf('/') < 0 && RUNTIME_PACKAGE_ENTRIES.has(value)
+    })
+    .map(function (item) { return String(item.type || '') + ':' + String(item.value || '') })
+  failWithList('Release preflight failed: required runtime entry is excluded from the upload package.', excludedRuntimeEntries)
+
+  const missingRuntimeEntries = REQUIRED_RUNTIME_ENTRIES
+    .filter(function (entry) { return !fs.existsSync(path.join(ROOT, entry)) })
+  failWithList('Release preflight failed: required runtime entry is missing.', missingRuntimeEntries)
+
+  const packageFiles = []
+  const invalidPackageFiles = []
+  RUNTIME_PACKAGE_ENTRIES.forEach(function (entry) {
+    const full = path.join(ROOT, entry)
+    if (!fs.existsSync(full)) return
+    const stat = fs.lstatSync(full)
+    if (stat.isDirectory()) walkPackageFiles(full, packageFiles, invalidPackageFiles, ignoreKeys)
+    else if (stat.isFile()) {
+      if (!RUNTIME_FILE_EXTENSIONS.has(path.extname(entry).toLowerCase())) invalidPackageFiles.push(entry)
+      else packageFiles.push(full)
+    }
+  })
+  failWithList('Release preflight failed: unsupported file would enter a runtime package directory.', invalidPackageFiles)
+  const byteSize = packageFiles.reduce(function (total, file) {
+    return total + fs.statSync(file).size
+  }, 0)
+  return { fileCount: packageFiles.length, byteSize: byteSize }
 }
 
 function collectScanFiles() {
@@ -407,6 +552,8 @@ function warnPrivateConfig() {
 }
 
 function main() {
+  const packageBoundary = checkPackageBoundary()
+  if (process.exitCode) process.exit(process.exitCode)
   const files = collectScanFiles()
   const activeApiBase = checkApiBase()
   checkHardcodedEndpoints(files)
@@ -422,7 +569,14 @@ function main() {
   checkSyntax()
   warnPrivateConfig()
   if (process.exitCode) process.exit(process.exitCode)
-  console.log('wechat release preflight passed:', files.length, 'package files checked; active API base =', activeApiBase)
+  console.log(
+    'wechat release preflight passed:',
+    files.length,
+    'source files checked; upload package boundary =',
+    packageBoundary.fileCount + ' files / ' + Math.ceil(packageBoundary.byteSize / 1024) + ' KiB;',
+    'active API base =',
+    activeApiBase
+  )
 }
 
 main()

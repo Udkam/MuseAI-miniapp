@@ -20,8 +20,8 @@ Remaining blockers:
 
 - The current data is not the final official museum dataset.
 - OCR service has not been purchased or configured; if OCR is not launched, hide the entry or keep text-search fallback.
-- The Qwen LLM key currently consumes free or trial quota; quota, billing, and limits must be confirmed before release.
-- systemd hosting, log rotation, and PostgreSQL backups are not yet applied on the server (see `backend/deploy/`).
+- Third-party model credentials, quota, billing, rate limits, and alerts are maintained only in private operations records; this README does not publish provider-specific values.
+- The backend is systemd-managed, application log retention is active, and the PostgreSQL backup timer has been restore-tested.
 - Experience-version upload, tester distribution, and official acceptance with legal-domain checks enabled are not complete.
 
 ## Implemented Capabilities
@@ -171,7 +171,7 @@ Current TTS is a manual playback MVP:
 - auto-play is disabled by default;
 - only one message plays at a time;
 - audio context is stopped and destroyed when leaving the tour page;
-- the default voice should remain "冰糖" across frontend and backend.
+- the concrete TTS provider and voice are controlled by private backend configuration and are not hardcoded in the frontend.
 
 Still requires real-device verification:
 
@@ -232,6 +232,10 @@ node --check pages/exhibit-scan/exhibit-scan.js
 node --check pages/exhibit-detail/exhibit-detail.js
 ```
 
+`test:preflight` checks runtime code for non-allowlisted development endpoints, `localhost`, `:3000`, obvious secret patterns, and JavaScript syntax errors. It also validates the local `project.config.json`: only `app.*` and required API, asset, component, constant, page, state, style, and utility entries may enter the upload package. Runtime directories only accept the currently reviewed `.js`, `.json`, `.wxml`, `.wxss`, `.png`, and `.svg` extensions; other file types and symbolic links block release. README files, collaboration documents, test scripts, npm/Git files, and local project configuration must be explicitly excluded. The check does not read or modify a real `.env`, and it never prints the AppID.
+
+`project.config.json` is not committed because it contains local project identity. Every developer who uploads a build must preserve the reviewed `packOptions.ignore` entries exactly and keep `uploadWithSourceMap=false`. Missing entries, additional unreviewed rules, or re-enabling source-map upload make the release preflight exit with a non-zero status; a boundary change must first update and review the preflight code. This prevents unrelated files and source maps from being uploaded, as well as incomplete packages caused by accidentally excluding a page.
+
 ## Real-Device Test Focus
 
 - iOS input bar and keyboard overlap.
@@ -250,7 +254,7 @@ node --check pages/exhibit-detail/exhibit-detail.js
 - If using a mainland China server and custom domain, formal WeChat mini-program release usually requires filing and legal-domain configuration.
 - Current server resource budget is 2 CPU cores / 8 GB RAM. Real-device testing should watch streaming answer latency, TTS waits, and report fallback behavior under weak networks.
 - The frontend now points to `https://api.banpo-museai.xyz/api/v1`, and real-device testing has passed with the DevTools legal-domain exemption disabled. Run a full regression again before experience-version upload.
-- Current Qwen LLM calls consume free or trial quota. Before experience-version testing, confirm quota, billing, rate limits, and bill alerts in the provider console.
+- Third-party model quota, billing, rate limits, and bill alerts must be confirmed in private operations records; this README does not expose a concrete provider or credential state.
 - Current data is not the final official museum dataset. After replacing real data, revalidate hall filtering, exhibit stats, OCR search, and report summaries.
 - Any exposed AppSecret or API key must be rotated.
 - Privacy policy, user agreement, camera permission notice, and AI-generated-content notice should be ready before release.
