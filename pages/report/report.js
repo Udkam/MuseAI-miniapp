@@ -71,66 +71,6 @@ function buildStats(data) {
   }
 }
 
-var LOW_VALUE_GUIDANCE_PATTERN = /有效互动较少|暂时不生成|无法生成|暂无(?:足够)?(?:互动|信息|内容)|信息不足|测试数据|真实数据|数据接入|后续上线|接口|后端|前端/i
-
-function meaningfulGuidanceText(value) {
-  var text = cleanText(value)
-  if (!text || LOW_VALUE_GUIDANCE_PATTERN.test(text)) return ''
-  return text
-}
-
-var GUIDANCE_MAX_LENGTH = 30
-
-function finishGuidanceText(value) {
-  var text = cleanText(value).replace(/[，,：:、；;\s]+$/, '')
-  if (!text) return ''
-  if (/[。！？!?]$/.test(text)) return text
-  return text.length < GUIDANCE_MAX_LENGTH ? text + '。' : text
-}
-
-// Keep one complete, concrete action. Old multi-card prose is rejected instead
-// of being clipped into a vague fragment such as "围绕这个问题".
-function compactGuidanceSuggestion(value) {
-  var text = meaningfulGuidanceText(value)
-  if (!text) return ''
-  if (text.length <= GUIDANCE_MAX_LENGTH) return finishGuidanceText(text)
-  return ''
-}
-
-function buildGuidanceFallback(data) {
-  var payload = data || {}
-  var questionCount = Math.max(0, Number(payload.total_questions || 0))
-  var exhibitCount = Math.max(0, Number(payload.total_exhibits_viewed || 0))
-  var suggestion = ''
-  if (exhibitCount === 0) {
-    suggestion = '先选一件展品，观察材质、纹样或使用痕迹。'
-  } else if (questionCount === 0) {
-    suggestion = '回到最感兴趣的展品前，从一个可见细节开始提问。'
-  } else {
-    suggestion = '把最感兴趣的一次回答与展品细节对照核实。'
-  }
-  return { title: '下一步怎么看', suggestion: suggestion }
-}
-
-function normalizeExplorationGuidance(data) {
-  var payload = data || {}
-  var raw = payload.exploration_guidance
-  if (!raw || typeof raw !== 'object') return buildGuidanceFallback(payload)
-
-  var candidates = [raw.next_step || raw.nextStep]
-  ;(Array.isArray(raw.actions) ? raw.actions : []).slice(0, 3).forEach(function (action) {
-    if (!action || typeof action !== 'object') return
-    candidates.push(action.description || action.summary)
-    candidates.push(action.question)
-  })
-  candidates.push(raw.summary)
-  for (var i = 0; i < candidates.length; i++) {
-    var suggestion = compactGuidanceSuggestion(candidates[i])
-    if (suggestion) return { title: '下一步怎么看', suggestion: suggestion }
-  }
-  return buildGuidanceFallback(payload)
-}
-
 function buildHighlights(data) {
   return Array.isArray(data && data.highlights)
     ? data.highlights
@@ -140,6 +80,34 @@ function buildHighlights(data) {
       })
       .slice(0, 4)
     : []
+}
+
+function buildSaveableReportText(data) {
+  var model = data || {}
+  var lines = [cleanText(model.reportTitle) || '半坡游览报告']
+  var persona = cleanText(model.persona)
+  if (persona) lines.push('观察身份：' + persona)
+
+  var stats = model.stats || {}
+  var statParts = [
+    '展品 ' + cleanText(stats.exhibits || '0') + ' 件',
+    '问题 ' + cleanText(stats.messages || '0') + ' 个',
+    '时长 ' + cleanText(stats.duration || '-'),
+  ]
+  lines.push(statParts.join(' · '))
+
+  var notes = Array.isArray(model.recordNotes) ? model.recordNotes : []
+  var summary = notes.length ? cleanText(notes[0] && notes[0].point) : ''
+  if (!summary) {
+    var highlights = Array.isArray(model.highlights) ? model.highlights : []
+    summary = highlights.map(cleanText).filter(Boolean).join('；')
+  }
+  if (summary) {
+    lines.push('')
+    lines.push('记录摘要：')
+    lines.push(summary)
+  }
+  return lines.join('\n')
 }
 
 Page({
@@ -159,7 +127,7 @@ Page({
       duration: '-',
     },
 
-    explorationGuidance: null,
+    canSaveReport: false,
     dataNotice: '',
     highlights: [],
     recordNotes: [],
@@ -284,7 +252,7 @@ Page({
       reportTitle: title,
       persona: tourStore.getPersonaLabel() || this.data.persona || '',
       stats: buildStats(payload),
-      explorationGuidance: normalizeExplorationGuidance(payload),
+      canSaveReport: true,
       dataNotice: notice || '',
       highlights: buildHighlights(payload),
       recordNotes: normalizeBackendRecordNotes(payload),
@@ -310,7 +278,7 @@ Page({
         messages: '0',
         duration: '-',
       },
-      explorationGuidance: null,
+      canSaveReport: false,
       highlights: [],
       recordNotes: [],
     })
@@ -325,6 +293,23 @@ Page({
 
   continueExploring: function () {
     wx.redirectTo({ url: '/pages/hall/hall' })
+  },
+
+  _buildSaveableReportText: buildSaveableReportText,
+
+  saveReportNote: function () {
+    if (!this.data.canSaveReport) return
+    var text = buildSaveableReportText(this.data)
+    if (!text) return
+    wx.setClipboardData({
+      data: text,
+      success: function () {
+        wx.showToast({ title: '记录已复制', icon: 'success', duration: 1200 })
+      },
+      fail: function () {
+        wx.showToast({ title: '保存失败，请重试', icon: 'none', duration: 1800 })
+      },
+    })
   },
 
 })

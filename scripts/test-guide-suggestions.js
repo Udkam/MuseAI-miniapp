@@ -14,6 +14,7 @@ global.wx = {
   removeStorageSync: function (key) {
     delete storage[key]
   },
+  setNavigationBarTitle: function () {},
 }
 
 const storageUtil = require('../utils/storage')
@@ -403,8 +404,9 @@ async function verifyTourPageSuggestionBoundary() {
     _suggestionFetchTimer: null,
     _suggestionLoadingSeq: 0,
     _guideSuggestionsSig: '',
-    setData: function (patch) {
+    setData: function (patch, callback) {
       this.data = Object.assign({}, this.data, patch || {})
+      if (callback) callback()
     },
   })
 
@@ -482,6 +484,148 @@ async function verifyTourPageSuggestionBoundary() {
     await new Promise(function (resolve) { originalSetTimeout(resolve, 60) })
     assert.deepStrictEqual(page.data.guideSuggestions, [], 'failed suggestion requests must not retain prior or static suggestions')
     assert.strictEqual(page.data.showSuggestions, false, 'failed suggestion requests must hide the empty suggestion bar')
+
+    // A response owned by the old page context must not repaint after the page
+    // has hidden or switched halls.
+    let resolveOldContext = null
+    api.tourApi.getSuggestions = function () {
+      return new Promise(function (resolve) { resolveOldContext = resolve })
+    }
+    page._pageHallSlug = 'new-special-hall'
+    page.data.currentExhibit = null
+    page._loadSuggestions()
+    await new Promise(function (resolve) { originalSetTimeout(resolve, 20) })
+    assert.ok(resolveOldContext, 'old-context request should be in flight for the ownership test')
+    page._pageHallSlug = 'second-special-hall'
+    tourStore.updateTourState({ currentHall: 'second-special-hall' })
+    page._invalidateSuggestionLoad()
+    resolveOldContext({ ok: true, data: { suggestions: ['旧展品口沿为什么磨损？'] } })
+    await new Promise(function (resolve) { originalSetTimeout(resolve, 20) })
+    assert.deepStrictEqual(page.data.guideSuggestions, [], 'a hidden/old context response must not overwrite the next hall')
+
+    // Both stop states restore suggestions: cached choices reappear without a
+    // network call, while an empty cache schedules exactly one contextual load.
+    const chatStore = require('../store/chat')
+    let loadCalls = 0
+    page._loadSuggestions = function () { loadCalls += 1 }
+    page._syncHallChatAndSummary = function () {}
+    page._scrollToBottomSettled = function () {}
+    page._clearHintTimers = function () {}
+    page._forceFlush = function () {}
+    page._streamText = ''
+    page._chunkBuffer = ''
+    page._suggestionLoadingSeq = 0
+    page._suggestionFetchTimer = null
+    page.data.messages = []
+    page.data.guideSuggestions = [{ id: 'cached', payload: { prompt: '陶盆口沿为什么会磨损？' } }]
+    page.data.showSuggestions = false
+    page.data.isThinking = true
+    page.data.isStreaming = false
+    chatStore.resetChat()
+    chatStore.addUserMessage('请介绍这件陶器')
+    page.stopStream()
+    assert.strictEqual(page.data.showSuggestions, true, 'stopping before the first chunk must restore cached suggestions')
+    assert.strictEqual(loadCalls, 0, 'cached stop recovery must not add a redundant request')
+
+    page.data.messages = []
+    page.data.guideSuggestions = []
+    page.data.showSuggestions = false
+    page.data.isThinking = false
+    page.data.isStreaming = true
+    page._streamText = '已经输出一部分'
+    chatStore.resetChat()
+    chatStore.addUserMessage('继续说明')
+    chatStore.startAssistantMessage()
+    page.stopStream()
+    assert.strictEqual(loadCalls, 1, 'stopping a partial stream with no cache must request suggestions once')
+
+    // Exhibit discussion context and pending detail handoff are both transient
+    // and must be cleared on every real hall leave path.
+    const staleExhibit = {
+      id: 'stale-exhibit',
+      name: '上一件展品',
+      hall: 'second-special-hall',
+    }
+    tourStore.setCurrentExhibit(staleExhibit, 'second-special-hall')
+    tourStore.setPendingDetailExhibit(staleExhibit)
+    page.data.currentExhibit = staleExhibit
+    page._clearCurrentExhibitOnLeave()
+    assert.strictEqual(tourStore.getCurrentExhibit(), null, 'leaving a hall must clear current exhibit focus')
+    assert.strictEqual(tourStore.consumePendingDetailExhibit(), null, 'leaving a hall must drain pending exhibit handoff')
+
+    // Real-device keyboard lift must change flex layout, then scroll only after
+    // the new layout has committed.
+    let settledScrolls = 0
+    page._safeAreaBottom = 20
+    page._keyboardLift = 0
+    page.data.keyboardVisible = false
+    page._scrollToBottomSettled = function () { settledScrolls += 1 }
+    page._applyKeyboardLift(300)
+    assert.strictEqual(page.data.inputPanelStyle, 'margin-bottom:280px;')
+    assert.strictEqual(page.data.messageListStyle, '')
+    assert.strictEqual(page.data.keyboardVisible, true)
+    assert.strictEqual(settledScrolls, 1, 'keyboard layout should settle before the bottom-anchor scroll')
+    page._applyKeyboardLift(0)
+    assert.strictEqual(page.data.inputPanelStyle, '')
+    assert.strictEqual(page.data.keyboardVisible, false)
+
+    // Reproduce the real lifecycle that originally resurrected a stale pending
+    // exhibit during the first onShow after a resume entry.
+    const tourSync = require('../utils/tour-sync')
+    const originalQueueSnapshot = tourSync.queueSessionSnapshot
+    tourSync.queueSessionSnapshot = function () { return Promise.resolve({ ok: true }) }
+    function lifecyclePage() {
+      return Object.assign({}, tourPageConfig, {
+        data: JSON.parse(JSON.stringify(tourPageConfig.data || {})),
+        _suggestionSeq: 0,
+        _suggestionShowTimer: null,
+        _suggestionFetchTimer: null,
+        _suggestionLoadingSeq: 0,
+        setData: function (patch, callback) {
+          this.data = Object.assign({}, this.data, patch || {})
+          if (callback) callback()
+        },
+        _initCustomTopbar: function () {},
+        _initSafeArea: function () {},
+        _deferPostEnterWork: function () {},
+        _preloadNext: function () {},
+        _scrollToBottomAfterRestore: function () {},
+        _loadSuggestions: function () {},
+      })
+    }
+    try {
+      tourStore.updateTourState({
+        currentHall: 'second-special-hall',
+        currentHallName: '第二专题厅',
+      })
+      tourStore.setCurrentExhibit(staleExhibit, 'second-special-hall')
+      tourStore.setPendingDetailExhibit(staleExhibit)
+      const resumedHallPage = lifecyclePage()
+      resumedHallPage.onLoad({
+        hall: 'second-special-hall',
+        hallName: encodeURIComponent('第二专题厅'),
+        resume: '1',
+      })
+      assert.strictEqual(resumedHallPage.data.currentExhibit, null, 'resume entry must not restore the previous exhibit focus')
+      assert.strictEqual(tourStore.consumePendingDetailExhibit(), null, 'normal/resume onLoad must drain stale pending detail data')
+      resumedHallPage.onShow()
+      assert.strictEqual(resumedHallPage.data.currentExhibit, null, 'first onShow must not resurrect the stale exhibit')
+
+      tourStore.setCurrentExhibit(staleExhibit, 'second-special-hall')
+      tourStore.setPendingDetailExhibit(staleExhibit)
+      const explicitDetailPage = lifecyclePage()
+      explicitDetailPage.onLoad({
+        hall: 'second-special-hall',
+        hallName: encodeURIComponent('第二专题厅'),
+        directFromDetail: '1',
+        exhibit: encodeURIComponent('上一件展品'),
+      })
+      assert.strictEqual(explicitDetailPage.data.currentExhibit.name, '上一件展品', 'explicit detail return must preserve its exhibit context')
+      explicitDetailPage.onShow()
+      assert.strictEqual(explicitDetailPage.data.currentExhibit.name, '上一件展品')
+    } finally {
+      tourSync.queueSessionSnapshot = originalQueueSnapshot
+    }
   } finally {
     api.tourApi.getSuggestions = originalGetSuggestions
     api.tourApi.createSession = originalCreateSession

@@ -280,6 +280,7 @@ Page({
   _pageLocalTourId: null,
   _pageOwnedChatSig: '',
   _renderedHallSlug: null,
+  _exhibitContextActive: false,
 
   // ── Lifecycle ─────────────────────────────────────────────────────────────
 
@@ -289,13 +290,22 @@ Page({
     var state   = tourStore.getTourState()
     tourStore.markCurrentPage('pages/tour/tour', options || null)
     var fromExhibitDetail = !!(options && (options.directFromDetail === '1' || options.exhibit))
+    this._exhibitContextActive = fromExhibitDetail
     var exhibit = fromExhibitDetail ? (state.currentExhibit || null) : null
     var exhibitNameFromQuery = options && options.exhibit ? decodeURIComponent(options.exhibit) : ''
     var ttsPrefs = tourStore.getTtsPrefs()
     var pendingDeepDiveExhibit = options && options.directFromDetail === '1' && tourStore.consumePendingDetailExhibit
       ? tourStore.consumePendingDetailExhibit(exhibitNameFromQuery)
       : null
-    if (pendingDeepDiveExhibit) exhibit = pendingDeepDiveExhibit
+    if (pendingDeepDiveExhibit) {
+      exhibit = pendingDeepDiveExhibit
+      this._exhibitContextActive = true
+    } else if (!fromExhibitDetail && tourStore.consumePendingDetailExhibit) {
+      // A pending detail payload is page-navigation handoff data, not durable
+      // hall state. Drain leftovers on every normal/resume hall entry so onShow
+      // cannot resurrect the previous exhibit discussion.
+      tourStore.consumePendingDetailExhibit()
+    }
     if (!this._ttsAudioCache) this._ttsAudioCache = {}
     this._initCustomTopbar()
     this._initSafeArea()
@@ -341,7 +351,7 @@ Page({
     this._pageLocalTourId = state.localTourId || null
     this._renderedHallSlug = hallSlug
 
-    if (freshEntry) {
+    if (!fromExhibitDetail) {
       if (tourStore.clearCurrentExhibit) {
         tourStore.clearCurrentExhibit()
       }
@@ -520,6 +530,7 @@ Page({
       ? tourStore.consumePendingDetailExhibit()
       : null
     if (pendingDeepDiveExhibit) {
+      this._exhibitContextActive = true
       var pendingHall = pendingDeepDiveExhibit.hall ? banpoHalls.normalizeHallToSlug(pendingDeepDiveExhibit.hall) : hallSlug
       if (pendingHall) {
         hallSlug = pendingHall
@@ -539,7 +550,13 @@ Page({
       var stateExhibitHall = stateExhibit.hall ? banpoHalls.normalizeHallToSlug(stateExhibit.hall) : hallSlug
       if (stateExhibitHall && stateExhibitHall !== hallSlug) stateExhibit = null
     }
-    var nextExhibit = pendingDeepDiveExhibit || stateExhibit || null
+    var nextExhibit = this._exhibitContextActive
+      ? (pendingDeepDiveExhibit || stateExhibit || this.data.currentExhibit || null)
+      : null
+    if (!this._exhibitContextActive && state.currentExhibit && tourStore.clearCurrentExhibit) {
+      tourStore.clearCurrentExhibit()
+      state = tourStore.getTourState()
+    }
     var nextSessionId = state.sessionId || null
     var nextTtsEnabled = ttsPrefs.enabled !== false
     var shouldScrollToBottom = false
@@ -592,10 +609,12 @@ Page({
 
   onHide: function () {
     this._syncHallChatAndSummary()
+    this._invalidateSuggestionLoad()
   },
 
   onUnload: function () {
     this._syncHallChatAndSummary()
+    this._clearCurrentExhibitOnLeave()
     this._clearHintTimers()
     this._clearFlushTimer()
     this._clearScrollPulseTimers()
@@ -745,6 +764,7 @@ Page({
   },
 
   _applyKeyboardLift: function (height) {
+    var self = this
     var h = Math.max(0, Number(height) || 0)
     // True-device keyboard height already includes the visible keyboard area.
     // Keep only the input bar above the keyboard; hide suggestions while typing
@@ -752,18 +772,18 @@ Page({
     var lift = h ? Math.max(0, h - (this._safeAreaBottom || 0)) : 0
     if (this._keyboardLift === lift && this.data.keyboardVisible === !!lift) return
     this._keyboardLift = lift
-    var inputStyle = lift ? ('transform: translate3d(0,-' + lift + 'px,0);') : ''
-    // The input bar is translated above the keyboard, but the message list should
-    // reserve only the bar itself. Reserving keyboard height again creates a large
-    // blank area and pushes the last AI bubble too far up on real devices.
-    var messageListStyle = lift ? 'padding-bottom:176rpx;' : ''
+    // Keep the input in normal flex flow. A transform only repaints the bar above
+    // the keyboard while leaving the message viewport behind it; margin-bottom
+    // instead shrinks the flexing scroll-view by the exact real-device lift.
+    var inputStyle = lift ? ('margin-bottom:' + lift + 'px;') : ''
     this.setData({
       inputPanelStyle: inputStyle,
       suggestionsPanelStyle: '',
-      messageListStyle: messageListStyle,
+      messageListStyle: '',
       keyboardVisible: !!lift,
+    }, function () {
+      if (h) self._scrollToBottomSettled()
     })
-    if (h) this._scrollToBottom()
   },
 
   // ── Send message ──────────────────────────────────────────────────────────
@@ -1023,10 +1043,9 @@ Page({
           loadingHint:      '',
           // Re-show suggestion chips after each response so user can tap again
           showSuggestions:  self.data.guideSuggestions.length > 0,
+        }, function () {
+          self._restoreSuggestionsAfterTurn()
         })
-        if (!self._suggestionLoadingSeq && !self._suggestionFetchTimer && !self.data.guideSuggestions.length) {
-          self._loadSuggestions()
-        }
         self._syncHallChatAndSummary()
         if (api.storage && api.storage.touchTourSession) api.storage.touchTourSession()
         tourSync.queueSessionSnapshot({}, { defer: true, maxAttempts: 3 })
@@ -1122,6 +1141,10 @@ Page({
       isStreaming:      false,
       ragSteps:         [],
       loadingHint:      '',
+    }, function () {
+      // A suggestion tap hides the bar before sending. Stopping during either
+      // the thinking phase or the stream must restore the contextual choices.
+      self._restoreSuggestionsAfterTurn()
     })
     self._syncHallChatAndSummary()
     self._scrollToBottomSettled()
@@ -1612,6 +1635,19 @@ Page({
       : (state.currentHall || (hall ? api.hallNameToSlug(hall) : null)))
     hallSlug = hallSlug ? (banpoHalls.normalizeHallToSlug(hallSlug) || hallSlug) : null
     if (!hallSlug) return
+    var exhibitId = exhibit && tourStore.normalizeBackendExhibitId
+      ? tourStore.normalizeBackendExhibitId(exhibit.id)
+      : null
+    var exhibitKey = exhibit
+      ? [String(exhibit.id || ''), String(exhibit.name || ''), String(exhibit.hall || '')].join('|')
+      : ''
+    var owner = {
+      seq: seq,
+      localTourId: state.localTourId || this._pageLocalTourId || null,
+      hallSlug: hallSlug,
+      exhibitKey: exhibitKey,
+    }
+    var requestSessionId = null
 
     self._suggestionFetchTimer = setTimeout(function () {
       self._suggestionFetchTimer = null
@@ -1626,7 +1662,7 @@ Page({
         : tourSession.ensureTourSession()
 
       sessionReady.then(function (sessionResult) {
-        if (seq !== self._suggestionSeq) return null
+        if (!self._isSuggestionOwnerCurrent(owner)) return null
         var ready = tourStore.getTourState()
         if (!sessionResult || !sessionResult.ok || !ready.sessionId) {
           self._applyGuideSuggestions([])
@@ -1635,22 +1671,19 @@ Page({
         if (self.data.sessionId !== ready.sessionId) {
           self.setData({ sessionId: ready.sessionId })
         }
-        var suggestionExhibit = self.data.currentExhibit || null
-        var suggestionExhibitId = suggestionExhibit && tourStore.normalizeBackendExhibitId
-          ? tourStore.normalizeBackendExhibitId(suggestionExhibit.id)
-          : null
+        requestSessionId = ready.sessionId
         return api.tourApi.getSuggestions(ready.sessionId, {
           hallId: hallSlug,
-          exhibitId: suggestionExhibitId,
+          exhibitId: exhibitId,
         }, ready.sessionToken).then(function (res) {
-          if (seq !== self._suggestionSeq) return
+          if (!self._isSuggestionOwnerCurrent(owner, requestSessionId)) return
           var prompts = res && res.ok && res.data && Array.isArray(res.data.suggestions)
             ? res.data.suggestions
             : []
           self._applyGuideSuggestions(tourStore.buildServerGuideSuggestions(prompts))
         })
       }).catch(function (err) {
-        if (seq !== self._suggestionSeq) return
+        if (!self._isSuggestionOwnerCurrent(owner, requestSessionId)) return
         console.warn('[tour] suggestions unavailable', err)
         self._applyGuideSuggestions([])
       }).then(function () {
@@ -1659,6 +1692,34 @@ Page({
         if (self._suggestionLoadingSeq === seq) self._suggestionLoadingSeq = 0
       })
     }, 160)
+  },
+
+  _isSuggestionOwnerCurrent: function (owner, sessionId) {
+    if (!owner || owner.seq !== this._suggestionSeq) return false
+    var state = tourStore.getTourState()
+    if (owner.localTourId && state.localTourId && owner.localTourId !== state.localTourId) return false
+    if (sessionId && state.sessionId !== sessionId) return false
+    var hall = this._pageHallSlug || state.currentHall || ''
+    hall = hall ? (banpoHalls.normalizeHallToSlug(hall) || hall) : ''
+    if (hall !== owner.hallSlug) return false
+    var exhibit = this.data.currentExhibit || null
+    var exhibitKey = exhibit
+      ? [String(exhibit.id || ''), String(exhibit.name || ''), String(exhibit.hall || '')].join('|')
+      : ''
+    return exhibitKey === owner.exhibitKey
+  },
+
+  _invalidateSuggestionLoad: function () {
+    this._suggestionSeq += 1
+    this._suggestionLoadingSeq = 0
+    if (this._suggestionFetchTimer) {
+      clearTimeout(this._suggestionFetchTimer)
+      this._suggestionFetchTimer = null
+    }
+    if (this._suggestionShowTimer) {
+      clearTimeout(this._suggestionShowTimer)
+      this._suggestionShowTimer = null
+    }
   },
 
   _applyGuideSuggestions: function (list) {
@@ -1676,6 +1737,17 @@ Page({
     if (sig === this._guideSuggestionsSig && this.data.showSuggestions === show) return
     this._guideSuggestionsSig = sig
     this.setData({ guideSuggestions: suggestions, showSuggestions: show })
+  },
+
+  _restoreSuggestionsAfterTurn: function () {
+    var suggestions = this.data.guideSuggestions || []
+    if (suggestions.length) {
+      this.setData({ showSuggestions: true })
+      return
+    }
+    if (!this._suggestionLoadingSeq && !this._suggestionFetchTimer) {
+      this._loadSuggestions()
+    }
   },
 
   dismissSuggestions: function () {
@@ -1982,12 +2054,16 @@ Page({
   // ── Exhibit context ───────────────────────────────────────────────────────
 
   _clearCurrentExhibitOnLeave: function () {
-    if (!this.data.currentExhibit && !(tourStore.getTourState().currentExhibit)) return
-    tourStore.clearCurrentExhibit()
+    this._exhibitContextActive = false
+    if (tourStore.clearCurrentExhibit) tourStore.clearCurrentExhibit()
+    if (tourStore.consumePendingDetailExhibit) tourStore.consumePendingDetailExhibit()
+    this._invalidateSuggestionLoad()
   },
 
   clearExhibitContext: function () {
+    this._exhibitContextActive = false
     tourStore.clearCurrentExhibit()
+    if (tourStore.consumePendingDetailExhibit) tourStore.consumePendingDetailExhibit()
     this.setData({ currentExhibit: null })
     this._loadSuggestions()
   },
@@ -1996,6 +2072,8 @@ Page({
 
   goBackFromTour: function () {
     this._syncHallChatAndSummary()
+    this._clearCurrentExhibitOnLeave()
+    tourSync.queueSessionSnapshot({ current_exhibit_id: null }, { defer: true, maxAttempts: 3 })
     var pages = typeof getCurrentPages === 'function' ? getCurrentPages() : []
     for (var i = pages.length - 2; i >= 0; i--) {
       if (pages[i] && pages[i].route === 'pages/hall/hall') {

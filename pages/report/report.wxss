@@ -115,15 +115,23 @@
   margin-top: 4rpx;
 }
 
-.guidance-section {
+.save-record-section {
   margin-bottom: 48rpx;
   padding: 24rpx 26rpx;
   background: #F3EADD;
   border-left: 5rpx solid #A85732;
   box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  gap: 24rpx;
 }
 
-.guidance-title {
+.save-record-copy {
+  flex: 1;
+  min-width: 0;
+}
+
+.save-record-title {
   display: block;
   color: #A85732;
   font-family: 'Songti SC', 'STSong', serif;
@@ -131,12 +139,39 @@
   font-weight: 700;
 }
 
-.guidance-tip {
+.save-record-hint {
   display: block;
+  color: #7C6654;
+  font-size: 22rpx;
+  line-height: 1.5;
+  margin-top: 8rpx;
+}
+
+.save-record-button {
+  width: auto;
+  min-width: 152rpx;
+  min-height: 88rpx;
+  margin: 0;
+  padding: 0 22rpx;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   color: #5A3E2B;
-  font-size: 26rpx;
-  line-height: 1.7;
-  margin-top: 12rpx;
+  background: #FFF9F1;
+  border: 2rpx solid #D8C8B4;
+  border-radius: 2rpx;
+  font-size: 24rpx;
+  font-weight: 600;
+  line-height: 1;
+  box-sizing: border-box;
+}
+
+.save-record-button::after {
+  border: 0;
+}
+
+.save-record-button:active {
+  background: #EFE5D8;
 }
 
 .record-section {

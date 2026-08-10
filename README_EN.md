@@ -39,7 +39,7 @@ Remaining blockers:
 - Hall selection page with always-open halls first and temporary halls near the end.
 - Tour page:
   - SSE streaming AI answers
-  - suggestion bar rendered only from a successful backend response for the current guest session; pending, empty, and failed responses keep it empty
+  - suggestion bar rendered only from a successful backend response owned by the current guest session, hall, and exhibit; leaving a hall clears exhibit focus, and stopping an answer restores the current choices
   - Markdown rendering
   - copyable plain text AI answers
   - manual TTS playback
@@ -57,10 +57,11 @@ Remaining blockers:
   - only trusted backend UUIDs count as viewed museum exhibits; local, mock, and name-only records remain display-only
   - reflection
   - hall-level record summary
+  - save-record action that copies the report title, persona, statistics, and extracted summary as a plain-text visit note instead of showing generic next-step guidance
   - basic stats
 - Mobile adaptation:
   - safe-area handling
-  - keyboard raise handling for the bottom input bar
+  - measured keyboard height participates in flex layout so the raised input bar cannot cover the final answer
   - basic compatibility across screen sizes
 
 ## Not Complete Or Still Needs Release Acceptance
@@ -209,7 +210,7 @@ Visited halls and browsed hall badges are counted from:
 
 Simply entering a hall is not enough. A hall is counted after the user sends at least one message in that hall, or opens any exhibit detail page from that hall. Hall counts are deduped by canonical slug. Question totals count user-sent messages and do not dedupe repeated question text, matching the continue-last-tour AI conversation count. Exhibit views are counted separately and deduped by exhibit. The frontend uses only the nine canonical hall slugs from the Banpo hall contract and converts them to Chinese names for display.
 
-Record summary data comes from hall-level local summaries saved when leaving a hall or opening the report, the current hall's latest local chat, and backend `record_notes`. The page keeps short hall-level notes instead of rendering every question as a separate summary item.
+Record summary data comes from hall-level local summaries saved when leaving a hall or opening the report, the current hall's latest local chat, and backend `record_notes`. The page keeps a concise extracted summary instead of rendering every question separately. The save-record action copies that summary with the title, persona, and statistics; generic `exploration_guidance` remains backend-compatible for older clients but is not rendered by the current page.
 
 ## Common Tests
 
@@ -238,13 +239,13 @@ node --check pages/exhibit-detail/exhibit-detail.js
 
 ## Real-Device Test Focus
 
-- iOS input bar and keyboard overlap.
+- On both iOS and Android, open the keyboard during a long/streaming answer and stop once; the final bubble must remain fully above the input bar.
 - Android bottom action area alignment across resolutions.
-- Suggestion bar should not leak hall/exhibit context.
+- Suggestion bar should not leak hall/exhibit context; leaving and re-entering a hall returns to hall suggestions, and stopping before/after the first chunk restores suggestions.
 - AI answers should copy as plain text.
 - TTS play, stop, switch, and page-leave cleanup.
 - OCR should not run after the user cancels shooting.
-- Report visited halls, exhibit count, question count, reflection, and record summary should match actual events.
+- Report exhibit count, question count, duration, and record summary should match actual events; saving the record should copy the title, persona, statistics, and extracted summary.
   In particular, entering a hall should not count; sending a message should count the question and the hall; opening an exhibit detail page should count the exhibit and the hall; hall and exhibit counts must be deduped, while question count must not dedupe repeated text.
 
 ## Launch Notes

@@ -34,9 +34,12 @@
     </view>
   </view>
 
-  <view wx:if="{{explorationGuidance}}" class="guidance-section">
-    <text class="guidance-title">{{explorationGuidance.title}}</text>
-    <text class="guidance-tip">{{explorationGuidance.suggestion}}</text>
+  <view wx:if="{{canSaveReport}}" class="save-record-section">
+    <view class="save-record-copy">
+      <text class="save-record-title">保存本次记录</text>
+      <text class="save-record-hint">复制为参观笔记，方便稍后回看</text>
+    </view>
+    <button class="save-record-button" bindtap="saveReportNote">复制记录</button>
   </view>
 
   <view wx:if="{{recordNotes.length > 0 || highlights.length > 0}}" class="record-section">

@@ -63,6 +63,10 @@ assert.ok(
     /currentHallFocus:\s*hall\.focus/.test(hallJs),
   'hall selection must retain full Agent context separately from visitor-facing short copy'
 )
+assert.ok(
+  /selectHall:[\s\S]*clearCurrentExhibit[\s\S]*consumePendingDetailExhibit[\s\S]*current_exhibit_id:\s*null/.test(hallJs),
+  'hall-list entry must fail closed against a stale exhibit discussion context'
+)
 
 const routeWxml = read('pages/route/route.wxml')
 assert.ok(!routeWxml.includes('展厅 {{item.order}}'), 'route cards must not repeat 展厅 x beside the numbered rail')
@@ -84,11 +88,11 @@ assert.ok(personaRevealWxml.includes('查看展厅列表'), 'persona reveal CTA 
 const reportWxml = read('pages/report/report.wxml')
 const reportJs = read('pages/report/report.js')
 assert.ok(!reportWxml.includes('次问答'), 'report header must not repeat the question count')
-assert.ok(reportWxml.includes('{{explorationGuidance.suggestion}}'), 'report should render exactly one concise next step')
-assert.strictEqual((reportWxml.match(/explorationGuidance\.suggestion/g) || []).length, 1)
-assert.ok(!reportWxml.includes('section-index') && !reportWxml.includes('guidance-index'), 'report guidance must not render sequence numbers')
-assert.ok(!reportWxml.includes('guidance-action') && !reportWxml.includes('可直接追问'), 'report guidance must not render the old action-card list')
-assert.ok(!reportWxml.includes('复制') && !reportJs.includes('copyGuidanceQuestion'), 'report guidance must not retain clipboard copy UI')
+assert.ok(!reportWxml.includes('下一步怎么看') && !reportJs.includes('normalizeExplorationGuidance'), 'generic next-step guidance must be removed')
+assert.ok(reportWxml.includes('保存本次记录') && reportWxml.includes('bindtap="saveReportNote"'), 'report should expose one useful save-record action')
+assert.ok(reportJs.includes('setClipboardData') && reportJs.includes('记录摘要：'), 'saved report text must include the extracted summary')
+assert.ok(!reportWxml.includes('section-index') && !reportWxml.includes('guidance-index'), 'removed guidance must not leave sequence decoration')
+assert.ok(!reportWxml.includes('guidance-action') && !reportWxml.includes('可直接追问'), 'old action-card guidance must stay removed')
 
 const homeWxml = read('pages/home/home.wxml')
 const homeWxss = read('pages/home/home.wxss')
@@ -146,6 +150,7 @@ const onboardingWxss = read('pages/onboarding/onboarding.wxss')
 const personaWxss = read('pages/persona-reveal/persona-reveal.wxss')
 const routeWxss = read('pages/route/route.wxss')
 const tourWxss = read('pages/tour/tour.wxss')
+const tourJs = read('pages/tour/tour.js')
 const bubbleWxss = read('components/chat/message-bubble/message-bubble.wxss')
 assert.ok(appWxss.includes('min-height: 88rpx'), 'shared actions should retain the simplified minimum tap target')
 assert.ok(!appWxss.includes('.home .btn-primary') && !appWxss.includes('.home .btn-secondary'), 'home-specific entrance geometry must stay out of global button styles')
@@ -161,6 +166,11 @@ assert.ok(cssBlock(routeWxss, '.step-card').includes('border-radius: 2rpx'), 'ro
 assert.ok(cssBlock(routeWxss, '.step-card-upcoming').includes('box-shadow: none'), 'route cards should retain the recovered flat treatment')
 assert.ok(cssBlock(tourWxss, '.rag-bar').includes('border-radius: 2rpx') && cssBlock(tourWxss, '.rag-bar').includes('box-shadow: none'), 'tour status should retain the recovered flat treatment')
 assert.ok(cssBlock(tourWxss, '.input-field').includes('min-height: 88rpx'), 'tour input should retain the 44px tap target')
+assert.ok(cssBlock(tourWxss, '.msg-list').includes('min-height: 0'), 'the message flex item must be allowed to shrink above the real-device keyboard')
+assert.ok(cssBlock(tourWxss, '.input-bar').includes('transition: margin-bottom'), 'keyboard lift should participate in flex layout')
+assert.ok(tourJs.includes("'margin-bottom:' + lift + 'px;'") && !tourJs.includes('padding-bottom:176rpx'), 'keyboard lift must use the measured height instead of a fixed spacer')
+assert.ok(!tourJs.includes("transform: translate3d(0,-' + lift"), 'keyboard lift must not visually overlay the answer list')
+assert.ok(/onUnload:[\s\S]*_clearCurrentExhibitOnLeave/.test(tourJs), 'system-back unload must clear transient exhibit context')
 assert.ok(cssBlock(bubbleWxss, '.bubble').includes('border-radius: 2rpx'), 'chat bubbles should retain the recovered square geometry')
 const routeHeaderStyle = routeWxss.slice(routeWxss.indexOf('.route-header {'), routeWxss.indexOf('.ai-badge {'))
 assert.ok(routeHeaderStyle.includes('background: transparent') && routeHeaderStyle.includes('border: 0'), 'route heading must not be presented as a card')

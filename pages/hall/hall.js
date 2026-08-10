@@ -183,6 +183,10 @@ Page({
     self._entering = true
 
     var hallSlug = hall.backendSlug || banpoHalls.normalizeHallToSlug(hall.name)
+    // Exhibit focus is a transient discussion mode. Every hall-list entry is
+    // explicitly hall-scoped, including resume routes and system-back paths.
+    if (tourStore.clearCurrentExhibit) tourStore.clearCurrentExhibit()
+    if (tourStore.consumePendingDetailExhibit) tourStore.consumePendingDetailExhibit()
     tourStore.updateTourState({
       currentHall: hallSlug,
       currentHallName: hall.name || '',
