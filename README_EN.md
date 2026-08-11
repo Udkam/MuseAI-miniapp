@@ -2,18 +2,18 @@
 
 Chinese version: [README.md](./README.md)
 
-MuseAI frontend is a native WeChat mini-program for the Banpo Museum guide experience. The current delivery goal is to complete the real-device closed loop from onboarding to persona, route, hall guide chat, exhibit recognition/search, TTS playback, and visit report before formal release.
+MuseAI frontend is a native WeChat mini-program for the Banpo Museum guide experience. Its planned real-device flow from onboarding to persona, route, hall chat, exhibit recognition/search, TTS playback, and visit report has passed; the project is now preparing experience and formal releases.
 
 ## Current Stage
 
 The frontend is now in the **launch preparation and release closeout stage**.
 
-The planned mini-program features have completed real-device testing. The project should now focus on filing, real data, OCR decision-making, API-key governance, and release acceptance instead of expanding new features. See [上线准备.md](../project_materials/docs/上线准备.md) for the operational checklist.
+The planned guide flow and the 2026-08-11 report-save, suggestion-context, stop-recovery, and keyboard-layout regressions have passed real-device validation. The current frontend baseline is ready for a new experience build and does not require a backend redeployment. Use the repository-owned [WeChat release and operations runbook](./docs/wechat-release-runbook.md) for experience builds, formal review, post-release observation, and frontend rollback.
 
 HTTPS status should be read in two parts:
 
 - Done: ICP filing for `banpo-museai.xyz` has passed; `api.banpo-museai.xyz` DNS, SSL certificate, and Nginx 443 reverse proxy are configured.
-- Current development state: the mini-program frontend now uses the production HTTPS API `https://api.banpo-museai.xyz/api/v1`; the local backend and old public HTTP development endpoint remain only as commented fallback options.
+- Current development state: the mini-program uses `https://api.banpo-museai.xyz/api/v1`; the loopback endpoint is local-development only, and the old public HTTP endpoint is disabled rather than retained as a release or troubleshooting fallback.
 - Done (WeChat side): the WeChat request legal domain is configured, and real-device testing passed with the DevTools "ignore legal domain" exemption turned off.
 
 Remaining blockers:
@@ -22,7 +22,7 @@ Remaining blockers:
 - OCR service has not been purchased or configured; if OCR is not launched, hide the entry or keep text-search fallback.
 - Third-party model credentials, quota, billing, rate limits, and alerts are maintained only in private operations records; this README does not publish provider-specific values.
 - The backend is systemd-managed, application log retention is active, and the PostgreSQL backup timer has been restore-tested.
-- Experience-version upload, tester distribution, and official acceptance with legal-domain checks enabled are not complete.
+- Experience-version upload and tester distribution are not complete; candidate validation with legal-domain checks enabled has passed.
 
 ## Implemented Capabilities
 
@@ -35,8 +35,8 @@ Remaining blockers:
   - History Inquirer, backend persona `C`
   - Artifact Researcher, backend persona `D`
 - Persona reveal page with guide perspective and route entry.
-- Data-driven route page sourced only from active `/tour/halls` entries, then deterministically ordered by questionnaire persona, hall preferences, and time budget; dynamic hall names are not overwritten by the static canonical list, and a failed catalog request does not inject static route facts.
-- Hall selection page with always-open halls first and temporary halls near the end.
+- Data-driven route page sourced only from active `/tour/halls` entries and kept in backend catalog order. Temporary halls are hidden only when the backend explicitly reports zero exhibits; permanent halls are not filtered by count.
+- Hall selection page in backend catalog order, with dynamic names and concise `short_description/card_description` copy.
 - Tour page:
   - SSE streaming AI answers
   - suggestion bar rendered only from a successful backend response owned by the current guest session, hall, and exhibit; leaving a hall clears exhibit focus, and stopping an answer restores the current choices
@@ -49,13 +49,12 @@ Remaining blockers:
   - fallback to text search when OCR is unavailable
   - matched result can open exhibit detail
   - the real catalog is loaded sequentially in 100-item pages; an authoritative empty catalog stays empty, and production does not expose static mock exhibits
+- Exhibit images support trusted HTTPS URLs and same-origin backend uploads, with one built-in fallback for missing or failed images.
 - Exhibit detail page with follow-up AI discussion.
 - Visit report page:
-  - visited halls counted from browsed hall badges: sending a message in a hall, or opening any exhibit detail page from that hall
   - question stats counted from user-sent messages, without deduplicating repeated question text
   - exhibit stats counted from exhibit detail views, deduped by exhibit
   - only trusted backend UUIDs count as viewed museum exhibits; local, mock, and name-only records remain display-only
-  - reflection
   - hall-level record summary
   - save-record action that copies the report title, persona, statistics, and extracted summary as a plain-text visit note instead of showing generic next-step guidance
   - basic stats
@@ -122,7 +121,8 @@ frontend/
 
 ```bash
 cd frontend
-npm install
+npm ci
+npm run test:all
 ```
 
 Open `frontend/` with WeChat DevTools.
@@ -149,13 +149,7 @@ If the backend is running on this machine, you can temporarily switch to:
 http://127.0.0.1:8000/api/v1
 ```
 
-The old public HTTP development endpoint is only for emergency fallback or historical debugging:
-
-```text
-http://122.152.232.190:3000/api/v1
-```
-
-The HTTPS request flow has passed real-device validation. The public HTTP dev entry should now be closed or restricted on the server.
+The old public HTTP endpoint is disabled. Its address is intentionally omitted and it is not an emergency fallback, release path, or historical troubleshooting path. The HTTPS request flow has passed real-device validation.
 
 The formal endpoint is only release-ready in the official WeChat environment when:
 
@@ -174,11 +168,10 @@ Current TTS is a manual playback MVP:
 - audio context is stopped and destroyed when leaving the tour page;
 - the concrete TTS provider and voice are controlled by private backend configuration and are not hardcoded in the frontend.
 
-Still requires real-device verification:
+The current real-device regression passed manual generation, playback, stop, switching, and page-leave cleanup. Continue sampling the following after TTS configuration changes or broader tester rollout:
 
-- expected voice quality;
-- natural speaking speed;
-- generation timeout behavior;
+- voice and speaking speed in the museum environment;
+- generation timeout behavior under weak networks;
 - segmented playback stability for long answers.
 
 ## OCR Notes
@@ -202,7 +195,7 @@ Needs configuration and validation:
 
 The report page uses backend report fields first and merges local unsynced tour events to reduce gaps caused by page switches or network failure.
 
-Visited halls and browsed hall badges are counted from:
+Internal hall-visit state and hall badges are derived from:
 
 - `exhibit_question`: the user sent a message in a hall.
 - `exhibit_view`: the user opened an exhibit detail page.
@@ -220,6 +213,7 @@ npm run test:markdown
 npm run test:suggestions
 npm run test:hall-chat
 npm run test:report
+npm run test:ui-copy
 npm run test:preflight
 npm run test:all
 node --check api/index.js
@@ -254,7 +248,7 @@ node --check pages/exhibit-detail/exhibit-detail.js
 - Formal release needs a real AppID, developer permissions, upload permissions, and test members.
 - If using a mainland China server and custom domain, formal WeChat mini-program release usually requires filing and legal-domain configuration.
 - Current server resource budget is 2 CPU cores / 8 GB RAM. Real-device testing should watch streaming answer latency, TTS waits, and report fallback behavior under weak networks.
-- The frontend now points to `https://api.banpo-museai.xyz/api/v1`, and real-device testing has passed with the DevTools legal-domain exemption disabled. Run a full regression again before experience-version upload.
+- The frontend points to `https://api.banpo-museai.xyz/api/v1`, and the current candidate passed real-device testing with the DevTools legal-domain exemption disabled. Re-run the repository release runbook after every later change.
 - Third-party model quota, billing, rate limits, and bill alerts must be confirmed in private operations records; this README does not expose a concrete provider or credential state.
 - Current data is not the final official museum dataset. After replacing real data, revalidate hall filtering, exhibit stats, OCR search, and report summaries.
 - Any exposed AppSecret or API key must be rotated.
